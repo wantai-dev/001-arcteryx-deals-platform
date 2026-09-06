@@ -53,28 +53,31 @@ def infer_category(name: str, url: str) -> str:
     u = (url or "").lower()
     n = (name or "").lower()
     hay = u + " " + n
-    if any(x in hay for x in ["snowboard", "splitboard", "powder-board"]): return "滑雪板"
-    if "binding" in hay: return "固定器"
     if "veilance" in hay: return "Veilance商务系列"
+    if "binding" in hay: return "固定器"
+    # Match product types before materials and use word boundaries for short/pant.
+    # This keeps e.g. "short-sleeve" out of pants while still recognizing shorts.
+    if re.search(r"\b(?:pants?|bibs?|shorts|joggers?|leggings?|tights?)\b|\bshort\b(?![- ]sleeve)", hay): return "裤装"
+    if any(x in hay for x in ["shoe", "boot", "footwear", "sandal", "sneaker"]): return "鞋类"
+    if re.search(r"\b(?:hats?|headwear|gloves?|mittens?|mitts?|socks?|buff|toque|beanie|headband|scarf)\b", hay): return "配件"
+    if any(x in hay for x in ["snowboard", "splitboard", "powder-board"]): return "滑雪板"
     if any(x in hay for x in ["shell-jacket", "hardshell", "softshell"]): return "硬壳冲锋衣"
     if any(x in hay for x in ["insulated", "down-jacket", "down-coat", "atom", "cerium", "proton", "nuclei", "thorium", "macai", "andessa", "decca", "therme", "sorin"]): return "保暖夹克"
     # 抓绒/卫衣 — 先于通用 hoodie/jacket 匹配, 因为 hoodie 多数是 fleece/midlayer
     if any(x in hay for x in ["fleece", "polar", "fortrez", "kyanite", "covert", "delta", "rho-", "-rho", "rho ",
                               "hoody", "hoodie", "pullover", "crew", " 1/2 zip", "1-2-zip", "midlayer", "mid-layer",
                               "cardigan", "sweater"]): return "抓绒/摇粒绒"
-    if any(x in hay for x in ["pants", "pant ", "-pant", "/pant", "bibs", "bib-", "bib ", "shorts", "short-",
-                              "jogger", "legging", "tights"]): return "裤装"
-    if any(x in hay for x in ["shoe", "boot", "footwear", "sandal", "sneaker"]): return "鞋类"
-    if any(x in hay for x in ["/pack", "-pack ", "-pack-", "backpack", "tote", "sling", "waistpack",
-                              "hip-pack", "duffel", "/bag", "-bag"]): return "背包"
     if any(x in hay for x in ["base-layer", "baselayer", "phase-", "merino", "rho-lt", "boxer", "brief"]): return "排汗内衣"
+    if any(x in hay for x in ["backpack", "daypack", "hydration-pack", "hydration pack", "waistpack",
+                              "waist-pack", "hip-pack", "duffel", "/bag", "-bag"]): return "背包"
     if any(x in hay for x in ["vest", "gilet"]): return "背心"
     if any(x in hay for x in ["jacket", "anorak", "parka", "-coat", " coat"]): return "夹克/外套"
     if any(x in hay for x in ["blazer"]): return "西装/西服"
-    if any(x in hay for x in ["shirt", "polo", "tee", "top-", "tank", "t-shirt", "/top "]): return "上衣/T恤"
+    if any(x in hay for x in ["shirt", "polo", "tee", "top-", "tank", "t-shirt", "/top ", "short sleeve", "short-sleeve"]): return "上衣/T恤"
     if any(x in hay for x in ["dress", "skirt"]): return "裙装"
-    if any(x in hay for x in ["hat", " cap", "-cap", "headwear", "glove", "mitten", "mitt-", "sock",
-                              "buff", "toque", "beanie", "headband", "scarf"]): return "配件"
+    if re.search(r"\bcaps?\b", hay): return "配件"
+    if any(x in hay for x in ["/pack", "tote", "sling"]): return "背包"
+    if re.search(r"\bpack\b", hay): return "背包"
     return "其他"
 
 # ── Junk color guard ──────────────────────────────────────────────────────────

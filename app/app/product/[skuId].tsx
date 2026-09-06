@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlertModal } from '../../components/AlertModal';
 import { PriceChart } from '../../components/PriceChart';
+import { ProGate } from '../../components/ProGate';
 import { ScreenState } from '../../components/ScreenState';
 import { TopoPlaceholder } from '../../components/TopoPlaceholder';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -15,17 +15,19 @@ import { usePreferences } from '../../contexts/PreferencesContext';
 import { usePro } from '../../contexts/ProContext';
 import { useWatchlist } from '../../contexts/WatchlistContext';
 import { BRAND, productCategory, productName, releaseSeason } from '../../lib/catalog';
-import { openBuyUrl, scheduleTestPriceNotification, softImpact } from '../../lib/actions';
+import { openBuyUrl, softImpact } from '../../lib/actions';
+import { convertAmount } from '../../lib/currency';
 import { buildPriceAlertRequest } from '../../lib/priceAlerts';
 import { computeSignal, historyToPoints, recentPoints } from '../../lib/signals';
 import { fetchPriceHistory, fetchProductFamilyBySku, insertPriceAlert } from '../../lib/supabase';
 import { colors, radii, typography } from '../../lib/theme';
 import type { PriceHistoryRow, Product } from '../../lib/types';
+import type { AlertDraft } from '../../lib/watchlist';
 
 export default function ProductDetailScreen() {
   const { skuId } = useLocalSearchParams<{ skuId: string }>();
   const { getProduct, cheaperAlternatives } = useProducts();
-  const { categoryLabel, formatMoney, genderLabel, regionLabel, t } = usePreferences();
+  const { categoryLabel, formatMoney, genderLabel, rateSnapshot, regionLabel, t } = usePreferences();
   const watchlist = useWatchlist();
   const { isPro } = usePro();
   const [fallbackFamily, setFallbackFamily] = useState<Product[]>([]);
@@ -35,7 +37,6 @@ export default function ProductDetailScreen() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const { width } = useWindowDimensions();
-  const scheme = useColorScheme();
   const contextProduct = getProduct(skuId);
   const product = contextProduct || fallbackFamily.find((row) => row.sku_id === skuId) || fallbackFamily[0];
 
@@ -83,10 +84,20 @@ export default function ProductDetailScreen() {
   const galleryWidth = Math.max(width - 30, 1);
   const currentCategory = categoryLabel(productCategory(currentProduct));
 
-  async function submitAlert(email: string, target: number | null) {
-    await insertPriceAlert(buildPriceAlertRequest(currentProduct, email, target));
-    await watchlist.setAlertTarget(currentProduct, target);
-    await scheduleTestPriceNotification(name);
+  async function submitAlert(draft: AlertDraft) {
+    const accepted = await watchlist.saveAlert(`sku:${currentProduct.sku_id}`, draft);
+    if (!accepted) return false;
+    if (draft.email) {
+      const converted = convertAmount(draft.targetAmount, draft.targetCurrency, currentProduct.currency as never, rateSnapshot);
+      if (draft.targetCurrency !== currentProduct.currency && !converted.converted) throw new Error('Current exchange rates are unavailable for email alerts.');
+      try {
+        await insertPriceAlert(buildPriceAlertRequest(currentProduct, draft.email, converted.value));
+      } catch (error) {
+        await watchlist.saveAlert(`sku:${currentProduct.sku_id}`, { ...draft, email: undefined });
+        throw error;
+      }
+    }
+    return true;
   }
 
   return (
@@ -157,16 +168,8 @@ export default function ProductDetailScreen() {
           </View>
           <View style={styles.chartWrap}>
             <PriceChart points={chartPoints} product={currentProduct} />
-            {!isPro ? (
-              <BlurView intensity={22} tint={scheme === 'dark' ? 'dark' : 'light'} style={styles.paywallOverlay}>
-                <Text style={styles.paywallTitle}>{t('product.upgradeHistory')}</Text>
-                <Text style={styles.paywallSub}>{t('product.upgradeHistorySub')}</Text>
-                <Pressable style={styles.paywallButton} onPress={() => router.push('/paywall')}>
-                  <Text style={styles.paywallButtonText}>{t('product.viewPro')}</Text>
-                </Pressable>
-              </BlurView>
-            ) : null}
           </View>
+          {!isPro ? <ProGate title={t('product.upgradeHistory')} subtitle={t('product.upgradeHistorySub')} action={t('product.viewPro')} /> : null}
         </View>
 
         {signal ? (
@@ -196,6 +199,13 @@ export default function ProductDetailScreen() {
             style={[styles.actionButton, styles.alertButton]}
             onPress={async () => {
               await softImpact();
+              if (!watchlist.isSaved(currentProduct.sku_id)) {
+                const accepted = await watchlist.toggle(currentProduct);
+                if (!accepted) {
+                  Alert.alert(t('deals.watchLimitTitle'), t('deals.watchLimitBody', { count: watchlist.freeLimit }));
+                  return;
+                }
+              }
               setAlertOpen(true);
             }}
           >
@@ -208,7 +218,7 @@ export default function ProductDetailScreen() {
           </Pressable>
         </View>
       </ScrollView>
-      <AlertModal visible={alertOpen} product={currentProduct} onClose={() => setAlertOpen(false)} onSubmit={submitAlert} />
+      <AlertModal visible={alertOpen} source={currentProduct} entry={watchlist.getEntry(currentProduct.sku_id)} historicalLow={signal?.minPrice} onClose={() => setAlertOpen(false)} onSubmit={submitAlert} />
     </SafeAreaView>
   );
 }
@@ -228,11 +238,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   iconButton: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 17,
+    borderRadius: 22,
     backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,

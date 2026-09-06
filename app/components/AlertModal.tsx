@@ -1,175 +1,104 @@
-import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
 
 import { usePreferences } from '../contexts/PreferencesContext';
-import { productName } from '../lib/catalog';
-import { colors, radii } from '../lib/theme';
-import type { Product } from '../lib/types';
+import { usePro } from '../contexts/ProContext';
+import { useWatchlist } from '../contexts/WatchlistContext';
+import { requestNotificationPermission } from '../lib/actions';
+import type { ModelWatchSource } from '../lib/modelWatch';
+import { darkTokens, lightTokens, radii, typography } from '../lib/theme';
+import type { AlertDraft } from '../lib/watchlist';
+import { watchSnapshot } from '../lib/watchlist';
+import { alertSheetCopy } from '../lib/watchI18n';
+import type { WatchEntry } from '../lib/types';
+import { ProGate } from './ProGate';
 
-type Props = {
-  visible: boolean;
-  product: Product;
-  onClose: () => void;
-  onSubmit: (email: string, target: number | null) => Promise<void>;
-};
+type Props = { visible: boolean; source: ModelWatchSource; entry?: WatchEntry; historicalLow?: number | null; onClose: () => void; onSubmit: (draft: AlertDraft) => Promise<boolean> };
 
-export function AlertModal({ visible, product, onClose, onSubmit }: Props) {
-  const { formatMoney, formatOriginalMoney, t } = usePreferences();
+export function AlertModal({ visible, source, entry, historicalLow, onClose, onSubmit }: Props) {
+  const preferences = usePreferences();
+  const { isPro } = usePro();
+  const watchlist = useWatchlist();
+  const palette = useColorScheme() === 'dark' ? darkTokens : lightTokens;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const copy = alertSheetCopy(preferences.language);
+  const snapshot = watchSnapshot(source);
+  const current = preferences.convertValue(snapshot.price, snapshot.currency);
+  const currency = preferences.displayedCurrency(snapshot.currency);
+  const low = historicalLow ? preferences.convertValue(historicalLow, snapshot.currency) : null;
+  const [mode, setMode] = useState<AlertDraft['mode']>('percent10');
+  const [target, setTarget] = useState('');
+  const [localEnabled, setLocalEnabled] = useState(true);
+  const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState('');
-  const [target, setTarget] = useState(() => String(Math.floor(product.sale_price * 0.85)));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const suggested = useMemo(() => Math.floor(product.sale_price * 0.85), [product.sale_price]);
+  const existingActive = Boolean(entry?.alert?.localEnabled || entry?.alert?.email);
+  const supportsEmail = 'sku_id' in source;
+  const quotaFull = !isPro && !existingActive && watchlist.activeAlertCount >= watchlist.freeAlertLimit;
+  const amount = mode === 'percent10' ? current * 0.9 : mode === 'historicalLow' && low ? low : Number(target);
+
+  useEffect(() => {
+    if (!visible) return;
+    const existing = entry?.alert;
+    setMode(existing?.mode || 'percent10');
+    setTarget(existing ? String(existing.targetAmount) : String(Math.floor(current * 0.9)));
+    setLocalEnabled(existing?.localEnabled ?? true);
+    setEmail(existing?.email || '');
+    setEmailOpen(Boolean(existing?.email));
+    setError(null);
+  }, [current, entry?.alert, visible]);
 
   async function submit() {
-    const normalizedEmail = email.trim().toLowerCase();
-    const parsedTarget = target.trim() ? Number(target) : null;
-    setError(null);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError(t('alert.invalidEmail'));
-      return;
-    }
-    if (parsedTarget !== null && (!Number.isFinite(parsedTarget) || parsedTarget <= 0 || parsedTarget >= product.sale_price)) {
-      setError(t('alert.targetBelow', { price: formatOriginalMoney(product.sale_price, product.currency, product.symbol) }));
-      return;
-    }
-    setBusy(true);
+    const normalizedEmail = supportsEmail ? email.trim().toLowerCase() : '';
+    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return setError(copy.invalidEmail);
+    if (!Number.isFinite(amount) || amount <= 0 || amount >= current) return setError(copy.targetBelow);
+    if (!localEnabled && !normalizedEmail) return setError(copy.chooseChannel);
+    if (quotaFull) return;
+    setBusy(true); setError(null);
     try {
-      await onSubmit(normalizedEmail, parsedTarget);
+      if (localEnabled && !(await requestNotificationPermission())) return setError(copy.permissionDenied);
+      const accepted = await onSubmit({ mode, targetAmount: amount, targetCurrency: currency, localEnabled, ...(normalizedEmail ? { email: normalizedEmail } : {}) });
+      if (!accepted) return setError(copy.limitReached);
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally { setBusy(false); }
   }
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.card}>
-          <Text style={styles.title}>{t('alert.title')}</Text>
-          <Text style={styles.sub}>{productName(product)}</Text>
-          <Text style={styles.current}>{t('alert.currentSuggested', { current: formatMoney(product.sale_price, product.currency, product.symbol), suggested: formatOriginalMoney(suggested, product.currency, product.symbol) })}</Text>
-          <Text style={styles.originalNote}>{t('alert.originalCurrency', { currency: product.currency })}</Text>
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" />
-          <View style={styles.priceInputRow}>
-            <Text style={styles.symbol}>{product.symbol}</Text>
-            <TextInput style={[styles.input, styles.priceInput]} value={target} onChangeText={setTarget} keyboardType="decimal-pad" placeholder={String(suggested)} />
-          </View>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <View style={styles.actions}>
-            <Pressable style={[styles.button, styles.secondary]} onPress={onClose} disabled={busy}>
-              <Text style={styles.secondaryText}>{t('common.cancel')}</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.primary]} onPress={submit} disabled={busy}>
-              {busy ? <ActivityIndicator color={colors.onPill} /> : <Text style={styles.primaryText}>{t('alert.save')}</Text>}
-            </Pressable>
-          </View>
+  return <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={styles.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <View style={styles.handle} /><Text style={styles.title}>{copy.title}</Text><Text style={styles.product} numberOfLines={2}>{snapshot.name}</Text>
+        <Text style={styles.current}>{copy.current} {preferences.formatMoney(snapshot.price, snapshot.currency, snapshot.symbol)}</Text>
+        <Text style={styles.label}>{copy.target} · {currency}</Text>
+        <View style={styles.presets}>
+          <Preset label={copy.tenPercent} selected={mode === 'percent10'} onPress={() => setMode('percent10')} styles={styles} />
+          <Preset label={copy.historyLow} selected={mode === 'historicalLow'} disabled={!low} onPress={() => setMode('historicalLow')} styles={styles} />
+          <Preset label={copy.custom} selected={mode === 'custom'} onPress={() => setMode('custom')} styles={styles} />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
+        {mode === 'custom' ? <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" style={styles.input} accessibilityLabel={copy.custom} /> : <Text style={styles.targetPreview}>{preferences.formatOriginalMoney(amount, currency)}</Text>}
+        <View style={styles.switchRow}><View style={styles.flex}><Text style={styles.rowTitle}>{copy.local}</Text><Text style={styles.help}>{copy.background}</Text></View><Switch value={localEnabled} onValueChange={setLocalEnabled} /></View>
+        {supportsEmail ? <Pressable style={styles.emailToggle} onPress={() => setEmailOpen((value) => !value)}><Text style={styles.rowTitle}>{copy.emailOptional}</Text><Text style={styles.chevron}>{emailOpen ? '−' : '+'}</Text></Pressable> : null}
+        {supportsEmail && emailOpen ? <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={styles.input} /> : null}
+        <Text style={styles.quota}>{copy.quota(watchlist.activeAlertCount, watchlist.freeAlertLimit, isPro)}</Text>
+        {quotaFull ? <ProGate title={copy.limitReached} subtitle={copy.proUnlimited} /> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.actions}><Pressable style={[styles.button, styles.secondary]} onPress={onClose} disabled={busy}><Text style={styles.secondaryText}>{copy.cancel}</Text></Pressable><Pressable style={[styles.button, styles.primary, quotaFull && styles.disabled]} onPress={submit} disabled={busy || quotaFull}>{busy ? <ActivityIndicator color={palette.onPill} /> : <Text style={styles.primaryText}>{copy.save}</Text>}</Pressable></View>
+      </ScrollView></View>
+    </KeyboardAvoidingView>
+  </Modal>;
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(24,23,20,0.36)',
-  },
-  card: {
-    gap: 12,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    backgroundColor: colors.surface,
-    padding: 20,
-    paddingBottom: 34,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  sub: {
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  current: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  originalNote: {
-    color: colors.faint,
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  input: {
-    minHeight: 48,
-    borderRadius: radii.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 12,
-    color: colors.ink,
-    fontSize: 16,
-  },
-  priceInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  symbol: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  priceInput: {
-    flex: 1,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.sm,
-  },
-  secondary: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  primary: {
-    backgroundColor: colors.pill,
-  },
-  secondaryText: {
-    color: colors.ink,
-    fontWeight: '800',
-  },
-  primaryText: {
-    color: colors.onPill,
-    fontWeight: '900',
-  },
-});
+function Preset({ label, selected, disabled, onPress, styles }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void; styles: ReturnType<typeof createStyles> }) {
+  return <Pressable style={[styles.preset, selected && styles.presetSelected, disabled && styles.disabled]} disabled={disabled} onPress={onPress}><Text style={[styles.presetText, selected && styles.presetTextSelected]}>{label}</Text></Pressable>;
+}
+
+function createStyles(c: typeof lightTokens) { return StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.38)' }, sheet: { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: c.card }, content: { gap: 12, padding: 20, paddingBottom: 34 }, handle: { width: 38, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: c.hair2 },
+  title: { color: c.ink, fontSize: 22, fontWeight: '900' }, product: { color: c.ink, fontSize: 15, fontWeight: '800' }, current: { color: c.muted, fontSize: 13, fontWeight: '700' }, label: { color: c.ink2, fontSize: 12, fontWeight: '800' }, presets: { flexDirection: 'row', gap: 8 },
+  preset: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, paddingHorizontal: 6 }, presetSelected: { backgroundColor: c.pill, borderColor: c.pill }, presetText: { color: c.ink2, fontSize: 12, fontWeight: '800', textAlign: 'center' }, presetTextSelected: { color: c.onPill },
+  input: { minHeight: 48, borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, color: c.ink, backgroundColor: c.screen, paddingHorizontal: 12, fontSize: 16 }, targetPreview: { color: c.disc, fontFamily: typography.mono, fontSize: 24, fontWeight: '900' },
+  switchRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hair }, flex: { flex: 1 }, rowTitle: { color: c.ink, fontSize: 14, fontWeight: '800' }, help: { color: c.muted, marginTop: 3, fontSize: 12, lineHeight: 17 }, emailToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, chevron: { color: c.ink, fontSize: 20 },
+  quota: { color: c.muted, fontSize: 12, fontWeight: '700' }, error: { color: c.disc, fontSize: 13, fontWeight: '700' }, actions: { flexDirection: 'row', gap: 10 }, button: { minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, secondary: { backgroundColor: c.screen }, primary: { backgroundColor: c.pill }, disabled: { opacity: 0.42 }, secondaryText: { color: c.ink, fontWeight: '800' }, primaryText: { color: c.onPill, fontWeight: '900' },
+}); }

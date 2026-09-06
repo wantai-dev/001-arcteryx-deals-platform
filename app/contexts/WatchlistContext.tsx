@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { usePro } from './ProContext';
 import { softImpact } from '../lib/actions';
@@ -14,7 +13,7 @@ import {
   saveEntryAlert,
   toggleScopedWatch,
 } from '../lib/watchlist';
-import { WatchlistStore } from '../lib/watchlistStore';
+import { watchlistStore } from '../lib/watchlistRuntimeStore';
 
 type WatchlistContextValue = {
   entries: WatchEntry[];
@@ -41,9 +40,7 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
   const { isPro } = usePro();
   const [entries, setEntries] = useState<WatchEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const storeRef = useRef<WatchlistStore | null>(null);
-  if (!storeRef.current) storeRef.current = new WatchlistStore(AsyncStorage);
-  const store = storeRef.current;
+  const store = watchlistStore;
 
   useEffect(() => {
     const unsubscribe = store.subscribe((next, ready) => {

@@ -3,90 +3,101 @@ import * as BackgroundTask from 'expo-background-task';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
-import { usePreferences } from '../contexts/PreferencesContext';
+import { PREFERENCES_STORAGE_KEY, usePreferences } from '../contexts/PreferencesContext';
+import { hasNotificationPermission } from './actions';
 import { fetchPriceCandidates, readCachedRateSnapshot } from './alertProductSource';
 import { formatCurrencyValue } from './currency';
-import { evaluatePriceAlerts, restoreFailedDeliveries } from './priceMonitor';
-import { parseStoredWatchEntries, WATCHLIST_STORAGE_KEY } from './watchlist';
+import { conditionallyRestoreFailedDeliveries, evaluatePriceAlerts } from './priceMonitor';
+import { watchlistStore } from './watchlistRuntimeStore';
 import { watchCopy } from './watchI18n';
 import type { AppLanguage } from './i18n';
 
 export const PRICE_MONITOR_TASK = 'geardrop-local-price-monitor-v1';
+type MonitorOutcome = { checked: number; notified: number; skipped?: 'web' | 'disabled' | 'permission' };
+let activeRun: Promise<MonitorOutcome> | null = null;
 
-export async function runPriceMonitor(language: AppLanguage = 'en') {
-  const raw = await AsyncStorage.getItem(WATCHLIST_STORAGE_KEY);
-  const entries = parseStoredWatchEntries(raw);
-  if (!entries.some((entry) => entry.alert?.localEnabled)) return { checked: 0, notified: 0 };
-  const [candidates, rates] = await Promise.all([fetchPriceCandidates(entries), readCachedRateSnapshot()]);
-  const evaluated = evaluatePriceAlerts(entries, candidates, rates);
+async function runtimePreferences() {
+  try {
+    const raw = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
+    const value = raw ? JSON.parse(raw) as { language?: AppLanguage | 'system'; notificationsEnabled?: boolean } : {};
+    return {
+      enabled: value.notificationsEnabled !== false,
+      language: value.language && value.language !== 'system' ? value.language : 'en' as AppLanguage,
+    };
+  } catch {
+    return { enabled: false, language: 'en' as AppLanguage };
+  }
+}
+
+async function executePriceMonitor(languageOverride?: AppLanguage): Promise<MonitorOutcome> {
+  if (Platform.OS === 'web') return { checked: 0, notified: 0, skipped: 'web' };
+  const prefs = await runtimePreferences();
+  if (!prefs.enabled) return { checked: 0, notified: 0, skipped: 'disabled' };
+  const permission = await Notifications.getPermissionsAsync();
+  if (!hasNotificationPermission(permission)) return { checked: 0, notified: 0, skipped: 'permission' };
+  await watchlistStore.hydrate();
+  const initial = watchlistStore.snapshot().entries;
+  if (!initial.some((entry) => entry.alert?.localEnabled)) return { checked: 0, notified: 0 };
+  const [candidates, rates] = await Promise.all([fetchPriceCandidates(initial), readCachedRateSnapshot()]);
+  const evaluated = await watchlistStore.mutate(async (current) => {
+    const latestPrefs = await runtimePreferences();
+    if (!latestPrefs.enabled) return { entries: current, value: null };
+    const result = evaluatePriceAlerts(current, candidates, rates);
+    return { entries: result.entries, value: result };
+  });
+  if (!evaluated) return { checked: candidates.length, notified: 0, skipped: 'disabled' };
   const failed = new Set<string>();
-  const copy = watchCopy(language);
+  const copy = watchCopy(languageOverride || prefs.language);
   for (const event of evaluated.events) {
     try {
-      const price = formatCurrencyValue(event.price, event.currency, language, event.symbol);
+      const price = formatCurrencyValue(event.price, event.currency, languageOverride || prefs.language, event.symbol);
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: copy.alertTitle,
-          body: copy.alertBody(event.name, price),
-          data: { url: `/product/${event.skuId}`, skuId: event.skuId, watchEntryId: event.entryId },
-        },
+        content: { title: copy.alertTitle, body: copy.alertBody(event.name, price), data: { url: `/product/${event.skuId}`, skuId: event.skuId, watchEntryId: event.entryId } },
         trigger: null,
       });
-    } catch {
-      failed.add(event.entryId);
-    }
+    } catch { failed.add(event.entryId); }
   }
-  const persisted = restoreFailedDeliveries(entries, evaluated.entries, failed);
-  await AsyncStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(persisted));
+  if (failed.size) {
+    await watchlistStore.mutate((current) => ({
+      entries: conditionallyRestoreFailedDeliveries(current, evaluated.events, failed), value: undefined,
+    })).catch(() => undefined);
+  }
   return { checked: candidates.length, notified: evaluated.events.length - failed.size };
 }
 
-if (!TaskManager.isTaskDefined(PRICE_MONITOR_TASK)) {
+export function runPriceMonitor(language?: AppLanguage) {
+  if (!activeRun) activeRun = executePriceMonitor(language).finally(() => { activeRun = null; });
+  return activeRun;
+}
+
+if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(PRICE_MONITOR_TASK)) {
   TaskManager.defineTask(PRICE_MONITOR_TASK, async () => {
-    try {
-      await runPriceMonitor();
-      return BackgroundTask.BackgroundTaskResult.Success;
-    } catch {
-      return BackgroundTask.BackgroundTaskResult.Failed;
-    }
+    try { await runPriceMonitor(); return BackgroundTask.BackgroundTaskResult.Success; }
+    catch { return BackgroundTask.BackgroundTaskResult.Failed; }
   });
 }
 
 export function PriceMonitorRegistration() {
   const preferences = usePreferences();
-  const runtimePreferences = preferences as typeof preferences & {
-    hydrated?: boolean;
-    notificationsEnabled?: boolean;
-  };
-  const enabled = runtimePreferences.notificationsEnabled !== false;
-  const hydrated = runtimePreferences.hydrated !== false;
-
+  const runtime = preferences as typeof preferences & { hydrated?: boolean; notificationsEnabled?: boolean };
+  const enabled = Platform.OS !== 'web' && runtime.notificationsEnabled !== false;
+  const hydrated = runtime.hydrated !== false;
   useEffect(() => {
-    if (!hydrated) return;
-    async function updateRegistration() {
+    if (!hydrated || Platform.OS === 'web') return;
+    void (async () => {
       const registered = await TaskManager.isTaskRegisteredAsync(PRICE_MONITOR_TASK);
-      if (enabled && !registered) {
-        const status = await BackgroundTask.getStatusAsync();
-        if (status === BackgroundTask.BackgroundTaskStatus.Available) {
-          await BackgroundTask.registerTaskAsync(PRICE_MONITOR_TASK, { minimumInterval: 60 });
-        }
-      } else if (!enabled && registered) {
-        await BackgroundTask.unregisterTaskAsync(PRICE_MONITOR_TASK);
-      }
-    }
-    void updateRegistration().catch(() => undefined);
+      if (enabled && !registered && await BackgroundTask.getStatusAsync() === BackgroundTask.BackgroundTaskStatus.Available) {
+        await BackgroundTask.registerTaskAsync(PRICE_MONITOR_TASK, { minimumInterval: 60 });
+      } else if (!enabled && registered) await BackgroundTask.unregisterTaskAsync(PRICE_MONITOR_TASK);
+    })().catch(() => undefined);
   }, [enabled, hydrated]);
-
   useEffect(() => {
     if (!enabled || !hydrated) return;
     void runPriceMonitor(preferences.language).catch(() => undefined);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void runPriceMonitor(preferences.language).catch(() => undefined);
-    });
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void runPriceMonitor(preferences.language).catch(() => undefined); });
     return () => subscription.remove();
   }, [enabled, hydrated, preferences.language]);
-
   return null;
 }

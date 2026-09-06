@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluatePriceAlerts, restoreFailedDeliveries, type PriceCandidate } from '../lib/priceMonitor';
+import { conditionallyRestoreFailedDeliveries, evaluatePriceAlerts, restoreFailedDeliveries, type PriceCandidate } from '../lib/priceMonitor';
 import { makeScopedWatchEntry, saveEntryAlert } from '../lib/watchlist';
 import { product } from './helpers';
 
@@ -83,4 +83,13 @@ test('failed local notification delivery restores the armed state', () => {
   const restored = restoreFailedDeliveries(original, evaluated.entries, new Set([original[0]!.id!]));
   assert.equal(restored[0]?.alert?.armed, true);
   assert.equal(restored[0]?.alert?.lastTriggeredAt, undefined);
+});
+
+test('conditional recovery does not overwrite an alert edited after delivery started', () => {
+  const original = [armedEntry()];
+  const evaluated = evaluatePriceAlerts(original, [candidate()], null, now);
+  const edited = [{ ...evaluated.entries[0]!, alert: { ...evaluated.entries[0]!.alert!, targetAmount: 70 } }];
+  const restored = conditionallyRestoreFailedDeliveries(edited, evaluated.events, new Set([original[0]!.id!]));
+  assert.equal(restored[0]?.alert?.armed, false);
+  assert.equal(restored[0]?.alert?.targetAmount, 70);
 });

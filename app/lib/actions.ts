@@ -14,7 +14,7 @@ Notifications.setNotificationHandler({
 
 export const SUPPORT_URL = 'https://geardrop.100app.dev/support.html';
 
-function hasNotificationPermission(permissions: Notifications.NotificationPermissionsStatus) {
+export function hasNotificationPermission(permissions: Notifications.NotificationPermissionsStatus) {
   if (Platform.OS === 'ios') {
     const status = permissions.ios?.status;
     return (

@@ -21,6 +21,8 @@ export type PriceAlertEvent = {
   price: number;
   currency: string;
   symbol: string;
+  triggeredAt: string;
+  alertSignature: string;
 };
 
 export type PriceMonitorResult = {
@@ -40,8 +42,13 @@ function convertedCandidate(
 ) {
   if (candidate.currency === targetCurrency) return candidate.price;
   if (!rates || !freshTimestamp(rates.fetchedAt, nowMs, MAX_RATE_AGE_MS)) return null;
+  const sourceRate = rates.rates[candidate.currency];
+  const targetRate = rates.rates[targetCurrency];
+  if (!Number.isFinite(sourceRate) || Number(sourceRate) <= 0
+    || !Number.isFinite(targetRate) || Number(targetRate) <= 0) return null;
   const converted = convertAmount(candidate.price, candidate.currency, targetCurrency as never, rates);
-  return converted.converted && converted.currency === targetCurrency ? converted.value : null;
+  return converted.converted && converted.currency === targetCurrency
+    && Number.isFinite(converted.value) && converted.value > 0 ? converted.value : null;
 }
 
 export function evaluatePriceAlerts(
@@ -91,6 +98,8 @@ export function evaluatePriceAlerts(
       price: lowest.converted,
       currency: alert.targetCurrency,
       symbol: lowest.candidate.symbol,
+      triggeredAt: nowIso,
+      alertSignature: `${alert.mode}:${alert.targetAmount}:${alert.targetCurrency}:${alert.localEnabled}:${alert.email || ''}`,
     });
     return {
       ...entry,
@@ -112,4 +121,18 @@ export function restoreFailedDeliveries(
   return evaluated.map((entry) => failedEntryIds.has(entry.id || '')
     ? originalById.get(entry.id) || entry
     : entry);
+}
+
+export function conditionallyRestoreFailedDeliveries(
+  current: WatchEntry[], events: PriceAlertEvent[], failedEntryIds: Set<string>,
+) {
+  const failed = new Map(events.filter((event) => failedEntryIds.has(event.entryId)).map((event) => [event.entryId, event]));
+  return current.map((entry) => {
+    const event = entry.id ? failed.get(entry.id) : undefined;
+    if (!event || !entry.alert || entry.alert.armed
+      || entry.alert.lastTriggeredPrice !== event.price
+      || entry.alert.lastTriggeredAt !== event.triggeredAt
+      || `${entry.alert.mode}:${entry.alert.targetAmount}:${entry.alert.targetCurrency}:${entry.alert.localEnabled}:${entry.alert.email || ''}` !== event.alertSignature) return entry;
+    return { ...entry, alert: { ...entry.alert, armed: true, lastTriggeredAt: undefined, lastTriggeredPrice: undefined } };
+  });
 }

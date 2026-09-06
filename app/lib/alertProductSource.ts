@@ -10,13 +10,31 @@ import type { RateSnapshot as CurrencyRateSnapshot } from './currency';
 
 async function fetchRows(column: 'sku_id' | 'official_product_id', values: string[]) {
   const rows: ProductRow[] = [];
-  for (let offset = 0; offset < values.length; offset += 45) {
-    const { data, error } = await supabase.from('products').select('*')
-      .eq('status', 'active').in(column, values.slice(offset, offset + 45));
-    if (error) throw error;
-    rows.push(...((data || []) as ProductRow[]));
+  for (let batchStart = 0; batchStart < values.length; batchStart += 45) {
+    const batch = values.slice(batchStart, batchStart + 45);
+    for (let pageStart = 0; ; pageStart += 1000) {
+      const { data, error } = await supabase.from('products').select('*')
+        .eq('status', 'active').in(column, batch).range(pageStart, pageStart + 999);
+      if (error) throw error;
+      const page = (data || []) as ProductRow[];
+      rows.push(...page);
+      if (page.length < 1000) break;
+    }
   }
   return rows;
+}
+
+async function fetchAllActiveRows() {
+  const rows: ProductRow[] = [];
+  for (let offset = 0; offset <= 50000; offset += 1000) {
+    const { data, error } = await supabase.from('products').select('*')
+      .eq('status', 'active').order('sku_id', { ascending: true }).range(offset, offset + 999);
+    if (error) throw error;
+    const page = (data || []) as ProductRow[];
+    rows.push(...page);
+    if (page.length < 1000) return rows;
+  }
+  throw new Error('Active product query exceeded the safety bound.');
 }
 
 export async function fetchPriceCandidates(entries: WatchEntry[]): Promise<PriceCandidate[]> {
@@ -27,12 +45,11 @@ export async function fetchPriceCandidates(entries: WatchEntry[]): Promise<Price
     fetchRows('sku_id', [...new Set(skuIds)]),
     fetchRows('official_product_id', [...new Set(officialIds)]),
     hasFallbackModel
-      ? supabase.from('products').select('*').eq('status', 'active').limit(10000)
-      : Promise.resolve({ data: [], error: null }),
+      ? fetchAllActiveRows()
+      : Promise.resolve([] as ProductRow[]),
   ]);
-  if (fallbackRows.error) throw fallbackRows.error;
   const deduped = new Map<string, ProductRow>();
-  for (const row of [...skuRows, ...officialRows, ...((fallbackRows.data || []) as ProductRow[])]) {
+  for (const row of [...skuRows, ...officialRows, ...fallbackRows]) {
     if (row.sku_id) deduped.set(row.sku_id, row);
   }
   const products = visibleProducts([...deduped.values()]);

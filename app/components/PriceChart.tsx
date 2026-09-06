@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { usePreferences } from '../contexts/PreferencesContext';
-import { colors, radii, typography } from '../lib/theme';
+import { darkTokens, lightTokens, radii, typography } from '../lib/theme';
 import type { ChartPoint, Product } from '../lib/types';
 
 type Props = {
@@ -19,6 +20,8 @@ const PAD_B = 26;
 
 export function PriceChart({ points, product }: Props) {
   const { convertValue, displayedCurrency, formatMoney, formatNumber, t } = usePreferences();
+  const colors = useColorScheme() === 'dark' ? darkTokens : lightTokens;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (points.length < 2) {
     return (
       <View style={styles.empty}>
@@ -56,7 +59,7 @@ export function PriceChart({ points, product }: Props) {
           const y = yOf(tick);
           return (
             <G key={tick}>
-              <Line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke={colors.border} strokeWidth={1} />
+              <Line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke={colors.hair} strokeWidth={1} />
               <SvgText x={PAD_L - 6} y={y + 4} textAnchor="end" fill={colors.faint} fontSize={10} fontFamily={typography.mono}>
                 {formatNumber(tick)}
               </SvgText>
@@ -84,12 +87,12 @@ export function PriceChart({ points, product }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: typeof lightTokens) { return StyleSheet.create({
   wrap: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
+    borderColor: colors.hair2,
     paddingTop: 8,
     overflow: 'hidden',
   },
@@ -98,9 +101,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.hair,
   },
   emptyText: {
     color: colors.muted,
@@ -110,7 +113,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopColor: colors.hair,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
@@ -126,4 +129,4 @@ const styles = StyleSheet.create({
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
   },
-});
+}); }

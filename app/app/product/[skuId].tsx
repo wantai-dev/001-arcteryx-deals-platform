@@ -28,7 +28,7 @@ import type { AlertDraft } from '../../lib/watchlist';
 export default function ProductDetailScreen() {
   const { skuId } = useLocalSearchParams<{ skuId: string }>();
   const { getProduct, cheaperAlternatives } = useProducts();
-  const { categoryLabel, formatMoney, genderLabel, rateSnapshot, regionLabel, t } = usePreferences();
+  const { categoryLabel, displayedCurrency, formatMoney, formatOriginalMoney, genderLabel, rateSnapshot, regionLabel, t } = usePreferences();
   const watchlist = useWatchlist();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -102,9 +102,9 @@ export default function ProductDetailScreen() {
     const accepted = await watchlist.saveAlertForSource(currentProduct, scope, draft);
     if (!accepted) return false;
     if (draft.email && scope === 'sku') {
-      const converted = convertAmount(draft.targetAmount, draft.targetCurrency, currentProduct.currency as never, rateSnapshot);
-      if (draft.targetCurrency !== currentProduct.currency && !converted.converted) throw new Error('Current exchange rates are unavailable for email alerts.');
       try {
+        const converted = convertAmount(draft.targetAmount, draft.targetCurrency, currentProduct.currency as never, rateSnapshot);
+        if (draft.targetCurrency !== currentProduct.currency && !converted.converted) throw new Error('Current exchange rates are unavailable for email alerts. The local alert was saved without email.');
         await insertPriceAlert(buildPriceAlertRequest(currentProduct, draft.email, converted.value));
       } catch (error) {
         await watchlist.saveAlertForSource(currentProduct, 'sku', { ...draft, email: undefined });
@@ -173,6 +173,7 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
         </View>
+        {displayedCurrency(currentProduct.currency) !== currentProduct.currency ? <Text style={styles.originalCurrency}>{formatOriginalMoney(currentProduct.sale_price, currentProduct.currency, currentProduct.symbol)} · {currentProduct.currency}</Text> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHead}>
@@ -198,7 +199,7 @@ export default function ProductDetailScreen() {
             <View style={styles.alternatives}>
               {alternatives.map((item) => (
                 <Pressable key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
-                  <Text style={styles.altText}>{regionLabel(item.region)} {formatMoney(item.sale_price, item.currency, item.symbol)}</Text>
+                  <Text style={styles.altText}>{regionLabel(item.region)} {formatOriginalMoney(item.sale_price, item.currency, item.symbol)} · {formatMoney(item.sale_price, item.currency, item.symbol)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -207,6 +208,7 @@ export default function ProductDetailScreen() {
           )}
         </View>
 
+      </ScrollView>
         <View style={styles.actions}>
           <Pressable
             style={[styles.actionButton, styles.alertButton]}
@@ -223,7 +225,6 @@ export default function ProductDetailScreen() {
             <Ionicons name="open-outline" size={18} color={colors.onPill} />
           </Pressable>
         </View>
-      </ScrollView>
       <AlertModal visible={alertOpen} source={currentProduct} entry={watchlist.getEntry(currentProduct.sku_id)} historicalLow={signal?.minPrice} onClose={() => setAlertOpen(false)} onSubmit={submitAlert} />
     </SafeAreaView>
   );
@@ -235,7 +236,7 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    paddingBottom: 34,
+    paddingBottom: 100,
   },
   nav: {
     flexDirection: 'row',
@@ -343,6 +344,7 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 11,
   },
+  originalCurrency: { color: colors.muted, marginHorizontal: 20, marginTop: 5, fontFamily: typography.mono, fontSize: 12, fontWeight: '700' },
   sale: {
     color: colors.disc,
     fontFamily: typography.mono,
@@ -411,40 +413,6 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radii.md,
   },
-  paywallOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 18,
-    backgroundColor: colors.overlay,
-  },
-  paywallTitle: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  paywallSub: {
-    color: colors.muted,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  paywallButton: {
-    marginTop: 4,
-    borderRadius: radii.sm,
-    backgroundColor: colors.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  paywallButtonText: {
-    color: colors.onPill,
-    fontWeight: '900',
-  },
   verdict: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -492,7 +460,9 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     gap: 8,
   },
   altPill: {
-    paddingVertical: 2,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   altText: {
     color: colors.ink,
@@ -509,11 +479,14 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingVertical: 10,
+    backgroundColor: colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
   actionButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: radii.lg,
     flexDirection: 'row',
     alignItems: 'center',

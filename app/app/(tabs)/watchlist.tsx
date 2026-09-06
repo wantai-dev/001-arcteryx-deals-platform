@@ -18,6 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { openBuyUrl } from '../../lib/actions';
 import { fetchPriceCandidates } from '../../lib/alertProductSource';
 import { productName } from '../../lib/catalog';
+import { lowestComparableCandidate } from '../../lib/candidateComparison';
 import { radii, typography, type ThemeColors } from '../../lib/theme';
 import type { Product, WatchEntry } from '../../lib/types';
 import type { PriceCandidate } from '../../lib/priceMonitor';
@@ -44,8 +45,7 @@ export default function WatchlistScreen() {
   const rows = watchlist.entries
     .map((entry) => {
       const matches = candidates.filter((candidate) => entry.scope === 'model' ? candidate.modelKey === entry.modelKey : candidate.skuId === entry.skuId);
-      matches.sort((left, right) => preferences.convertValue(left.price, left.currency) - preferences.convertValue(right.price, right.currency));
-      const currentCandidate = matches[0];
+      const currentCandidate = lowestComparableCandidate(matches, preferences.rateSnapshot);
       return { entry, product: currentCandidate ? products.find((item) => item.sku_id === currentCandidate.skuId) : (entry.skuId ? getProduct(entry.skuId) : undefined), currentCandidate };
     })
     .sort((left, right) => Number(right.entry.scope === 'model') - Number(left.entry.scope === 'model'));
@@ -66,7 +66,7 @@ export default function WatchlistScreen() {
   /></SafeAreaView>;
 }
 
-function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCandidate?: PriceCandidate }; onRemove: () => void; styles: ReturnType<typeof createStyles>; palette: ThemeColors }) {
+function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCandidate?: PriceCandidate | null }; onRemove: () => void; styles: ReturnType<typeof createStyles>; palette: ThemeColors }) {
   const preferences = usePreferences();
   const copy = watchListCopy(preferences.language);
   const { entry, product } = row;
@@ -86,6 +86,7 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
   const currentPrice = product
     ? preferences.formatMoney(product.sale_price, product.currency, product.symbol)
     : preferences.formatMoney(current, currency || '', symbol);
+  const alertSource = product || snapshot;
   const open = () => {
     const skuId = product?.sku_id || snapshot?.skuId;
     if (skuId) router.push({ pathname: '/product/[skuId]', params: { skuId } });
@@ -94,11 +95,11 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
   return <Pressable style={styles.row} onPress={open} accessibilityRole="button">
     <View style={styles.thumb}><TopoPlaceholder label={category} showLabel={false} />{image && !imageFailed ? <Image source={{ uri: image }} style={styles.image} contentFit="cover" onError={() => setImageFailed(true)} /> : null}</View>
     <View style={styles.body}><View style={styles.rowHead}><View style={styles.scope}><Text style={styles.scopeText}>{entry.scope === 'model' ? copy.model : copy.item}</Text></View><Text style={styles.name} numberOfLines={2}>{name}</Text><Pressable accessibilityRole="button" accessibilityLabel={copy.remove} style={styles.remove} onPress={(event) => { event.stopPropagation(); onRemove(); }}><Ionicons name="close" size={18} color={palette.muted} /></Pressable></View>
-      {currentVerified ? <Text style={[styles.delta, delta !== null && delta < 0 && styles.down]}>{delta === null || Math.abs(delta) < 0.01 ? copy.noChange : copy.changed(delta < 0 ? '↓' : '↑', preferences.formatOriginalMoney(Math.abs(delta), currency || '', symbol))}</Text> : <Text style={styles.legacy}>{copy.unavailableNow}</Text>}
+      {currentVerified ? <Text style={[styles.delta, delta !== null && delta < 0 && styles.down]}>{delta === null ? copy.cannotCompare : Math.abs(delta) < 0.01 ? copy.noChange : copy.changed(delta < 0 ? '↓' : '↑', preferences.formatOriginalMoney(Math.abs(delta), currency || '', symbol))}</Text> : <Text style={styles.legacy}>{copy.unavailableNow}</Text>}
       <Pressable style={styles.alertButton} onPress={(event) => { event.stopPropagation(); setAlertOpen(true); }}><Ionicons name="notifications-outline" size={16} color={palette.ink2} /><Text style={styles.alertText}>{entry.alert ? `${copy.alertAt} ${preferences.formatOriginalMoney(entry.alert.targetAmount, entry.alert.targetCurrency)}` : copy.setAlert}</Text></Pressable>
       <Text style={styles.price}>{currentPrice} <Text style={styles.now}>{currentVerified ? copy.now : copy.savedPrice}</Text></Text>
     </View>
-    {product ? <AlertModal visible={alertOpen} source={product} entry={entry} lockedScope={entry.scope || 'sku'} onClose={() => setAlertOpen(false)} onSubmit={(draft: AlertDraft) => watchlist.saveAlert(entry.id!, draft)} /> : null}
+    {alertSource ? <AlertModal visible={alertOpen} source={alertSource} entry={entry} lockedScope={entry.scope || 'sku'} onClose={() => setAlertOpen(false)} onDelete={async () => watchlist.removeAlert(entry.id!)} onSubmit={(draft: AlertDraft) => watchlist.saveAlert(entry.id!, draft)} /> : null}
   </Pressable>;
 }
 

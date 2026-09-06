@@ -23,6 +23,7 @@ type PreferencesContextValue = {
   currency: CurrencyPreference;
   rateStatus: RateStatus;
   rateDate: string | null;
+  rateSnapshot: RateSnapshot | null;
   setLanguage: (choice: LanguageChoice) => Promise<void>;
   setCurrency: (currency: CurrencyPreference) => Promise<void>;
   refreshRates: () => Promise<void>;
@@ -82,22 +83,19 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refreshRates = useCallback(async () => {
-    setRateStatus((current) => (snapshot ? current : 'loading'));
+    setRateStatus((current) => (preferences.currency === 'original' ? 'original' : snapshot ? current : 'loading'));
     try {
       const next = await fetchRateSnapshot();
       setSnapshot(next);
-      setRateStatus('live');
+      setRateStatus(preferences.currency === 'original' ? 'original' : 'live');
       await AsyncStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(next));
     } catch {
-      setRateStatus(snapshot ? 'cached' : 'unavailable');
+      setRateStatus(preferences.currency === 'original' ? 'original' : snapshot ? 'cached' : 'unavailable');
     }
-  }, [snapshot]);
+  }, [preferences.currency, snapshot]);
 
   useEffect(() => {
-    if (preferences.currency === 'original') {
-      setRateStatus('original');
-      return;
-    }
+    if (preferences.currency === 'original') setRateStatus('original');
     const fetchedAt = snapshot ? Date.parse(snapshot.fetchedAt) : 0;
     if (!snapshot || !Number.isFinite(fetchedAt) || Date.now() - fetchedAt > RATE_MAX_AGE_MS) void refreshRates();
   }, [preferences.currency, refreshRates, snapshot]);
@@ -141,6 +139,7 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
     currency: preferences.currency,
     rateStatus,
     rateDate: snapshot?.date || null,
+    rateSnapshot: snapshot,
     setLanguage,
     setCurrency,
     refreshRates,
@@ -153,7 +152,7 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
     convertValue,
     displayedCurrency,
     formatNumber,
-  }), [categoryLabel, convertValue, displayedCurrency, formatMoney, formatNumber, formatOriginalMoney, genderLabel, language, locale, preferences.currency, preferences.language, rateStatus, refreshRates, regionLabel, setCurrency, setLanguage, snapshot?.date, t]);
+  }), [categoryLabel, convertValue, displayedCurrency, formatMoney, formatNumber, formatOriginalMoney, genderLabel, language, locale, preferences.currency, preferences.language, rateStatus, refreshRates, regionLabel, setCurrency, setLanguage, snapshot, t]);
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }

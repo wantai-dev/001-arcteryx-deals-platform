@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 
 import { productCategory, SUPABASE_ANON, SUPABASE_URL, visibleProducts } from '../lib/catalog';
+import { findCheaperAlternatives } from '../lib/cheaperAlternatives';
+import { fetchRateSnapshot } from '../lib/currency';
 import { availableDealRegions, DEFAULT_DEAL_FILTERS, filterDeals } from '../lib/deals';
 import { localizedCategory } from '../lib/i18n';
 import { INITIAL_PRODUCT_LIMIT, INITIAL_PRODUCT_REGION } from '../lib/productPreview';
@@ -123,18 +125,6 @@ async function loadHistory(skuIds: string[]) {
   return data || [];
 }
 
-function cheaperAlternatives(products: Product[], product: Product) {
-  const byRegion = new Map<string, Product>();
-  for (const candidate of products) {
-    if (candidate._brand !== product._brand || candidate.model !== product.model || candidate.sku_id === product.sku_id || candidate.region === product.region || candidate.sale_price <= 0 || candidate.sale_price >= product.sale_price) {
-      continue;
-    }
-    const current = byRegion.get(candidate.region);
-    if (!current || candidate.sale_price < current.sale_price) byRegion.set(candidate.region, candidate);
-  }
-  return [...byRegion.values()].sort((a, b) => a.sale_price - b.sale_price);
-}
-
 async function main() {
   const { contentRange: productsRange } = await rest<ProductRow[]>('products?select=sku_id&status=eq.active&limit=1', {
     headers: { Range: '0-0', Prefer: 'count=exact' },
@@ -147,6 +137,7 @@ async function main() {
   });
 
   const products = await loadProducts();
+  const rateSnapshot = await fetchRateSnapshot();
   const { products: yearbook, rejected: yearbookRejectedRows } = await loadYearbook();
   const productImageUrls = products
     .flatMap((product) => [product.image_url, ...product.images])
@@ -228,7 +219,7 @@ async function main() {
 
   const cheaperBase = products.find((product) => product.sku_id === 'kopec-mid-gtx-boot-0029_Black_Nightscape_be') || deEuro;
   assert.ok(cheaperBase, 'missing product for cheaper alternative probe');
-  const cheaper = cheaperAlternatives(products, cheaperBase);
+  const cheaper = findCheaperAlternatives(products, cheaperBase, rateSnapshot);
 
   console.log(
     JSON.stringify(

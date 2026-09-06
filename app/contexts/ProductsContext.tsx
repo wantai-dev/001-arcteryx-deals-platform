@@ -6,9 +6,11 @@ import {
   PRODUCT_PREVIEW_STORAGE_KEY,
   serializeProductPreview,
 } from '../lib/productPreview';
+import { findCheaperAlternatives } from '../lib/cheaperAlternatives';
 import { computeSignal, groupHistoryBySku } from '../lib/signals';
 import { fetchAllProducts, fetchInitialProducts, fetchPriceHistoryForSkus } from '../lib/supabase';
 import type { DealSignal, Product } from '../lib/types';
+import { usePreferences } from './PreferencesContext';
 
 type ProductsContextValue = {
   products: Product[];
@@ -26,6 +28,7 @@ type ProductsContextValue = {
 const ProductsContext = createContext<ProductsContextValue | null>(null);
 
 export function ProductsProvider({ children }: PropsWithChildren) {
+  const { rateSnapshot } = usePreferences();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,23 +120,8 @@ export function ProductsProvider({ children }: PropsWithChildren) {
   );
 
   const cheaperAlternatives = useCallback(
-    (product: Product) => {
-      const byRegion = new Map<string, Product>();
-
-      for (const candidate of products) {
-        if (candidate._brand !== product._brand || candidate.model !== product.model || candidate.sku_id === product.sku_id || candidate.region === product.region || candidate.sale_price <= 0 || candidate.sale_price >= product.sale_price) {
-          continue;
-        }
-
-        const current = byRegion.get(candidate.region);
-        if (!current || candidate.sale_price < current.sale_price) {
-          byRegion.set(candidate.region, candidate);
-        }
-      }
-
-      return [...byRegion.values()].sort((a, b) => a.sale_price - b.sale_price).slice(0, 4);
-    },
-    [products],
+    (product: Product) => findCheaperAlternatives(products, product, rateSnapshot),
+    [products, rateSnapshot],
   );
 
   const value = useMemo(

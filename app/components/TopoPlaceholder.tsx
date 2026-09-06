@@ -1,7 +1,7 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from "react-native";
 
-import { DefaultImage } from './DefaultImage';
-import { radii } from '../lib/theme';
+import { DefaultImage } from "./DefaultImage";
+import { radii } from "../lib/theme";
 
 type Props = {
   label?: string;
@@ -11,10 +11,20 @@ type Props = {
   compact?: boolean;
 };
 
-export function TopoPlaceholder({ label = 'Gear', showLabel = true, category, brand, compact }: Props) {
+export function TopoPlaceholder({
+  label = "Gear",
+  showLabel = true,
+  category,
+  brand,
+  compact,
+}: Props) {
   return (
     <View style={styles.wrap}>
-      <DefaultImage category={category || label} brand={showLabel ? brand || label : brand} compact={compact} />
+      <DefaultImage
+        category={category || label}
+        brand={showLabel ? brand || label : brand}
+        compact={compact}
+      />
     </View>
   );
 }
@@ -22,7 +32,7 @@ export function TopoPlaceholder({ label = 'Gear', showLabel = true, category, br
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: radii.lg,
   },
 });

@@ -336,7 +336,7 @@ class DealerRevalidationTests(unittest.TestCase):
 
         self.assertEqual(result, {"_err": "product_redirect"})
 
-    def test_rei_cf_stub_rotates_browser_and_retries_only_pending_rows(self):
+    def test_rei_access_challenge_stops_all_chunks_without_retrying(self):
         rows = [
             {"sku_id": "rei:a", "url": "https://www.rei.com/product/1/a"},
             {"sku_id": "rei:b", "url": "https://www.rei.com/product/2/b"},
@@ -373,13 +373,11 @@ class DealerRevalidationTests(unittest.TestCase):
             sleep_fn=lambda _seconds: None,
         )
 
-        self.assertEqual(len(pages), 2)
-        self.assertEqual(
-            requested_urls,
-            [rows[0]["url"], rows[0]["url"], rows[1]["url"]],
-        )
-        self.assertEqual(results[0][1]["original_price"], 200.0)
-        self.assertEqual(results[1][1]["sale_price"], 80.0)
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(requested_urls, [rows[0]["url"]])
+        self.assertEqual(results[0][1]["_err"], "cf_stub")
+        self.assertEqual(results[1][1]["_err"], "source_access_deferred")
+        self.assertNotIn("sale_price", results[1][1])
         self.assertTrue(all(page.close.called for page in pages))
 
     def test_rei_deterministic_redirect_is_not_retried(self):
@@ -407,6 +405,50 @@ class DealerRevalidationTests(unittest.TestCase):
 
         self.assertEqual(launches, 1)
         self.assertEqual(results, [(row, {"_err": "product_redirect"})])
+
+    def test_rei_http_denial_is_classified_before_reading_or_sleeping(self):
+        for status in (401, 403, 429):
+            with self.subTest(status=status), patch("dealers.revalidate.time.sleep") as sleep:
+                page = MagicMock()
+                page.goto.return_value = SimpleNamespace(status=status, headers={"retry-after": "3600"})
+                result = fetch_rei_pdp(page, "https://www.rei.com/product/1/a")
+                self.assertEqual(result["_err"], f"http_{status}")
+                self.assertEqual(result["_retry_after"], "3600")
+                page.content.assert_not_called()
+                sleep.assert_not_called()
+                self.assertNotIn("sale_price", result)
+
+    def test_rei_rate_limit_preserves_success_and_defers_later_chunks(self):
+        rows = [{"sku_id": f"rei:{i}", "url": f"https://www.rei.com/product/{i}/item"} for i in range(4)]
+        success = {"sale_price": 80.0, "original_price": 100.0, "discount_pct": 20}
+        reads = iter([success, {"_err": "http_429", "_retry_after": "7200"}])
+        calls = []
+        launches = []
+
+        @contextmanager
+        def browser_factory():
+            browser = MagicMock()
+            launches.append(browser)
+            yield browser
+
+        def fetch(_page, url):
+            calls.append(url)
+            return next(reads)
+
+        results = fetch_rei_rows_with_browser_retries(
+            rows, attempts=3, chunk_size=2, delay=0,
+            browser_context_factory=browser_factory, fetch_fn=fetch,
+            sleep_fn=lambda _seconds: None,
+        )
+        self.assertEqual(len(launches), 1)
+        self.assertEqual(calls, [row["url"] for row in rows[:2]])
+        self.assertEqual(results[0][1], success)
+        self.assertEqual(results[1][1]["_err"], "http_429")
+        for _, deferred in results[2:]:
+            self.assertEqual(deferred["_err"], "source_access_deferred")
+            self.assertEqual(deferred["_retry_after"], "7200")
+            self.assertNotIn("sale_price", deferred)
+        launches[0].new_page.return_value.close.assert_called_once()
 
     def test_list_fallback_preserves_existing_discount(self):
         self.assertTrue(should_preserve_previous_discount("mec", "list_fallback", 200, 200, 100, 200))

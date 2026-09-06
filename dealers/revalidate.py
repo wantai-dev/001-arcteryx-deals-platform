@@ -515,11 +515,19 @@ def _rei_variant_price(body: str, url: str) -> tuple[float, float] | None:
         return lowest_sale, original
 
 def fetch_rei_pdp(page, url: str) -> dict | None:
-    """REI Camoufox PDP. Supports both legacy and current buy-box prices.
-    注: curl_cffi 在 AWS Lightsail 上被 Akamai 拒 (全路径返 2.7KB stub),
-    所以 REI 必须用 Camoufox；MEC 使用独立的只读会话路径。"""
+    """Read legacy/current buy-box prices, stopping on access restrictions."""
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        status = getattr(response, "status", None)
+        if status in (401, 403, 429):
+            headers = getattr(response, "headers", {}) or {}
+            return {
+                "_err": f"http_{status}",
+                "_http_status": status,
+                "_retry_after": str(headers.get("retry-after", ""))[:100],
+            }
+        if isinstance(status, int) and status >= 500:
+            return {"_err": f"http_{status}"}
         time.sleep(2)
     except Exception as e:
         return {"_err": _format_error("goto", e)}
@@ -542,8 +550,8 @@ def fetch_rei_pdp(page, url: str) -> dict | None:
         time.sleep(2)
     if not body:
         return {"_err": "unstable_document"}
-    if len(body) < 20000:  # CF stub
-        return {"_err": "cf_stub"}
+    if len(body) < 20000:
+        return {"_err": "access_challenge"}
     if "page-not-found" in body.lower() or "page not found" in body.lower():
         return {"_unavailable": True}
     msale = re.search(r'data-ui="sale-price">\s*\$?([0-9.,]+)', body)
@@ -754,16 +762,22 @@ def _rei_should_retry(result: dict | None) -> bool:
     """Retry transient REI reads, but keep deterministic lifecycle results final."""
     if not result:
         return True
-    if result.get("_unavailable"):
+    if result.get("_unavailable") or _rei_access_restricted(result):
         return False
     error = result.get("_err")
     return bool(error and error not in _REI_NON_RETRYABLE_ERRORS)
 
 
+def _rei_access_restricted(result: dict | None) -> bool:
+    return (result or {}).get("_err") in {
+        "http_401", "http_403", "http_429", "access_challenge", "cf_stub",
+    }
+
+
 def _rei_browser_is_poisoned(result: dict | None) -> bool:
-    """A CF stub or unstable page is browser-scoped; rotate before the next row."""
+    """An unstable document may require a fresh browser for network recovery."""
     error = str((result or {}).get("_err") or "")
-    return error in {"cf_stub", "unstable_document"} or error.startswith("goto ")
+    return error == "unstable_document" or error.startswith("goto ")
 
 
 def fetch_rei_rows_with_browser_retries(
@@ -776,12 +790,12 @@ def fetch_rei_rows_with_browser_retries(
     fetch_fn=None,
     sleep_fn=None,
 ):
-    """Read REI rows with bounded fresh-browser retries.
+    """Bound transient reads; one access denial stops all remaining REI requests.
 
-    REI's Akamai stub is sticky for a Camoufox browser process. A fresh page in
-    the same browser repeats the stub, while a fresh browser can return the real
-    PDP immediately. Queue only transient failures and rotate before retrying;
-    deterministic redirects and unavailability remain final.
+    A denied/challenged response is not evidence about stock or price. Preserve
+    earlier successful results and mark every unverified row as failed without
+    retrying, including across chunks. Retry-After is reported for operators;
+    this run makes no further requests to the source.
     """
     rows = list(rows)
     attempts = attempts or _env_int("REI_REVALIDATE_ATTEMPTS", 3, 1)
@@ -806,17 +820,27 @@ def fetch_rei_rows_with_browser_retries(
             try:
                 with browser_context_factory() as browser:
                     page = browser.new_page()
-                    page.goto(
-                        "https://www.rei.com/",
-                        wait_until="domcontentloaded",
-                        timeout=60000,
-                    )
-                    sleep_fn(2)
                     for index, row in enumerate(chunk):
                         sku_id = row["sku_id"]
                         result = fetch_fn(page, row["url"])
                         normalized = result or {"_err": "empty_result"}
                         last_results[sku_id] = normalized
+                        if _rei_access_restricted(normalized):
+                            final_results[sku_id] = normalized
+                            print(
+                                f"  [rei] source restricted ({normalized['_err']}); "
+                                f"remaining requests stopped; Retry-After="
+                                f"{normalized.get('_retry_after') or 'unspecified'}",
+                                flush=True,
+                            )
+                            return [
+                                (item, final_results.get(item["sku_id"], {
+                                    "_err": "source_access_deferred",
+                                    "_cause": normalized["_err"],
+                                    "_retry_after": normalized.get("_retry_after", ""),
+                                }))
+                                for item in rows
+                            ]
                         if _rei_should_retry(result):
                             retry_rows.append(row)
                             retry_ids.add(sku_id)

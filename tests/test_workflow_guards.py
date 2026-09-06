@@ -81,25 +81,13 @@ class WorkflowGuardTests(unittest.TestCase):
         )
         self.assertIn("REVALIDATE_SKU_IDS: ${{ inputs.sku_ids }}", workflow)
 
-    def test_targeted_rei_revalidation_rotates_across_fresh_runners(self):
+    def test_revalidation_preserves_failure_without_fresh_runner_retries(self):
         workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("retry-targeted-rei-1:", workflow)
-        self.assertIn("retry-targeted-rei-2:", workflow)
-        self.assertIn(
-            "inputs.dealers == 'rei' && inputs.sku_ids != ''",
-            workflow,
-        )
-        self.assertIn(
-            "needs.revalidate-dealer-prices.outputs.revalidate_outcome == 'failure'",
-            workflow,
-        )
-        self.assertIn(
-            "needs.retry-targeted-rei-1.outputs.revalidate_outcome == 'failure'",
-            workflow,
-        )
-        self.assertEqual(workflow.count("run: python -u -m dealers.revalidate"), 3)
+        self.assertNotIn("retry-targeted-rei", workflow)
+        self.assertNotIn("continue-on-error", workflow)
+        self.assertEqual(workflow.count("run: python -u -m dealers.revalidate"), 1)
 
     def test_active_sources_are_in_primary_and_fallback_dealer_runs(self):
         workflow = (ROOT / ".github/workflows/refresh-dealers.yml").read_text(encoding="utf-8")

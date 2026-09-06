@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../lib/theme';
 
 type Props = {
   sortLabel: string;
@@ -12,6 +14,8 @@ type Props = {
 };
 
 export function ControlRow({ sortLabel, filterLabel, filterCount, onSort, onFilter }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={sortLabel} style={styles.sort} onPress={onSort}>
@@ -26,7 +30,7 @@ export function ControlRow({ sortLabel, filterLabel, filterCount, onSort, onFilt
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sort: { minHeight: 44, maxWidth: '78%', flexDirection: 'row', alignItems: 'center', gap: 6 },
   sortText: { color: colors.ink, fontSize: 13, fontWeight: '800' },

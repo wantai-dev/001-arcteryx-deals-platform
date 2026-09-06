@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TopoPlaceholder } from './TopoPlaceholder';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { browseText } from '../lib/browseI18n';
 import { BRAND, freshnessLabel, productCategory, productName, regionFlag, staleDays } from '../lib/catalog';
-import { colors, radii, typography } from '../lib/theme';
+import { radii, typography, type ThemeColors } from '../lib/theme';
 import type { DealSignal, Product } from '../lib/types';
 
 type Props = {
@@ -20,6 +21,8 @@ type Props = {
 };
 
 export function DealCard({ product, signal, saved = false, hero = false, onPress, onToggleSave }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categoryLabel, displayedCurrency, formatMoney, language, t } = usePreferences();
   const name = productName(product);
   const imageCandidates = Array.from(new Set([product.image_url, ...product.images].filter(Boolean))) as string[];
@@ -99,7 +102,7 @@ const numeric = {
   fontVariant: typography.tabular,
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     flex: 1,
     gap: 7,

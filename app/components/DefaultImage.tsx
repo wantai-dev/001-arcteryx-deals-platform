@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { colors } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../lib/theme';
 
 export type DefaultImageKind = 'jacket' | 'fleece' | 'pants' | 'overall' | 'shirt' | 'swim' | 'beanie' | 'shoes' | 'bag' | 'snowboard' | 'other';
 
@@ -41,6 +43,8 @@ export function defaultImageKind(category?: string | null): DefaultImageKind {
 }
 
 export function DefaultImage({ category, brand, compact = false }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const kind = defaultImageKind(category);
   return (
     <View style={styles.wrap} accessibilityElementsHidden>
@@ -55,7 +59,7 @@ export function DefaultImage({ category, brand, compact = false }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.photo },
   brand: { position: 'absolute', left: 9, bottom: 8, maxWidth: '76%', color: colors.photoCat, fontSize: 8.5, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' },
 });

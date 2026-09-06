@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radii, typography } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { radii, typography, type ThemeColors } from '../lib/theme';
 
 export type FilterSheetSection = {
   key: string;
@@ -22,6 +24,8 @@ type Props = {
 };
 
 export function FilterSheet({ visible, title, sections, resultLabel, resetLabel, onSelect, onReset, onClose }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -57,7 +61,7 @@ export function FilterSheet({ visible, title, sections, resultLabel, resetLabel,
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,9,10,.42)' },
   sheet: { maxHeight: '88%', gap: 16, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: colors.card, padding: 18, paddingBottom: 30 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

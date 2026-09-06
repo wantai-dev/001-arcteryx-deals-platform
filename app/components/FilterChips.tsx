@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { usePreferences } from '../contexts/PreferencesContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { BRAND, BRAND_OPTIONS, CATEGORY_ORDER, GENDER_OPTIONS, PLATFORM, SORT_OPTIONS } from '../lib/catalog';
 import { browseText } from '../lib/browseI18n';
 import type { DealFilters } from '../lib/deals';
-import { colors, radii } from '../lib/theme';
+import { radii, type ThemeColors } from '../lib/theme';
 import { ControlRow } from './ControlRow';
 import { FilterSheet, type FilterSheetSection } from './FilterSheet';
 
@@ -22,6 +23,8 @@ type Props = {
 };
 
 export function FilterChips({ value, brands, platforms, categories, resultCount = 0, lowScanPending = false, onChange }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categoryLabel, genderLabel, language, t } = usePreferences();
   const b = (key: Parameters<typeof browseText>[1], params?: Record<string, string | number>) => browseText(language, key, params);
   const [sortOpen, setSortOpen] = useState(false);
@@ -52,7 +55,7 @@ export function FilterChips({ value, brands, platforms, categories, resultCount 
   return (
     <View style={styles.wrap}>
       <ControlRow sortLabel={`${b('sort')} · ${t(`sort.${value.sort}`)}`} filterLabel={b('filters')} filterCount={active.length} onSort={() => setSortOpen(true)} onFilter={() => setFilterOpen(true)} />
-      {active.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeRow}>{active.map((chip) => <Pressable key={chip.key} style={styles.activeChip} onPress={() => onChange(chip.clear)}><Text style={styles.activeText} numberOfLines={1}>{chip.label}</Text><Ionicons name="close" size={13} color={colors.disc} /></Pressable>)}</ScrollView> : null}
+      {active.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeRow}>{active.map((chip) => <Pressable key={chip.key} hitSlop={4} style={styles.activeChip} onPress={() => onChange(chip.clear)}><Text style={styles.activeText} numberOfLines={1}>{chip.label}</Text><Ionicons name="close" size={13} color={colors.disc} /></Pressable>)}</ScrollView> : null}
       <SortSheet visible={sortOpen} value={value.sort} title={b('sort')} getLabel={(option) => t(`sort.${option}`)} onSelect={(sort) => { onChange({ sort }); setSortOpen(false); }} onClose={() => setSortOpen(false)} />
       <FilterSheet visible={filterOpen} title={b('filters')} sections={sections} resultLabel={b('viewResults', { count: resultCount })} resetLabel={b('reset')} onSelect={(key, next) => {
         if (key === 'minDiscount') onChange({ minDiscount: Number(next) as 0 | 30 | 50 });
@@ -64,10 +67,12 @@ export function FilterChips({ value, brands, platforms, categories, resultCount 
 }
 
 function SortSheet({ visible, value, title, getLabel, onSelect, onClose }: { visible: boolean; value: string; title: string; getLabel: (value: string) => string; onSelect: (value: string) => void; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={onClose}><View style={styles.backdrop}><View style={styles.sortSheet}><View style={styles.sortHead}><Text style={styles.sortTitle}>{title}</Text><Pressable style={styles.close} onPress={onClose}><Ionicons name="close" size={21} color={colors.ink} /></Pressable></View>{SORT_OPTIONS.map((option) => <Pressable key={option} style={styles.sortOption} onPress={() => onSelect(option)}><Text style={[styles.sortOptionText, option === value && styles.sortOptionActive]}>{getLabel(option)}</Text>{option === value ? <Ionicons name="checkmark" size={18} color={colors.buy} /> : null}</Pressable>)}</View></View></Modal>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: { gap: 7 }, activeRow: { minHeight: 36, gap: 7, paddingRight: 4 }, activeChip: { minHeight: 36, maxWidth: 190, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.discLine, backgroundColor: colors.discBg, paddingHorizontal: 9 }, activeText: { color: colors.disc, fontSize: 11.5, fontWeight: '800' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,9,10,.42)' }, sortSheet: { gap: 2, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: colors.card, padding: 18, paddingBottom: 30 }, sortHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }, sortTitle: { color: colors.ink, fontSize: 20, fontWeight: '900' }, close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, sortOption: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, sortOptionText: { color: colors.ink2, fontSize: 14, fontWeight: '700' }, sortOptionActive: { color: colors.ink, fontWeight: '900' },
 });

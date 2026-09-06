@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TopoPlaceholder } from './TopoPlaceholder';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { browseText } from '../lib/browseI18n';
 import { BRAND, freshnessLabel, productCategory, productName, regionFlag, staleDays } from '../lib/catalog';
 import { colors, radii, typography } from '../lib/theme';
 import type { DealSignal, Product } from '../lib/types';
@@ -19,7 +20,7 @@ type Props = {
 };
 
 export function DealCard({ product, signal, saved = false, hero = false, onPress, onToggleSave }: Props) {
-  const { categoryLabel, formatMoney, t } = usePreferences();
+  const { categoryLabel, displayedCurrency, formatMoney, language, t } = usePreferences();
   const name = productName(product);
   const imageCandidates = Array.from(new Set([product.image_url, ...product.images].filter(Boolean))) as string[];
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
@@ -30,14 +31,14 @@ export function DealCard({ product, signal, saved = false, hero = false, onPress
   const allTimeLow = signal?.kind === 'all_time_low';
   const signalLabel = stale
     ? t('signal.seen', { when: freshnessLabel(product.last_updated) })
-    : signal?.kind === 'all_time_low'
-      ? t('signal.all_time_low')
+      : signal?.kind === 'all_time_low'
+      ? browseText(language, 'allTimeLow')
       : signal?.kind === 'ninety_day_low'
-        ? t('signal.ninety_day_low')
+        ? browseText(language, 'ninetyDayLow')
         : signal?.kind === 'drop_today' && signal.dropAmount
-          ? t('signal.drop_today', { amount: formatMoney(signal.dropAmount, product.currency, product.symbol) })
+          ? browseText(language, 'droppedToday')
           : signal?.kind === 'steady'
-            ? t('signal.steady')
+            ? browseText(language, 'steady')
             : signal?.kind === 'insufficient'
               ? t('signal.off', { percent: product.discount_pct })
               : t('signal.checking');
@@ -50,7 +51,7 @@ export function DealCard({ product, signal, saved = false, hero = false, onPress
   return (
     <Pressable style={[styles.card, hero && styles.heroCard]} onPress={onPress}>
       <View style={styles.imageWrap}>
-        <TopoPlaceholder label={category} showLabel={false} />
+        <TopoPlaceholder category={productCategory(product)} brand={BRAND[product._brand].label} showLabel />
         {imageUri ? <Image source={{ uri: imageUri }} style={styles.image} contentFit="cover" transition={160} onError={() => setFailedImages((current) => ({ ...current, [imageUri]: true }))} /> : null}
         {allTimeLow ? (
           <View style={styles.lowRibbon}>
@@ -66,15 +67,13 @@ export function DealCard({ product, signal, saved = false, hero = false, onPress
           <Text style={styles.regionBadgeText}>{regionFlag(product.region)}</Text>
         </View>
         {onToggleSave ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={saved ? t('watch.remove') : t('watch.save')} style={styles.saveButton} onPress={onToggleSave} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel={saved ? t('watch.remove') : t('watch.save')} style={styles.saveButton} onPress={(event) => { event.stopPropagation(); onToggleSave(); }}>
             <Ionicons name={saved ? 'heart' : 'heart-outline'} color={saved ? colors.disc : colors.ink} size={16} />
           </Pressable>
         ) : null}
-        <Text style={styles.imageLabel} numberOfLines={1}>
-          {categoryWithBrand}
-        </Text>
       </View>
       <View style={styles.body}>
+        <Text style={styles.category} numberOfLines={1}>{categoryWithBrand}</Text>
         <Text style={[styles.name, hero && styles.heroName]} numberOfLines={2}>
           {name}
         </Text>
@@ -84,7 +83,7 @@ export function DealCard({ product, signal, saved = false, hero = false, onPress
           </Text>
         ) : null}
         <View style={styles.priceRow}>
-          <Text style={[styles.sale, hero && styles.heroSale]}>{formatMoney(product.sale_price, product.currency, product.symbol)}</Text>
+          <Text style={[styles.sale, hero && styles.heroSale]}>{formatMoney(product.sale_price, product.currency, product.symbol)} <Text style={styles.currencyCode}>{displayedCurrency(product.currency)}</Text></Text>
           {product.original_price > product.sale_price ? <Text style={styles.original}>{formatMoney(product.original_price, product.currency, product.symbol)}</Text> : null}
         </View>
         <Text style={[styles.signal, signalStyle]} numberOfLines={1}>
@@ -177,21 +176,11 @@ const styles = StyleSheet.create({
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
   },
-  imageLabel: {
-    position: 'absolute',
-    left: 8,
-    bottom: 7,
-    maxWidth: '80%',
-    color: colors.photoCat,
-    fontSize: 8.5,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
   body: {
     minWidth: 0,
     gap: 4,
   },
+  category: { color: colors.muted, fontSize: 10.5, fontWeight: '700' },
   name: {
     color: colors.ink,
     fontSize: 13.5,
@@ -212,13 +201,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 7,
     bottom: 7,
-    width: 26,
-    height: 26,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: 22,
     backgroundColor: colors.onPhotoBadge,
   },
+  currencyCode: { color: colors.muted, fontFamily: typography.mono, fontSize: 9, fontWeight: '800' },
   signal: {
     fontSize: 11.5,
     lineHeight: 15,

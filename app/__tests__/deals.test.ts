@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { availableDealRegions, DEFAULT_DEAL_FILTERS, filterDeals } from '../lib/deals';
+import type { RateSnapshot } from '../lib/currency';
 import { product } from './helpers';
 
 const products = [
@@ -66,4 +67,41 @@ test('brand filtering and search work across the multi-brand catalog', () => {
     filterDeals([arcteryx], 'us', 'Arc teryx', DEFAULT_DEAL_FILTERS).map((item) => item.sku_id),
     ['arcteryx-beta-us'],
   );
+});
+
+test('applies discount thresholds and only keeps loaded low signals', () => {
+  const rows = [
+    product({ sku_id: 'low-50', discount_pct: 55 }),
+    product({ sku_id: 'not-low-40', discount_pct: 40 }),
+    product({ sku_id: 'small-20', discount_pct: 20 }),
+  ];
+  const filtered = filterDeals(rows, 'all', '', {
+    ...DEFAULT_DEAL_FILTERS,
+    minDiscount: 30,
+    lowOnly: true,
+  }, {
+    signals: {
+      'low-50': { kind: 'all_time_low', label: '', tone: 'success', verdict: '', isLow: true, minPrice: 1, pointCount: 3 },
+      'not-low-40': { kind: 'steady', label: '', tone: 'neutral', verdict: '', isLow: false, minPrice: 1, pointCount: 3 },
+    },
+  });
+  assert.deepEqual(filtered.map((item) => item.sku_id), ['low-50']);
+});
+
+test('sorts source currencies by converted value and puts unavailable rates last', () => {
+  const rows = [
+    product({ sku_id: 'cad', sale_price: 130, currency: 'CAD' }),
+    product({ sku_id: 'usd', sale_price: 100, currency: 'USD' }),
+    product({ sku_id: 'unknown', sale_price: 1, currency: 'XYZ' }),
+  ];
+  const snapshot: RateSnapshot = {
+    date: '2026-09-06',
+    fetchedAt: '2026-09-06T00:00:00Z',
+    rates: { EUR: 1, USD: 1.2, CAD: 1.8 },
+  };
+  const sorted = filterDeals(rows, 'all', '', { ...DEFAULT_DEAL_FILTERS, sort: 'price_asc' }, {
+    targetCurrency: 'EUR',
+    rateSnapshot: snapshot,
+  });
+  assert.deepEqual(sorted.map((item) => item.sku_id), ['cad', 'usd', 'unknown']);
 });

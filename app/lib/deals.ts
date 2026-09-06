@@ -1,6 +1,7 @@
 import { productCategory, productName, REGION_LABEL, REGION_OPTIONS } from './catalog';
 import { normalizeSearchText } from './search';
-import type { Product } from './types';
+import { convertAmount, type CurrencyPreference, type RateSnapshot } from './currency';
+import type { DealSignal, Product } from './types';
 
 export type DealFilters = {
   brand: string;
@@ -9,6 +10,8 @@ export type DealFilters = {
   gender: string;
   series: string;
   sort: string;
+  minDiscount?: 0 | 30 | 50;
+  lowOnly?: boolean;
 };
 
 export const DEFAULT_DEAL_FILTERS: DealFilters = {
@@ -18,6 +21,14 @@ export const DEFAULT_DEAL_FILTERS: DealFilters = {
   gender: 'all',
   series: 'all',
   sort: 'discount_desc',
+  minDiscount: 0,
+  lowOnly: false,
+};
+
+export type DealFilterOptions = {
+  signals?: Record<string, DealSignal>;
+  targetCurrency?: CurrencyPreference;
+  rateSnapshot?: RateSnapshot | null;
 };
 
 export function productsForRegion(products: Product[], region: string) {
@@ -33,7 +44,7 @@ export function availableDealRegions(products: Product[]) {
   return ['all', ...preferred, ...extras];
 }
 
-export function filterDeals(products: Product[], region: string, query: string, filters: DealFilters) {
+export function filterDeals(products: Product[], region: string, query: string, filters: DealFilters, options: DealFilterOptions = {}) {
   const q = normalizeSearchText(query);
   const rows = productsForRegion(products, region).filter((product) => {
     if (filters.brand !== 'all' && product._brand !== filters.brand) return false;
@@ -44,6 +55,8 @@ export function filterDeals(products: Product[], region: string, query: string, 
     }
     if (filters.category !== 'all' && productCategory(product) !== filters.category) return false;
     if (filters.series !== 'all' && product._series !== filters.series) return false;
+    if (product.discount_pct < (filters.minDiscount ?? 0)) return false;
+    if (filters.lowOnly && options.signals?.[product.sku_id]?.kind !== 'all_time_low') return false;
     if (q) {
       const haystack = normalizeSearchText(`${product._brand} ${product.brand} ${productName(product)} ${product.full_name || ''} ${product.model || ''} ${product.description || ''} ${product.category || ''}`);
       if (!haystack.includes(q)) return false;
@@ -53,13 +66,31 @@ export function filterDeals(products: Product[], region: string, query: string, 
 
   switch (filters.sort) {
     case 'price_asc':
-      return rows.sort((a, b) => a.sale_price - b.sale_price);
+      return rows.sort((a, b) => comparePrice(a, b, options, 1));
     case 'price_desc':
-      return rows.sort((a, b) => b.sale_price - a.sale_price);
+      return rows.sort((a, b) => comparePrice(a, b, options, -1));
     case 'recent':
       return rows.sort((a, b) => (b.last_updated || '').localeCompare(a.last_updated || ''));
     case 'discount_desc':
     default:
       return rows.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
   }
+}
+
+function comparablePrice(product: Product, options: DealFilterOptions): number | null {
+  const target = options.targetCurrency ?? 'original';
+  if (target === 'original') return null;
+  const converted = convertAmount(product.sale_price, product.currency, target, options.rateSnapshot ?? null);
+  return converted.currency === target ? converted.value : null;
+}
+
+function comparePrice(left: Product, right: Product, options: DealFilterOptions, direction: 1 | -1): number {
+  const leftPrice = comparablePrice(left, options);
+  const rightPrice = comparablePrice(right, options);
+  if (leftPrice !== null && rightPrice !== null) return direction * (leftPrice - rightPrice) || left.sku_id.localeCompare(right.sku_id);
+  if (leftPrice !== null) return -1;
+  if (rightPrice !== null) return 1;
+  return left.currency.localeCompare(right.currency)
+    || direction * (left.sale_price - right.sale_price)
+    || left.sku_id.localeCompare(right.sku_id);
 }

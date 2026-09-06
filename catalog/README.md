@@ -47,3 +47,11 @@ Apply `supabase/migrations/20260812130000_three_brand_full_price_catalog.sql`,
 set service-role `SUPABASE_URL` and `SUPABASE_KEY`, and explicitly add
 `--sync-supabase`. A normal run never performs remote writes, and sync refuses
 anything other than a complete three-brand run.
+
+The `Refresh Official Yearbook Catalog` workflow runs this complete sync once a
+day. It uses both GitHub concurrency and a Supabase crawler lease, has a bounded
+runtime, and then reads the public table back with the anon credential. The
+readback must contain exactly the active IDs from the authoritative run, meet
+the per-brand minimums, and have `last_seen_at` at or after the run start. Any
+collection, sync, or readback failure leaves the workflow failed; source
+completeness failures occur before the first remote write.

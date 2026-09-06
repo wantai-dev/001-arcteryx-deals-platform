@@ -6,6 +6,22 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class WorkflowGuardTests(unittest.TestCase):
+    def test_official_catalog_sync_is_complete_bounded_and_read_back(self):
+        workflow = (ROOT / ".github/workflows/refresh-official-catalog.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('cron: "40 17 * * *"', workflow)
+        self.assertIn("group: geardrop-official-yearbook-sync", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("timeout-minutes: 150", workflow)
+        self.assertIn("timeout 7200 python -u -m catalog.official_catalog", workflow)
+        self.assertIn("--sync-supabase", workflow)
+        self.assertNotIn("--brand", workflow)
+        self.assertNotIn("--limit", workflow)
+        self.assertIn("--scope official-catalog", workflow)
+        self.assertIn("tools/check_official_catalog.py", workflow)
+        self.assertIn("if: always() && steps.lease.outputs.acquired == 'true'", workflow)
+
     def test_monitor_runs_independent_checks_then_aggregates(self):
         workflow = (ROOT / ".github/workflows/freshness-monitor.yml").read_text(encoding="utf-8")
         for step_id in ("outlet_quality", "dealer_quality", "platform_region_quality", "static_fallbacks"):

@@ -84,6 +84,46 @@ export type WatchEntry = {
   savedPrice: number;
   symbol: string;
   alertTarget?: number;
+  id?: string;
+  scope?: 'sku' | 'model';
+  modelKey?: string;
+  snapshot?: WatchProductSnapshot;
+  savedMoney?: MoneyAmount;
+  alert?: LocalPriceAlert;
+};
+
+export type MoneyAmount = {
+  amount: number;
+  currency: string;
+};
+
+export type WatchProductSnapshot = {
+  skuId?: string;
+  brand: GearBrand;
+  name: string;
+  model?: string;
+  gender?: string;
+  category?: string;
+  officialProductId?: string;
+  currency: string;
+  symbol: string;
+  price: number;
+  imageUrl?: string;
+  sourceUrl?: string;
+};
+
+export type AlertMode = 'percent10' | 'historicalLow' | 'custom';
+
+export type LocalPriceAlert = {
+  mode: AlertMode;
+  targetAmount: number;
+  targetCurrency: string;
+  localEnabled: boolean;
+  email?: string;
+  armed: boolean;
+  rearmAbove: number;
+  lastTriggeredAt?: string;
+  lastTriggeredPrice?: number;
 };
 
 export type PriceAlertRequest = {

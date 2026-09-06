@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FREE_WATCHLIST_LIMIT, parseWatchEntries, setWatchAlertTarget, toggleWatchEntry, WATCHLIST_STORAGE_KEY } from '../lib/watchlist';
+import {
+  activeAlertCount,
+  FREE_ALERT_LIMIT,
+  FREE_WATCHLIST_LIMIT,
+  makeScopedWatchEntry,
+  parseWatchEntries,
+  parseStoredWatchEntries,
+  saveEntryAlert,
+  setWatchAlertTarget,
+  toggleWatchEntry,
+  WATCHLIST_STORAGE_KEY,
+} from '../lib/watchlist';
 import { product } from './helpers';
 import type { WatchEntry } from '../lib/types';
 
@@ -77,4 +88,35 @@ test('setWatchAlertTarget creates, updates, and clears local alert targets', () 
   assert.equal(cleared[0]?.skuId, 'alert-sku');
   assert.equal(cleared[0]?.alertTarget, undefined);
   assert.equal(cleared[0]?.savedAt, '2026-07-07T12:00:00.000Z');
+});
+
+test('v1 entries migrate to stable sku IDs without losing legacy fields', () => {
+  const migrated = parseStoredWatchEntries('[{"skuId":"x","savedAt":"now","savedPrice":1,"symbol":"$"}]');
+  assert.equal(migrated[0]?.id, 'sku:x');
+  assert.equal(migrated[0]?.scope, 'sku');
+  assert.equal(migrated[0]?.savedPrice, 1);
+});
+
+test('model entries never invent a queryable sku', () => {
+  const entry = makeScopedWatchEntry(product({ official_product_id: 'X123' }), 'model', 'now');
+  assert.equal(entry?.id, 'model:arcteryx:official:x123');
+  assert.equal(entry?.skuId, '');
+  assert.equal(entry?.snapshot?.skuId, 'beta-jacket_Black_us');
+});
+
+test('free alert quota allows replacing self but rejects a second active alert', () => {
+  assert.equal(FREE_ALERT_LIMIT, 1);
+  const first = makeScopedWatchEntry(product({ sku_id: 'one' }), 'sku', 'now')!;
+  const second = makeScopedWatchEntry(product({ sku_id: 'two' }), 'sku', 'now')!;
+  const draft = { mode: 'custom' as const, targetAmount: 90, targetCurrency: 'USD', localEnabled: true };
+  const created = saveEntryAlert([first, second], first.id!, draft, false);
+  assert.equal(created.accepted, true);
+  assert.equal(activeAlertCount(created.entries), 1);
+  const replaced = saveEntryAlert(created.entries, first.id!, { ...draft, targetAmount: 80 }, false);
+  assert.equal(replaced.accepted, true);
+  assert.equal(replaced.entries[0]?.alert?.targetAmount, 80);
+  const rejected = saveEntryAlert(replaced.entries, second.id!, draft, false);
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.reason, 'alert-limit');
+  assert.equal(activeAlertCount(rejected.entries), 1);
 });

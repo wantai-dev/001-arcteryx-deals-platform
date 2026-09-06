@@ -11,15 +11,17 @@ import { ProProvider } from '../contexts/ProContext';
 import { RegionProvider } from '../contexts/RegionContext';
 import { WatchlistProvider } from '../contexts/WatchlistContext';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { PriceMonitorRegistration } from '../lib/priceMonitorTask';
+import { notificationRoute } from '../lib/notificationRoute';
 
 function useNotificationObserver() {
   useEffect(() => {
     if (Platform.OS === 'web') return;
 
     function redirect(notification: Notifications.Notification) {
-      const url = notification.request.content.data?.url;
-      if (url !== '/watchlist') return;
-      router.replace('/watchlist');
+      const destination = notificationRoute(notification.request.content.data);
+      if (!destination) return;
+      router.replace(destination);
       Notifications.clearLastNotificationResponse();
     }
 
@@ -55,6 +57,7 @@ function AppProviders() {
           <RegionProvider>
             <WatchlistProvider>
               <ProductsProvider>
+                <PriceMonitorRegistration />
                 <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
                 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
                   <Stack.Screen name="(tabs)" />

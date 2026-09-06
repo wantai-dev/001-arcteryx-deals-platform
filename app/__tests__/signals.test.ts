@@ -62,7 +62,7 @@ test('computeSignal marks steady prices as neutral', () => {
   ]);
 
   assert.equal(signal.kind, 'steady');
-  assert.equal(signal.label, 'Steady · not a low');
+  assert.equal(signal.label, 'Steady');
   assert.equal(signal.isLow, false);
 });
 
@@ -82,4 +82,43 @@ test('groupHistoryBySku ignores empty sku rows', () => {
 
   assert.equal(grouped.get('a')?.length, 1);
   assert.equal(grouped.has(''), false);
+});
+
+test('intraday lower observations are not lost when the closing chart price is higher', () => {
+  const now = Date.parse('2026-09-07T12:00:00Z');
+  const current = product({ sale_price: 90, last_updated: '2026-09-07T11:00:00Z' });
+  const signal = computeSignal(current, [
+    { sale_price: 70, original_price: 120, recorded_at: '2026-09-06T08:00:00Z' },
+    { sale_price: 100, original_price: 120, recorded_at: '2026-09-06T20:00:00Z' },
+    { sale_price: 110, original_price: 120, recorded_at: '2026-09-05T08:00:00Z' },
+  ], now);
+  assert.equal(signal.minPrice, 70);
+  assert.notEqual(signal.kind, 'all_time_low');
+  assert.notEqual(signal.kind, 'ninety_day_low');
+});
+
+test('a drop remains visible after its current-price snapshot is written, but cannot last into tomorrow', () => {
+  const now = Date.parse('2026-09-07T12:00:00Z');
+  const current = product({ sale_price: 90, last_updated: '2026-09-07T11:00:00Z' });
+  const rows = [
+    { sale_price: 70, original_price: 120, recorded_at: '2026-09-01T08:00:00Z' },
+    { sale_price: 100, original_price: 120, recorded_at: '2026-09-06T08:00:00Z' },
+    { sale_price: 90, original_price: 120, recorded_at: current.last_updated },
+  ];
+  assert.equal(computeSignal(current, rows, now).kind, 'drop_today');
+  assert.equal(computeSignal(current, rows, now + 86400000).kind, 'steady');
+  assert.equal(computeSignal({ ...current, last_updated: '2026-09-08T11:00:00Z' }, rows, now + 86400000).kind, 'steady');
+});
+
+test('invalid, future, and different-currency observations cannot establish a low', () => {
+  const current = product({ sale_price: 90, currency: 'CAD', last_updated: daysAgo(0) });
+  const rows = [
+    { sale_price: 100, original_price: 120, recorded_at: daysAgo(10), currency: 'CAD' },
+    { sale_price: 110, original_price: 120, recorded_at: daysAgo(2), currency: 'CAD' },
+    { sale_price: 1, original_price: 120, recorded_at: daysAgo(1), currency: 'USD' },
+    { sale_price: 1, original_price: 120, recorded_at: daysAgo(-2), currency: 'CAD' },
+    { sale_price: NaN, original_price: 120, recorded_at: daysAgo(1), currency: 'CAD' },
+  ];
+  assert.equal(computeSignal(current, rows).kind, 'all_time_low');
+  assert.equal(computeSignal(current, rows).minPrice, 90);
 });

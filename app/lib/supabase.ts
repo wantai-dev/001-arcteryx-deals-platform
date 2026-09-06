@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_ANON, SUPABASE_URL, visibleProducts } from './catalog';
 import { postPriceAlert } from './priceAlerts';
 import { INITIAL_PRODUCT_LIMIT, INITIAL_PRODUCT_REGION } from './productPreview';
+import { loadCompleteHistory } from './historyData';
 import type { CatalogProduct, CatalogProductRow, PriceAlertRequest, PriceHistoryRow, ProductRow } from './types';
 import { normalizeCatalogProduct } from './yearbook';
 
@@ -63,24 +64,19 @@ export async function fetchProductFamilyBySku(skuId: string) {
 }
 
 export async function fetchPriceHistoryForSkus(skuIds: string[], sinceIso?: string) {
-  if (!skuIds.length) return [] as PriceHistoryRow[];
-  const rows: PriceHistoryRow[] = [];
-  const batchSize = 45;
-
-  for (let i = 0; i < skuIds.length; i += batchSize) {
-    const batch = skuIds.slice(i, i + batchSize);
+  return loadCompleteHistory(skuIds, async ({ skuIds: batch, from, to, throughIso }) => {
     let query = supabase
       .from('price_history')
-      .select('sku_id,sale_price,original_price,recorded_at')
+      .select('sku_id,sale_price,original_price,recorded_at,currency')
       .in('sku_id', batch)
-      .order('recorded_at', { ascending: true });
+      .lte('recorded_at', throughIso)
+      .order('id', { ascending: true })
+      .range(from, to);
     if (sinceIso) query = query.gte('recorded_at', sinceIso);
     const { data, error } = await query;
     if (error) throw error;
-    rows.push(...((data || []) as PriceHistoryRow[]));
-  }
-
-  return rows;
+    return (data || []) as PriceHistoryRow[];
+  }, sinceIso);
 }
 
 export async function fetchPriceHistory(skuId: string, sinceIso?: string) {

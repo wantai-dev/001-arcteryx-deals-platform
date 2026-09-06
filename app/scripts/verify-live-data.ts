@@ -5,6 +5,7 @@ import { findCheaperAlternatives } from '../lib/cheaperAlternatives';
 import { fetchRateSnapshot } from '../lib/currency';
 import { availableDealRegions, DEFAULT_DEAL_FILTERS, filterDeals } from '../lib/deals';
 import { localizedCategory } from '../lib/i18n';
+import { loadCompleteHistory } from '../lib/historyData';
 import { INITIAL_PRODUCT_LIMIT, INITIAL_PRODUCT_REGION } from '../lib/productPreview';
 import { computeSignal, groupHistoryBySku } from '../lib/signals';
 import type { CatalogProduct, CatalogProductRow, PriceHistoryRow, Product, ProductRow } from '../lib/types';
@@ -120,9 +121,16 @@ async function loadYearbook() {
 }
 
 async function loadHistory(skuIds: string[]) {
-  const encoded = skuIds.map((skuId) => `"${skuId.replaceAll('"', '\\"')}"`).join(',');
-  const { data } = await rest<PriceHistoryRow[]>(`price_history?select=sku_id,sale_price,original_price,recorded_at&sku_id=in.(${encoded})&order=recorded_at.asc`);
-  return data || [];
+  return loadCompleteHistory(skuIds, async ({ skuIds: batch, from, to, throughIso }) => {
+    const ids = batch.map((skuId) => JSON.stringify(skuId)).join(',');
+    const params = new URLSearchParams({
+      select: 'sku_id,sale_price,original_price,recorded_at,currency',
+      sku_id: `in.(${ids})`, order: 'id.asc', recorded_at: `lte.${throughIso}`,
+      offset: String(from), limit: String(to - from + 1),
+    });
+    const { data } = await rest<PriceHistoryRow[]>(`price_history?${params}`);
+    return data || [];
+  });
 }
 
 async function main() {

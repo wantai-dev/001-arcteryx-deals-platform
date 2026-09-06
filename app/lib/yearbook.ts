@@ -6,6 +6,7 @@ import type {
   Product,
 } from './types';
 import { productCategory, productName } from './catalog';
+import { convertAmount, type CurrencyPreference, type RateSnapshot } from './currency';
 import { normalizeSearchText } from './search';
 
 type BrandRule = {
@@ -425,6 +426,32 @@ export function bestYearbookOffers(offers: Product[], preferredCurrency?: string
     const rightPreferred = right.currency === preferredCurrency ? 0 : 1;
     return leftPreferred - rightPreferred || left.currency.localeCompare(right.currency) || offerOrder(left, right);
   });
+}
+
+export type ComparableYearbookOffer = {
+  offer: Product | null;
+  comparableAcrossCurrencies: boolean;
+};
+
+export function comparableYearbookOffer(
+  offers: Product[],
+  targetCurrency: CurrencyPreference,
+  snapshot: RateSnapshot | null,
+): ComparableYearbookOffer {
+  const candidates = bestYearbookOffers(offers, targetCurrency === 'original' ? undefined : targetCurrency);
+  if (!candidates.length) return { offer: null, comparableAcrossCurrencies: true };
+  if (candidates.length === 1) return { offer: candidates[0]!, comparableAcrossCurrencies: true };
+
+  const comparisonCurrency = targetCurrency === 'original' ? 'EUR' : targetCurrency;
+  const converted = candidates.map((offer) => {
+    const result = convertAmount(offer.sale_price, offer.currency, comparisonCurrency, snapshot);
+    return { offer, value: result.currency === comparisonCurrency ? result.value : null };
+  });
+  if (converted.some(({ value }) => value === null)) {
+    return { offer: candidates[0]!, comparableAcrossCurrencies: false };
+  }
+  converted.sort((left, right) => left.value! - right.value! || left.offer.sku_id.localeCompare(right.offer.sku_id));
+  return { offer: converted[0]!.offer, comparableAcrossCurrencies: true };
 }
 
 export function groupYearbookArchive(products: Product[]): YearbookArchiveStyle[] {

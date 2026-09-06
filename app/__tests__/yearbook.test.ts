@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   bestYearbookOffers,
+  comparableYearbookOffer,
   filterYearbookArchive,
   filterYearbookProducts,
   formatCatalogPrice,
@@ -361,6 +362,10 @@ test('keeps one lowest offer per currency and groups unmatched colors into archi
     'backcountry:old-black',
     'dealer:old-cad',
   ]);
+  const rates = { date: '2026-09-07', fetchedAt: '2026-09-07T00:00:00Z', rates: { EUR: 1, USD: 0.5, CAD: 1 } };
+  assert.equal(comparableYearbookOffer([usdLow, cad], 'EUR', rates).offer?.sku_id, 'dealer:old-cad');
+  assert.equal(comparableYearbookOffer([usdLow, cad], 'EUR', rates).comparableAcrossCurrencies, true);
+  assert.equal(comparableYearbookOffer([usdLow, cad], 'EUR', null).comparableAcrossCurrencies, false);
   const archive = groupYearbookArchive([usdHigh, cad, usdLow]);
   assert.equal(archive.length, 1);
   assert.equal(archive[0]!.official_product_id, '200000');

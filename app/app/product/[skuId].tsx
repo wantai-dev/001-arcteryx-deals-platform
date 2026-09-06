@@ -14,13 +14,14 @@ import { useProducts } from '../../contexts/ProductsContext';
 import { usePreferences } from '../../contexts/PreferencesContext';
 import { usePro } from '../../contexts/ProContext';
 import { useWatchlist } from '../../contexts/WatchlistContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { BRAND, productCategory, productName, releaseSeason } from '../../lib/catalog';
 import { openBuyUrl, softImpact } from '../../lib/actions';
 import { convertAmount } from '../../lib/currency';
 import { buildPriceAlertRequest } from '../../lib/priceAlerts';
 import { computeSignal, historyToPoints, recentPoints } from '../../lib/signals';
 import { fetchPriceHistory, fetchProductFamilyBySku, insertPriceAlert } from '../../lib/supabase';
-import { colors, radii, typography } from '../../lib/theme';
+import { radii, typography, type ThemeColors } from '../../lib/theme';
 import type { PriceHistoryRow, Product } from '../../lib/types';
 import type { AlertDraft } from '../../lib/watchlist';
 
@@ -29,6 +30,8 @@ export default function ProductDetailScreen() {
   const { getProduct, cheaperAlternatives } = useProducts();
   const { categoryLabel, formatMoney, genderLabel, rateSnapshot, regionLabel, t } = usePreferences();
   const watchlist = useWatchlist();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { isPro } = usePro();
   const [fallbackFamily, setFallbackFamily] = useState<Product[]>([]);
   const [history, setHistory] = useState<PriceHistoryRow[]>([]);
@@ -223,7 +226,7 @@ export default function ProductDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) { return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -540,4 +543,4 @@ const styles = StyleSheet.create({
     color: colors.onPill,
     fontWeight: '900',
   },
-});
+}); }

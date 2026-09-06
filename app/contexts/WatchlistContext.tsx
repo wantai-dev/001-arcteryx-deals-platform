@@ -24,7 +24,7 @@ type WatchlistContextValue = {
   isSaved: (skuId?: string | null) => boolean;
   getEntry: (skuId?: string | null) => WatchEntry | undefined;
   toggle: (product: Product) => Promise<boolean>;
-  toggleModel: (source: Product | CatalogProduct) => Promise<boolean>;
+  toggleModel: (source: Product | CatalogProduct, resolvedOffers?: Product[]) => Promise<boolean>;
   isModelSaved: (sourceOrKey: ModelWatchSource | string) => boolean;
   getModelEntry: (sourceOrKey: ModelWatchSource | string) => WatchEntry | undefined;
   saveAlert: (entryId: string, draft: AlertDraft) => Promise<boolean>;
@@ -72,10 +72,10 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
     [isPro, mutate],
   );
 
-  const toggleModel = useCallback(async (source: Product | CatalogProduct) => {
+  const toggleModel = useCallback(async (source: Product | CatalogProduct, resolvedOffers: Product[] = []) => {
     await softImpact();
     return mutate(async (current) => {
-      const result = toggleScopedWatch(current, source, 'model', isPro);
+      const result = toggleScopedWatch(current, source, 'model', isPro, new Date().toISOString(), resolvedOffers);
       return { entries: result.entries, value: result.accepted };
     });
   }, [isPro, mutate]);

@@ -5,7 +5,7 @@ import * as TaskManager from 'expo-task-manager';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { PREFERENCES_STORAGE_KEY, usePreferences } from '../contexts/PreferencesContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { hasNotificationPermission } from './actions';
 import { fetchPriceCandidates, readCachedRateSnapshot } from './alertProductSource';
 import { formatCurrencyValue } from './currency';
@@ -13,6 +13,7 @@ import { conditionallyRestoreFailedDeliveries, evaluatePriceAlerts } from './pri
 import { watchlistStore } from './watchlistRuntimeStore';
 import { watchCopy } from './watchI18n';
 import type { AppLanguage } from './i18n';
+import { migratePreferences, PREFERENCES_V1_KEY, PREFERENCES_V2_KEY, REGION_V1_KEY } from './preferences';
 
 export const PRICE_MONITOR_TASK = 'geardrop-local-price-monitor-v1';
 type MonitorOutcome = { checked: number; notified: number; skipped?: 'web' | 'disabled' | 'permission' };
@@ -20,10 +21,14 @@ let activeRun: Promise<MonitorOutcome> | null = null;
 
 async function runtimePreferences() {
   try {
-    const raw = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
-    const value = raw ? JSON.parse(raw) as { language?: AppLanguage | 'system'; notificationsEnabled?: boolean } : {};
+    const [v2Raw, v1Raw, regionRaw] = await Promise.all([
+      AsyncStorage.getItem(PREFERENCES_V2_KEY),
+      AsyncStorage.getItem(PREFERENCES_V1_KEY),
+      AsyncStorage.getItem(REGION_V1_KEY),
+    ]);
+    const value = migratePreferences(v2Raw, v1Raw, regionRaw);
     return {
-      enabled: value.notificationsEnabled !== false,
+      enabled: value.notificationsEnabled,
       language: value.language && value.language !== 'system' ? value.language : 'en' as AppLanguage,
     };
   } catch {

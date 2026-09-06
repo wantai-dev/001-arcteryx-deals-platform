@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { usePreferences } from '../contexts/PreferencesContext';
 import { usePro } from '../contexts/ProContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { requestNotificationPermission } from '../lib/actions';
 import type { ModelWatchSource } from '../lib/modelWatch';
-import { darkTokens, lightTokens, radii, typography } from '../lib/theme';
+import { radii, typography, type ThemeColors } from '../lib/theme';
 import type { AlertDraft } from '../lib/watchlist';
 import { watchSnapshot } from '../lib/watchlist';
 import { alertSheetCopy } from '../lib/watchI18n';
@@ -19,7 +20,7 @@ export function AlertModal({ visible, source, entry, historicalLow, onClose, onS
   const preferences = usePreferences();
   const { isPro } = usePro();
   const watchlist = useWatchlist();
-  const palette = useColorScheme() === 'dark' ? darkTokens : lightTokens;
+  const { colors: palette } = useTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const copy = alertSheetCopy(preferences.language);
   const snapshot = watchSnapshot(source);
@@ -94,7 +95,7 @@ function Preset({ label, selected, disabled, onPress, styles }: { label: string;
   return <Pressable style={[styles.preset, selected && styles.presetSelected, disabled && styles.disabled]} disabled={disabled} onPress={onPress}><Text style={[styles.presetText, selected && styles.presetTextSelected]}>{label}</Text></Pressable>;
 }
 
-function createStyles(c: typeof lightTokens) { return StyleSheet.create({
+function createStyles(c: ThemeColors) { return StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.38)' }, sheet: { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: c.card }, content: { gap: 12, padding: 20, paddingBottom: 34 }, handle: { width: 38, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: c.hair2 },
   title: { color: c.ink, fontSize: 22, fontWeight: '900' }, product: { color: c.ink, fontSize: 15, fontWeight: '800' }, current: { color: c.muted, fontSize: 13, fontWeight: '700' }, label: { color: c.ink2, fontSize: 12, fontWeight: '800' }, presets: { flexDirection: 'row', gap: 8 },
   preset: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, paddingHorizontal: 6 }, presetSelected: { backgroundColor: c.pill, borderColor: c.pill }, presetText: { color: c.ink2, fontSize: 12, fontWeight: '800', textAlign: 'center' }, presetTextSelected: { color: c.onPill },

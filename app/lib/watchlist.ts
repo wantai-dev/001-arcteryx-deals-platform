@@ -119,11 +119,19 @@ export function normalizeWatchEntry(entry: WatchEntry): WatchEntry | null {
     || !Number.isFinite(alert.rearmAbove) || alert.rearmAbove <= alert.targetAmount
     || (alert.email !== undefined && typeof alert.email !== 'string')
   )) alert = undefined;
+  const snapshot = entry.snapshot ? {
+    ...entry.snapshot,
+    resolvedSkuIds: Array.isArray(entry.snapshot.resolvedSkuIds)
+      ? [...new Set(entry.snapshot.resolvedSkuIds.filter((value): value is string => typeof value === 'string' && Boolean(value.trim())))]
+        .slice(0, 200)
+      : undefined,
+  } : undefined;
   return {
     ...entry,
     id,
     scope,
-    savedMoney: entry.savedMoney || (entry.snapshot?.currency ? { amount: entry.savedPrice, currency: entry.snapshot.currency } : undefined),
+    snapshot,
+    savedMoney: entry.savedMoney || (snapshot?.currency ? { amount: entry.savedPrice, currency: snapshot.currency } : undefined),
     alert,
   };
 }
@@ -143,11 +151,14 @@ export function makeScopedWatchEntry(
   source: ModelWatchSource,
   scope: 'sku' | 'model',
   nowIso = new Date().toISOString(),
+  resolvedOffers: Product[] = [],
 ): WatchEntry | null {
   const snapshot = watchSnapshot(source);
   if (scope === 'model') {
     const identity = modelIdentity(source);
     if (!identity) return null;
+    const resolvedSkuIds = [...new Set(resolvedOffers.map((offer) => offer.sku_id).filter(Boolean))].slice(0, 200);
+    const representativeOffer = resolvedOffers[0];
     return {
       id: `model:${identity.key}`,
       scope,
@@ -157,7 +168,12 @@ export function makeScopedWatchEntry(
       savedPrice: snapshot.price,
       symbol: snapshot.symbol,
       savedMoney: { amount: snapshot.price, currency: snapshot.currency },
-      snapshot,
+      snapshot: {
+        ...snapshot,
+        skuId: snapshot.skuId || representativeOffer?.sku_id,
+        imageUrl: snapshot.imageUrl || representativeOffer?.image_url || undefined,
+        resolvedSkuIds,
+      },
     };
   }
   if (!snapshot.skuId) return null;
@@ -176,8 +192,9 @@ export function makeScopedWatchEntry(
 export function toggleScopedWatch(
   entries: WatchEntry[], source: ModelWatchSource, scope: 'sku' | 'model', isPro: boolean,
   nowIso = new Date().toISOString(),
+  resolvedOffers: Product[] = [],
 ): WatchMutation {
-  const candidate = makeScopedWatchEntry(source, scope, nowIso);
+  const candidate = makeScopedWatchEntry(source, scope, nowIso, resolvedOffers);
   if (!candidate?.id) return { accepted: false, entries, reason: 'unstable-model' };
   if (entries.some((entry) => entry.id === candidate.id)) {
     return { accepted: true, entries: entries.filter((entry) => entry.id !== candidate.id) };

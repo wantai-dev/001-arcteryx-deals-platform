@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { RATES_STORAGE_KEY } from '../contexts/PreferencesContext';
-import { productName, visibleProducts } from './catalog';
-import { modelKeyForProduct } from './modelWatch';
+import { visibleProducts } from './catalog';
+import { productsToPriceCandidates } from './priceCandidateMapper';
 import type { PriceCandidate } from './priceMonitor';
 import { supabase } from './supabase';
 import type { ProductRow, WatchEntry } from './types';
@@ -38,9 +38,18 @@ async function fetchAllActiveRows() {
 }
 
 export async function fetchPriceCandidates(entries: WatchEntry[]): Promise<PriceCandidate[]> {
-  const skuIds = entries.filter((entry) => entry.scope !== 'model' && entry.skuId).map((entry) => entry.skuId);
+  const resolvedModelBySku = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.scope !== 'model' || !entry.modelKey) continue;
+    for (const skuId of entry.snapshot?.resolvedSkuIds || []) resolvedModelBySku.set(skuId, entry.modelKey);
+  }
+  const skuIds = [
+    ...entries.filter((entry) => entry.scope !== 'model' && entry.skuId).map((entry) => entry.skuId),
+    ...resolvedModelBySku.keys(),
+  ];
   const officialIds = entries.map((entry) => entry.snapshot?.officialProductId).filter((value): value is string => Boolean(value));
-  const hasFallbackModel = entries.some((entry) => entry.scope === 'model' && !entry.snapshot?.officialProductId);
+  const hasFallbackModel = entries.some((entry) => entry.scope === 'model'
+    && !entry.snapshot?.officialProductId && !(entry.snapshot?.resolvedSkuIds?.length));
   const [skuRows, officialRows, fallbackRows] = await Promise.all([
     fetchRows('sku_id', [...new Set(skuIds)]),
     fetchRows('official_product_id', [...new Set(officialIds)]),
@@ -52,16 +61,7 @@ export async function fetchPriceCandidates(entries: WatchEntry[]): Promise<Price
   for (const row of [...skuRows, ...officialRows, ...fallbackRows]) {
     if (row.sku_id) deduped.set(row.sku_id, row);
   }
-  const products = visibleProducts([...deduped.values()]);
-  return products.map((product) => ({
-    skuId: product.sku_id,
-    modelKey: modelKeyForProduct(product),
-    name: productName(product),
-    price: product.sale_price,
-    currency: product.currency,
-    symbol: product.symbol,
-    updatedAt: product.last_updated || product.last_seen_at || '',
-  }));
+  return productsToPriceCandidates(visibleProducts([...deduped.values()]), resolvedModelBySku);
 }
 
 export async function readCachedRateSnapshot(): Promise<CurrencyRateSnapshot | null> {

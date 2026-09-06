@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { usePreferences } from '../contexts/PreferencesContext';
-import { darkTokens, lightTokens, radii, typography } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { radii, typography, type ThemeColors } from '../lib/theme';
 import type { ChartPoint, Product } from '../lib/types';
 
 type Props = {
@@ -20,7 +21,7 @@ const PAD_B = 26;
 
 export function PriceChart({ points, product }: Props) {
   const { convertValue, displayedCurrency, formatMoney, formatNumber, t } = usePreferences();
-  const colors = useColorScheme() === 'dark' ? darkTokens : lightTokens;
+  const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   if (points.length < 2) {
     return (
@@ -87,7 +88,7 @@ export function PriceChart({ points, product }: Props) {
   );
 }
 
-function createStyles(colors: typeof lightTokens) { return StyleSheet.create({
+function createStyles(colors: ThemeColors) { return StyleSheet.create({
   wrap: {
     backgroundColor: colors.card,
     borderRadius: radii.lg,

@@ -111,6 +111,8 @@ export type WatchProductSnapshot = {
   price: number;
   imageUrl?: string;
   sourceUrl?: string;
+  /** Dealer SKUs resolved by the Yearbook's conservative official-id/unique-name index. */
+  resolvedSkuIds?: string[];
 };
 
 export type AlertMode = 'percent10' | 'historicalLow' | 'custom';

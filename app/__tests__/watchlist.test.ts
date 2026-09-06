@@ -14,7 +14,7 @@ import {
   WATCHLIST_STORAGE_KEY,
 } from '../lib/watchlist';
 import { product } from './helpers';
-import type { WatchEntry } from '../lib/types';
+import type { CatalogProduct, WatchEntry } from '../lib/types';
 
 function entries(count: number): WatchEntry[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -116,6 +116,21 @@ test('model entries never invent a queryable sku', () => {
   assert.equal(entry?.id, 'model:arcteryx:official:x123');
   assert.equal(entry?.skuId, '');
   assert.equal(entry?.snapshot?.skuId, 'beta-jacket_Black_us');
+});
+
+test('model entries persist only the bounded Yearbook-resolved dealer SKU mapping', () => {
+  const catalogSource: CatalogProduct = {
+    catalog_product_id: 'arcteryx:x123', brand_key: 'arcteryx', official_product_id: 'X123', brand: "Arc'teryx",
+    catalog_scope: 'full_price', market: 'outdoor', country: 'us', language: 'en', name: 'Beta Jacket', gender: 'men',
+    collection: null, categories: ['jackets'], category_sources: {}, list_price: 400, list_price_max: 400,
+    currency: 'USD', color_names: [], primary_colors: [], season_codes: [], source_name: 'official',
+    source_url: 'https://arcteryx.com/us/en/shop/mens/beta-jacket', source_hash: 'hash', status: 'active',
+    first_seen_at: '2026-01-01T00:00:00Z', last_seen_at: '2026-01-01T00:00:00Z', last_changed_at: '2026-01-01T00:00:00Z',
+  };
+  const offers = [product({ sku_id: 'dealer-a' }), product({ sku_id: 'dealer-a' }), product({ sku_id: 'dealer-b' })];
+  const entry = makeScopedWatchEntry(catalogSource, 'model', '2026-09-07T00:00:00Z', offers)!;
+  assert.deepEqual(entry.snapshot?.resolvedSkuIds, ['dealer-a', 'dealer-b']);
+  assert.equal(entry.snapshot?.skuId, 'dealer-a');
 });
 
 test('free alert quota allows replacing self but rejects a second active alert', () => {

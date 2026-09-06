@@ -82,7 +82,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     "extra": {
       "router": {},

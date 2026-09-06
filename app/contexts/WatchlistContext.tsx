@@ -11,11 +11,10 @@ import {
   entryIdForModel,
   FREE_ALERT_LIMIT,
   FREE_WATCHLIST_LIMIT,
-  parseStoredWatchEntries,
   saveEntryAlert,
   toggleScopedWatch,
-  WATCHLIST_STORAGE_KEY,
 } from '../lib/watchlist';
+import { WatchlistStore } from '../lib/watchlistStore';
 
 type WatchlistContextValue = {
   entries: WatchEntry[];
@@ -32,7 +31,8 @@ type WatchlistContextValue = {
   saveAlert: (entryId: string, draft: AlertDraft) => Promise<boolean>;
   removeAlert: (entryId: string) => Promise<void>;
   setAlertTarget: (product: Product, target: number | null) => Promise<void>;
-  remove: (skuId: string) => Promise<void>;
+  remove: (skuIdOrEntryId: string) => Promise<void>;
+  removeEntry: (entryId: string) => Promise<void>;
 };
 
 const WatchlistContext = createContext<WatchlistContextValue | null>(null);
@@ -41,43 +41,25 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
   const { isPro } = usePro();
   const [entries, setEntries] = useState<WatchEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const entriesRef = useRef<WatchEntry[]>([]);
-  const mutationQueue = useRef(Promise.resolve());
+  const storeRef = useRef<WatchlistStore | null>(null);
+  if (!storeRef.current) storeRef.current = new WatchlistStore(AsyncStorage);
+  const store = storeRef.current;
 
   useEffect(() => {
-    AsyncStorage.getItem(WATCHLIST_STORAGE_KEY)
-      .then((raw) => {
-        const next = parseStoredWatchEntries(raw);
-        entriesRef.current = next;
-        setEntries(next);
-      })
-      .catch(() => {
-        entriesRef.current = [];
-        setEntries([]);
-      })
-      .finally(() => setHydrated(true));
-  }, []);
-
-  const persist = useCallback(async (next: WatchEntry[]) => {
-    entriesRef.current = next;
-    setEntries(next);
-    await AsyncStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(next));
-  }, []);
-
-  const mutate = useCallback(<T,>(operation: (current: WatchEntry[]) => Promise<{ entries: WatchEntry[]; value: T }>) => {
-    let resolveResult!: (value: T) => void;
-    let rejectResult!: (reason?: unknown) => void;
-    const result = new Promise<T>((resolve, reject) => {
-      resolveResult = resolve;
-      rejectResult = reject;
+    const unsubscribe = store.subscribe((next, ready) => {
+      setEntries(next);
+      setHydrated(ready);
     });
-    mutationQueue.current = mutationQueue.current.then(async () => {
-      const update = await operation(entriesRef.current);
-      await persist(update.entries);
-      resolveResult(update.value);
-    }).catch((error) => rejectResult(error));
-    return result;
-  }, [persist]);
+    const snapshot = store.snapshot();
+    setEntries(snapshot.entries);
+    setHydrated(snapshot.hydrated);
+    void store.hydrate();
+    return unsubscribe;
+  }, [store]);
+
+  const mutate = useCallback(<T,>(operation: (current: WatchEntry[]) => Promise<{ entries: WatchEntry[]; value: T }>) => (
+    store.mutate(operation)
+  ), [store]);
 
   const isSaved = useCallback((skuId?: string | null) => Boolean(skuId && entries.some((entry) => entry.skuId === skuId)), [entries]);
   const getEntry = useCallback((skuId?: string | null) => (skuId ? entries.find((entry) => entry.skuId === skuId) : undefined), [entries]);
@@ -156,8 +138,15 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
     [isPro, mutate],
   );
 
-  const remove = useCallback(async (skuId: string) => {
-    await mutate(async (current) => ({ entries: current.filter((entry) => entry.skuId !== skuId && entry.id !== `sku:${skuId}`), value: undefined }));
+  const removeEntry = useCallback(async (entryId: string) => {
+    await mutate(async (current) => ({ entries: current.filter((entry) => entry.id !== entryId), value: undefined }));
+  }, [mutate]);
+  const remove = useCallback(async (skuIdOrEntryId: string) => {
+    await mutate(async (current) => ({
+      entries: current.filter((entry) => entry.skuId !== skuIdOrEntryId
+        && entry.id !== skuIdOrEntryId && entry.id !== `sku:${skuIdOrEntryId}`),
+      value: undefined,
+    }));
   }, [mutate]);
 
   const value = useMemo(
@@ -177,8 +166,9 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
       removeAlert,
       setAlertTarget,
       remove,
+      removeEntry,
     }),
-    [entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, saveAlert, setAlertTarget, toggle, toggleModel],
+    [entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, removeEntry, saveAlert, setAlertTarget, toggle, toggleModel],
   );
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;

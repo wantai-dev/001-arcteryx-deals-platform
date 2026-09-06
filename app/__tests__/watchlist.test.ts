@@ -91,10 +91,24 @@ test('setWatchAlertTarget creates, updates, and clears local alert targets', () 
 });
 
 test('v1 entries migrate to stable sku IDs without losing legacy fields', () => {
-  const migrated = parseStoredWatchEntries('[{"skuId":"x","savedAt":"now","savedPrice":1,"symbol":"$"}]');
+  const migrated = parseStoredWatchEntries('[{"skuId":"x","savedAt":"2026-09-01T00:00:00Z","savedPrice":1,"symbol":"$"}]');
   assert.equal(migrated[0]?.id, 'sku:x');
   assert.equal(migrated[0]?.scope, 'sku');
   assert.equal(migrated[0]?.savedPrice, 1);
+});
+
+test('stored migration drops invalid rows, deduplicates IDs, and isolates malformed alerts', () => {
+  const valid = makeScopedWatchEntry(product({ sku_id: 'valid' }), 'sku', '2026-09-01T00:00:00Z')!;
+  const malformedAlert = { ...valid, alert: { mode: 'custom', targetAmount: 2, targetCurrency: '$', localEnabled: true, armed: true, rearmAbove: 3 } };
+  const migrated = parseStoredWatchEntries(JSON.stringify([
+    malformedAlert,
+    valid,
+    { ...valid, id: 'sku:bad-date', skuId: 'bad-date', savedAt: 'not-a-date' },
+    { ...valid, id: 'sku:bad-price', skuId: 'bad-price', savedPrice: Number.NaN },
+  ]));
+  assert.equal(migrated.length, 1);
+  assert.equal(migrated[0]?.id, 'sku:valid');
+  assert.equal(migrated[0]?.alert, undefined);
 });
 
 test('model entries never invent a queryable sku', () => {

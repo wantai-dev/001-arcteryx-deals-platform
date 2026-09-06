@@ -100,7 +100,8 @@ export function entryIdForModel(sourceOrKey: ModelWatchSource | string): string 
 }
 
 export function normalizeWatchEntry(entry: WatchEntry): WatchEntry | null {
-  if (!entry || !entry.savedAt || !Number.isFinite(entry.savedPrice)) return null;
+  if (!entry || !entry.savedAt || !Number.isFinite(Date.parse(entry.savedAt))
+    || !Number.isFinite(entry.savedPrice) || entry.savedPrice <= 0) return null;
   if (!entry.skuId && !(entry.scope === 'model' && entry.modelKey)) return null;
   const id = entry.id || (entry.scope === 'model' && entry.modelKey ? `model:${entry.modelKey}` : entryIdForSku(entry.skuId));
   const scope = entry.scope === 'model' && entry.modelKey ? 'model' : 'sku';
@@ -108,17 +109,34 @@ export function normalizeWatchEntry(entry: WatchEntry): WatchEntry | null {
   const legacyAlert = entry.alertTarget && targetCurrency
     ? makeLocalAlert({ mode: 'custom', targetAmount: entry.alertTarget, targetCurrency, localEnabled: true })
     : undefined;
+  let alert = entry.alert || legacyAlert;
+  if (alert && (
+    !['percent10', 'historicalLow', 'custom'].includes(alert.mode)
+    || !Number.isFinite(alert.targetAmount) || alert.targetAmount <= 0
+    || !/^[A-Z]{3}$/.test(alert.targetCurrency)
+    || typeof alert.localEnabled !== 'boolean'
+    || typeof alert.armed !== 'boolean'
+    || !Number.isFinite(alert.rearmAbove) || alert.rearmAbove <= alert.targetAmount
+    || (alert.email !== undefined && typeof alert.email !== 'string')
+  )) alert = undefined;
   return {
     ...entry,
     id,
     scope,
     savedMoney: entry.savedMoney || (entry.snapshot?.currency ? { amount: entry.savedPrice, currency: entry.snapshot.currency } : undefined),
-    alert: entry.alert || legacyAlert,
+    alert,
   };
 }
 
 export function parseStoredWatchEntries(raw: string | null): WatchEntry[] {
-  return parseWatchEntries(raw).map(normalizeWatchEntry).filter((entry): entry is WatchEntry => Boolean(entry));
+  const seen = new Set<string>();
+  return parseWatchEntries(raw)
+    .map(normalizeWatchEntry)
+    .filter((entry): entry is WatchEntry => {
+      if (!entry?.id || seen.has(entry.id)) return false;
+      seen.add(entry.id);
+      return true;
+    });
 }
 
 export function makeScopedWatchEntry(

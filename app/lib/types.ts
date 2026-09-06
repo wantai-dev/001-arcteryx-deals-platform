@@ -56,6 +56,7 @@ export type PriceHistoryRow = {
   sku_id?: string | null;
   sale_price: number | string | null;
   original_price: number | string | null;
+  currency?: string | null;
   recorded_at: string | null;
 };
 

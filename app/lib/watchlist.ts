@@ -82,6 +82,7 @@ export function watchSnapshot(source: ModelWatchSource): WatchProductSnapshot {
     gender: source.gender || undefined,
     category: catalog ? source.categories[0] : source.category || undefined,
     officialProductId: source.official_product_id || undefined,
+    catalogProductId: catalog ? source.catalog_product_id : undefined,
     currency: source.currency,
     symbol: catalog ? source.currency : source.symbol,
     price: catalog ? source.list_price : source.sale_price,

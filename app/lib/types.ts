@@ -106,6 +106,7 @@ export type WatchProductSnapshot = {
   gender?: string;
   category?: string;
   officialProductId?: string;
+  catalogProductId?: string;
   currency: string;
   symbol: string;
   price: number;

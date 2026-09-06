@@ -1,5 +1,5 @@
-export const CURRENCY_OPTIONS = ['original', 'USD', 'CAD', 'EUR', 'GBP', 'JPY', 'CHF'] as const;
-export const RATE_QUOTES = ['USD', 'CAD', 'GBP', 'JPY', 'CHF', 'SEK', 'DKK', 'AUD'] as const;
+export const CURRENCY_OPTIONS = ['original', 'CNY', 'USD', 'CAD', 'EUR', 'GBP', 'JPY', 'CHF'] as const;
+export const RATE_QUOTES = ['USD', 'CAD', 'GBP', 'JPY', 'CHF', 'CNY', 'SEK', 'DKK', 'AUD'] as const;
 
 export type CurrencyPreference = (typeof CURRENCY_OPTIONS)[number];
 export type CurrencyCode = Exclude<CurrencyPreference, 'original'> | 'SEK' | 'DKK' | 'AUD';

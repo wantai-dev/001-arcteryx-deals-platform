@@ -10,7 +10,7 @@ import { PreferencesProvider } from '../contexts/PreferencesContext';
 import { ProProvider } from '../contexts/ProContext';
 import { RegionProvider } from '../contexts/RegionContext';
 import { WatchlistProvider } from '../contexts/WatchlistContext';
-import { colors } from '../lib/theme';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 
 function useNotificationObserver() {
   useEffect(() => {
@@ -42,11 +42,20 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <PreferencesProvider>
-        <ProProvider>
+        <ThemeProvider><AppProviders /></ThemeProvider>
+      </PreferencesProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function AppProviders() {
+  const { colors, scheme } = useTheme();
+  return (
+    <ProProvider>
           <RegionProvider>
             <WatchlistProvider>
               <ProductsProvider>
-                <StatusBar style="auto" />
+                <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
                 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="product/[skuId]" />
@@ -56,8 +65,6 @@ export default function RootLayout() {
               </ProductsProvider>
             </WatchlistProvider>
           </RegionProvider>
-        </ProProvider>
-      </PreferencesProvider>
-    </SafeAreaProvider>
+    </ProProvider>
   );
 }

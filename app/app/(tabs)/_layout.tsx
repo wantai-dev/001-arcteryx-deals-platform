@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
 import { usePreferences } from '../../contexts/PreferencesContext';
-import { colors } from '../../lib/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export default function TabsLayout() {
   const { t } = usePreferences();
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -33,17 +34,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="watchlist"
-        options={{
-          title: t('tabs.watchlist'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="heart-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
         name="yearbook"
         options={{
           title: t('tabs.yearbook'),
           tabBarIcon: ({ color, size }) => <Ionicons name="library-outline" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="watchlist"
+        options={{
+          title: t('tabs.watchlist'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="heart-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen

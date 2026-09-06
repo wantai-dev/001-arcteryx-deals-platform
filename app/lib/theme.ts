@@ -5,8 +5,8 @@ export const lightTokens = {
   card: '#FFFFFF',
   ink: '#15181B',
   ink2: '#3B4147',
-  muted: '#7B838B',
-  faint: '#A7ADB2',
+  muted: '#626970',
+  faint: '#626970',
   hair: 'rgba(20,25,28,.10)',
   hair2: 'rgba(20,25,28,.16)',
   disc: '#B5362A',
@@ -32,8 +32,8 @@ export const darkTokens = {
   card: '#1D2124',
   ink: '#ECEEE9',
   ink2: '#C4C9CD',
-  muted: '#8B9197',
-  faint: '#6A7076',
+  muted: '#AEB5BB',
+  faint: '#AEB5BB',
   hair: 'rgba(255,255,255,.11)',
   hair2: 'rgba(255,255,255,.17)',
   disc: '#F08579',
@@ -85,6 +85,11 @@ export const colors = {
   successLine: tokens.buyLine,
   tab: tokens.pill,
 };
+export type ThemeColors = typeof colors;
+export function themeColors(scheme: 'light' | 'dark'): ThemeColors {
+  const selected = scheme === 'dark' ? darkTokens : lightTokens;
+  return { ...selected, bg: selected.screen, surface: selected.card, surfaceAlt: selected.screen, border: selected.hair, borderStrong: selected.hair2, accent: selected.pill, accentSoft: selected.buyBg, danger: selected.disc, dangerSoft: selected.discBg, dangerLine: selected.discLine, success: selected.buy, successSoft: selected.buyBg, successLine: selected.buyLine, tab: selected.pill };
+}
 
 export const radii = {
   sm: 6,

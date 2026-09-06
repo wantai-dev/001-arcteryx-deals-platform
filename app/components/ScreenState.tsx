@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { ThemeColors } from '../lib/theme';
 
 type Props = {
   title?: string;
@@ -11,6 +13,8 @@ type Props = {
 };
 
 export function ScreenState({ title = 'Loading', body, loading = false, actionLabel, onAction }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.wrap}>
       {loading ? <ActivityIndicator color={colors.accent} /> : null}
@@ -25,7 +29,7 @@ export function ScreenState({ title = 'Loading', body, loading = false, actionLa
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) { return StyleSheet.create({
   wrap: {
     flex: 1,
     alignItems: 'center',
@@ -58,4 +62,4 @@ const styles = StyleSheet.create({
   },
   actionPressed: { opacity: 0.78 },
   actionText: { color: colors.surface, fontSize: 14, fontWeight: '800' },
-});
+}); }

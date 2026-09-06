@@ -1,15 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '../components/BrandLogo';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { openSupportUrl } from '../lib/actions';
-import { colors, radii } from '../lib/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { ThemeColors, radii } from '../lib/theme';
 
 export default function PrivacyScreen() {
   const { t } = usePreferences();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.nav}>
@@ -22,23 +26,23 @@ export default function PrivacyScreen() {
         <Text style={styles.title}>{t('privacy.title')}</Text>
         <PolicyBlock
           title={t('privacy.storeTitle')}
-          body={t('privacy.storeBody')}
+          body={t('privacy.storeBody')} styles={styles}
         />
         <PolicyBlock
           title={t('privacy.readTitle')}
-          body={t('privacy.readBody')}
+          body={t('privacy.readBody')} styles={styles}
         />
         <PolicyBlock
           title={t('privacy.notificationsTitle')}
-          body={t('privacy.notificationsBody')}
+          body={t('privacy.notificationsBody')} styles={styles}
         />
         <PolicyBlock
           title={t('privacy.purchasesTitle')}
-          body={t('privacy.purchasesBody')}
+          body={t('privacy.purchasesBody')} styles={styles}
         />
         <PolicyBlock
           title={t('privacy.contactTitle')}
-          body={t('privacy.contactBody')}
+          body={t('privacy.contactBody')} styles={styles}
         />
         <Pressable accessibilityRole="link" style={styles.supportButton} onPress={openSupportUrl}>
           <Text style={styles.supportButtonText}>{t('privacy.openSupport')}</Text>
@@ -49,7 +53,7 @@ export default function PrivacyScreen() {
   );
 }
 
-function PolicyBlock({ title, body }: { title: string; body: string }) {
+function PolicyBlock({ title, body, styles }: { title: string; body: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.block}>
       <Text style={styles.blockTitle}>{title}</Text>
@@ -58,7 +62,7 @@ function PolicyBlock({ title, body }: { title: string; body: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) { return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -127,4 +131,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
   },
-});
+}); }

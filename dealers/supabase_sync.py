@@ -176,11 +176,22 @@ def should_preserve_previous_discount(
     old_sale,
     old_original,
 ) -> bool:
-    """Don't let low-trust list fallback erase or inflate a trusted PDP discount."""
+    """Don't let low-trust list fallback overwrite a trusted PDP price.
+
+    MEC list prices can differ from the current PDP price even when both are
+    full-price values.  Preserve the last PDP-confirmed value whenever a MEC
+    PDP enrichment fails and its list fallback disagrees with production.
+    Other dealers retain the narrower historical discount guard.
+    """
     if price_source_quality != "list_fallback":
         return False
     if not (new_sale and new_original and old_sale and old_original):
         return False
+    if dealer == "mec" and (
+        abs(float(new_sale) - float(old_sale)) > 0.01
+        or abs(float(new_original) - float(old_original)) > 0.01
+    ):
+        return True
     if old_sale >= old_original - 0.01:
         return False
     if new_sale > old_sale + 0.01:

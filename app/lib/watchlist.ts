@@ -240,3 +240,24 @@ export function saveEntryAlert(
   next[index] = { ...next[index]!, alertTarget: draft.targetAmount, alert: makeLocalAlert(draft) };
   return { accepted: true, entries: next };
 }
+
+export function saveSourceAlert(
+  entries: WatchEntry[], source: ModelWatchSource, scope: 'sku' | 'model', draft: AlertDraft,
+  isPro: boolean, resolvedOffers: Product[] = [], nowIso = new Date().toISOString(),
+): WatchMutation {
+  const id = scope === 'model'
+    ? entryIdForModel(source)
+    : (!isCatalogProduct(source) ? entryIdForSku(source.sku_id) : null);
+  if (!id) return { accepted: false, entries, reason: 'unstable-model' };
+  let next = entries;
+  let created = false;
+  if (!next.some((entry) => entry.id === id)) {
+    const candidate = makeScopedWatchEntry(source, scope, nowIso, resolvedOffers);
+    if (!candidate) return { accepted: false, entries, reason: 'unstable-model' };
+    if (!isPro && next.length >= FREE_WATCHLIST_LIMIT) return { accepted: false, entries, reason: 'watch-limit' };
+    next = [candidate, ...next];
+    created = true;
+  }
+  const result = saveEntryAlert(next, id, draft, isPro);
+  return !result.accepted && created ? { ...result, entries } : result;
+}

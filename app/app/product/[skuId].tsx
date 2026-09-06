@@ -45,18 +45,26 @@ export default function ProductDetailScreen() {
 
   useEffect(() => {
     if (!skuId || contextProduct) return;
+    let active = true;
+    setFallbackFamily([]);
     setLoadingProduct(true);
     fetchProductFamilyBySku(skuId)
-      .then(setFallbackFamily)
-      .finally(() => setLoadingProduct(false));
+      .then((rows) => { if (active) setFallbackFamily(rows); })
+      .catch(() => { if (active) setFallbackFamily([]); })
+      .finally(() => { if (active) setLoadingProduct(false); });
+    return () => { active = false; };
   }, [contextProduct, skuId]);
 
   useEffect(() => {
-    if (!product?.sku_id) return;
+    let active = true;
+    setHistory([]);
+    if (!product?.sku_id) return () => { active = false; };
     setLoadingHistory(true);
     fetchPriceHistory(product.sku_id)
-      .then(setHistory)
-      .finally(() => setLoadingHistory(false));
+      .then((rows) => { if (active) setHistory(rows); })
+      .catch(() => { if (active) setHistory([]); })
+      .finally(() => { if (active) setLoadingHistory(false); });
+    return () => { active = false; };
   }, [product?.sku_id]);
 
   useEffect(() => {
@@ -68,7 +76,10 @@ export default function ProductDetailScreen() {
   const signal = useMemo(() => (product ? computeSignal(product, history) : null), [history, product]);
   const alternatives = product ? cheaperAlternatives(product) : [];
   const saved = product ? watchlist.isSaved(product.sku_id) : false;
-  const verdictText = signal?.isLow ? t('product.goodVerdict') : t('product.waitVerdict');
+  const verdictText = signal?.kind === 'all_time_low' ? t('signal.all_time_low')
+    : signal?.kind === 'ninety_day_low' ? t('signal.ninety_day_low')
+      : signal?.kind === 'drop_today' ? signal.label
+        : signal?.kind === 'steady' ? t('signal.steady') : '';
 
   if (!product && loadingProduct) {
     return <ScreenState title={t('product.loading')} body={t('product.loadingBody')} loading />;
@@ -87,16 +98,16 @@ export default function ProductDetailScreen() {
   const galleryWidth = Math.max(width - 30, 1);
   const currentCategory = categoryLabel(productCategory(currentProduct));
 
-  async function submitAlert(draft: AlertDraft) {
-    const accepted = await watchlist.saveAlert(`sku:${currentProduct.sku_id}`, draft);
+  async function submitAlert(draft: AlertDraft, scope: 'sku' | 'model') {
+    const accepted = await watchlist.saveAlertForSource(currentProduct, scope, draft);
     if (!accepted) return false;
-    if (draft.email) {
+    if (draft.email && scope === 'sku') {
       const converted = convertAmount(draft.targetAmount, draft.targetCurrency, currentProduct.currency as never, rateSnapshot);
       if (draft.targetCurrency !== currentProduct.currency && !converted.converted) throw new Error('Current exchange rates are unavailable for email alerts.');
       try {
         await insertPriceAlert(buildPriceAlertRequest(currentProduct, draft.email, converted.value));
       } catch (error) {
-        await watchlist.saveAlert(`sku:${currentProduct.sku_id}`, { ...draft, email: undefined });
+        await watchlist.saveAlertForSource(currentProduct, 'sku', { ...draft, email: undefined });
         throw error;
       }
     }
@@ -133,7 +144,6 @@ export default function ProductDetailScreen() {
               <View style={styles.imageDiscount}>
                 <Text style={styles.imageDiscountText}>-{currentProduct.discount_pct}%</Text>
               </View>
-              <Text style={styles.imageLabel}>{currentCategory}</Text>
               {visibleImages.length > 1 ? (
                 <View style={styles.imageDots}>
                   {visibleImages.slice(0, 4).map((dot, dotIndex) => (
@@ -175,7 +185,7 @@ export default function ProductDetailScreen() {
           {!isPro ? <ProGate title={t('product.upgradeHistory')} subtitle={t('product.upgradeHistorySub')} action={t('product.viewPro')} /> : null}
         </View>
 
-        {signal ? (
+        {signal && signal.kind !== 'insufficient' ? (
           <View style={[styles.verdict, signal.isLow ? styles.verdictGood : styles.verdictNeutral]}>
             <Ionicons name={signal.isLow ? 'checkmark' : 'time-outline'} size={15} color={signal.isLow ? colors.buy : colors.muted} />
             <Text style={[styles.verdictText, signal.isLow && styles.verdictGoodText]}>{verdictText}</Text>
@@ -202,13 +212,6 @@ export default function ProductDetailScreen() {
             style={[styles.actionButton, styles.alertButton]}
             onPress={async () => {
               await softImpact();
-              if (!watchlist.isSaved(currentProduct.sku_id)) {
-                const accepted = await watchlist.toggle(currentProduct);
-                if (!accepted) {
-                  Alert.alert(t('deals.watchLimitTitle'), t('deals.watchLimitBody', { count: watchlist.freeLimit }));
-                  return;
-                }
-              }
               setAlertOpen(true);
             }}
           >
@@ -288,16 +291,6 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
-  imageLabel: {
-    position: 'absolute',
-    left: 12,
-    bottom: 10,
-    color: colors.photoCat,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
   imageDots: {
     position: 'absolute',
     right: 12,
@@ -331,8 +324,8 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
   },
   title: {
     color: colors.ink,
-    fontSize: 21,
-    lineHeight: 27,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '900',
     letterSpacing: 0,
   },
@@ -354,7 +347,7 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     color: colors.disc,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 26,
+    fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
   },

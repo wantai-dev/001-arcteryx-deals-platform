@@ -6,7 +6,9 @@ import { usePro } from '../contexts/ProContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { requestNotificationPermission } from '../lib/actions';
-import type { ModelWatchSource } from '../lib/modelWatch';
+import { modelIdentity, type ModelWatchSource } from '../lib/modelWatch';
+import { convertAmount } from '../lib/currency';
+import { initialAlertEditorValue } from '../lib/alertEditor';
 import { radii, typography, type ThemeColors } from '../lib/theme';
 import type { AlertDraft } from '../lib/watchlist';
 import { watchSnapshot } from '../lib/watchlist';
@@ -14,9 +16,9 @@ import { alertSheetCopy } from '../lib/watchI18n';
 import type { WatchEntry } from '../lib/types';
 import { ProGate } from './ProGate';
 
-type Props = { visible: boolean; source: ModelWatchSource; entry?: WatchEntry; historicalLow?: number | null; onClose: () => void; onSubmit: (draft: AlertDraft) => Promise<boolean> };
+type Props = { visible: boolean; source: ModelWatchSource; entry?: WatchEntry; lockedScope?: 'sku' | 'model'; historicalLow?: number | null; onClose: () => void; onSubmit: (draft: AlertDraft, scope: 'sku' | 'model') => Promise<boolean> };
 
-export function AlertModal({ visible, source, entry, historicalLow, onClose, onSubmit }: Props) {
+export function AlertModal({ visible, source, entry, lockedScope, historicalLow, onClose, onSubmit }: Props) {
   const preferences = usePreferences();
   const { isPro } = usePro();
   const watchlist = useWatchlist();
@@ -24,9 +26,17 @@ export function AlertModal({ visible, source, entry, historicalLow, onClose, onS
   const styles = useMemo(() => createStyles(palette), [palette]);
   const copy = alertSheetCopy(preferences.language);
   const snapshot = watchSnapshot(source);
-  const current = preferences.convertValue(snapshot.price, snapshot.currency);
-  const currency = preferences.displayedCurrency(snapshot.currency);
-  const low = historicalLow ? preferences.convertValue(historicalLow, snapshot.currency) : null;
+  const [scope, setScope] = useState<'sku' | 'model'>('sku');
+  const canUseSku = 'sku_id' in source;
+  const canUseModel = Boolean(modelIdentity(source));
+  const selectedEntry = entry?.scope === scope ? entry : (scope === 'model' ? watchlist.getModelEntry(source) : (canUseSku ? watchlist.getEntry(source.sku_id) : undefined));
+  const existingAlert = selectedEntry?.alert || entry?.alert;
+  const defaultCurrency = preferences.displayedCurrency(snapshot.currency);
+  const targetCurrency = existingAlert?.targetCurrency || defaultCurrency;
+  const currentConversion = convertAmount(snapshot.price, snapshot.currency, targetCurrency as never, preferences.rateSnapshot);
+  const current = snapshot.currency === targetCurrency || currentConversion.converted ? currentConversion.value : Number.NaN;
+  const lowConversion = historicalLow ? convertAmount(historicalLow, snapshot.currency, targetCurrency as never, preferences.rateSnapshot) : null;
+  const low = lowConversion && (snapshot.currency === targetCurrency || lowConversion.converted) ? lowConversion.value : null;
   const [mode, setMode] = useState<AlertDraft['mode']>('percent10');
   const [target, setTarget] = useState('');
   const [localEnabled, setLocalEnabled] = useState(true);
@@ -34,21 +44,38 @@ export function AlertModal({ visible, source, entry, historicalLow, onClose, onS
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const existingActive = Boolean(entry?.alert?.localEnabled || entry?.alert?.email);
-  const supportsEmail = 'sku_id' in source;
+  const existingActive = Boolean(existingAlert?.localEnabled || existingAlert?.email);
+  const supportsEmail = canUseSku && scope === 'sku';
   const quotaFull = !isPro && !existingActive && watchlist.activeAlertCount >= watchlist.freeAlertLimit;
-  const amount = mode === 'percent10' ? current * 0.9 : mode === 'historicalLow' && low ? low : Number(target);
+  const amount = Number(target);
 
   useEffect(() => {
     if (!visible) return;
-    const existing = entry?.alert;
-    setMode(existing?.mode || 'percent10');
-    setTarget(existing ? String(existing.targetAmount) : String(Math.floor(current * 0.9)));
+    const initialScope = lockedScope || entry?.scope || (canUseSku ? 'sku' : 'model');
+    setScope(initialScope);
+    const existing = initialScope === 'model' ? watchlist.getModelEntry(source)?.alert : (canUseSku ? watchlist.getEntry(source.sku_id)?.alert : undefined);
+    const initial = initialAlertEditorValue(snapshot.price, snapshot.currency, defaultCurrency, existing, preferences.rateSnapshot);
+    setMode(initial.mode);
+    setTarget(String(initial.target));
     setLocalEnabled(existing?.localEnabled ?? true);
     setEmail(existing?.email || '');
     setEmailOpen(Boolean(existing?.email));
     setError(null);
-  }, [current, entry?.alert, visible]);
+  }, [visible, entry?.id, snapshot.price, snapshot.currency, defaultCurrency]);
+
+  function chooseScope(nextScope: 'sku' | 'model') {
+    setScope(nextScope);
+    const existing = nextScope === 'model' ? watchlist.getModelEntry(source)?.alert : (canUseSku ? watchlist.getEntry(source.sku_id)?.alert : undefined);
+    const initial = initialAlertEditorValue(snapshot.price, snapshot.currency, defaultCurrency, existing, preferences.rateSnapshot);
+    setMode(initial.mode); setTarget(String(initial.target)); setLocalEnabled(existing?.localEnabled ?? true);
+    setEmail(existing?.email || ''); setEmailOpen(Boolean(existing?.email));
+  }
+
+  function chooseMode(nextMode: AlertDraft['mode']) {
+    setMode(nextMode);
+    if (nextMode === 'percent10') setTarget(String(Math.floor(current * 0.9)));
+    else if (nextMode === 'historicalLow' && low) setTarget(String(low));
+  }
 
   async function submit() {
     const normalizedEmail = supportsEmail ? email.trim().toLowerCase() : '';
@@ -58,8 +85,11 @@ export function AlertModal({ visible, source, entry, historicalLow, onClose, onS
     if (quotaFull) return;
     setBusy(true); setError(null);
     try {
-      if (localEnabled && !(await requestNotificationPermission())) return setError(copy.permissionDenied);
-      const accepted = await onSubmit({ mode, targetAmount: amount, targetCurrency: currency, localEnabled, ...(normalizedEmail ? { email: normalizedEmail } : {}) });
+      if (localEnabled) {
+        if (!(await requestNotificationPermission())) return setError(copy.permissionDenied);
+        await preferences.setNotificationsEnabled(true);
+      }
+      const accepted = await onSubmit({ mode, targetAmount: amount, targetCurrency, localEnabled, ...(normalizedEmail ? { email: normalizedEmail } : {}) }, scope);
       if (!accepted) return setError(copy.limitReached);
       onClose();
     } catch (nextError) {
@@ -72,13 +102,17 @@ export function AlertModal({ visible, source, entry, historicalLow, onClose, onS
       <View style={styles.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.handle} /><Text style={styles.title}>{copy.title}</Text><Text style={styles.product} numberOfLines={2}>{snapshot.name}</Text>
         <Text style={styles.current}>{copy.current} {preferences.formatMoney(snapshot.price, snapshot.currency, snapshot.symbol)}</Text>
-        <Text style={styles.label}>{copy.target} · {currency}</Text>
+        {!lockedScope ? <View style={styles.presets}>
+          {canUseSku ? <Preset label={copy.itemScope} selected={scope === 'sku'} onPress={() => chooseScope('sku')} styles={styles} /> : null}
+          {canUseModel ? <Preset label={copy.modelScope} selected={scope === 'model'} onPress={() => chooseScope('model')} styles={styles} /> : null}
+        </View> : null}
+        <Text style={styles.label}>{copy.target} · {targetCurrency}</Text>
         <View style={styles.presets}>
-          <Preset label={copy.tenPercent} selected={mode === 'percent10'} onPress={() => setMode('percent10')} styles={styles} />
-          <Preset label={copy.historyLow} selected={mode === 'historicalLow'} disabled={!low} onPress={() => setMode('historicalLow')} styles={styles} />
-          <Preset label={copy.custom} selected={mode === 'custom'} onPress={() => setMode('custom')} styles={styles} />
+          <Preset label={copy.tenPercent} selected={mode === 'percent10'} onPress={() => chooseMode('percent10')} styles={styles} />
+          <Preset label={copy.historyLow} selected={mode === 'historicalLow'} disabled={!low} onPress={() => chooseMode('historicalLow')} styles={styles} />
+          <Preset label={copy.custom} selected={mode === 'custom'} onPress={() => chooseMode('custom')} styles={styles} />
         </View>
-        {mode === 'custom' ? <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" style={styles.input} accessibilityLabel={copy.custom} /> : <Text style={styles.targetPreview}>{preferences.formatOriginalMoney(amount, currency)}</Text>}
+        {mode === 'custom' ? <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" style={styles.input} accessibilityLabel={copy.custom} /> : <Text style={styles.targetPreview}>{preferences.formatOriginalMoney(amount, targetCurrency)}</Text>}
         <View style={styles.switchRow}><View style={styles.flex}><Text style={styles.rowTitle}>{copy.local}</Text><Text style={styles.help}>{copy.background}</Text></View><Switch value={localEnabled} onValueChange={setLocalEnabled} /></View>
         {supportsEmail ? <Pressable style={styles.emailToggle} onPress={() => setEmailOpen((value) => !value)}><Text style={styles.rowTitle}>{copy.emailOptional}</Text><Text style={styles.chevron}>{emailOpen ? '−' : '+'}</Text></Pressable> : null}
         {supportsEmail && emailOpen ? <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={styles.input} /> : null}

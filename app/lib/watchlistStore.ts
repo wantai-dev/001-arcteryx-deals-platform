@@ -32,17 +32,16 @@ export class WatchlistStore {
 
   hydrate() {
     if (!this.hydration) {
-      this.hydration = this.storage.getItem(WATCHLIST_STORAGE_KEY)
-        .then((raw) => {
-          this.entries = parseStoredWatchEntries(raw);
-        })
-        .catch(() => {
-          this.entries = [];
-        })
-        .finally(() => {
-          this.hydrated = true;
-          this.publish();
-        });
+      const attempt = this.storage.getItem(WATCHLIST_STORAGE_KEY).then((raw) => {
+        this.entries = parseStoredWatchEntries(raw);
+        this.hydrated = true;
+        this.publish();
+      });
+      this.hydration = attempt;
+      void attempt.then(undefined, () => {
+        if (this.hydration === attempt) this.hydration = null;
+        this.hydrated = false;
+      });
     }
     return this.hydration;
   }

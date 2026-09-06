@@ -10,6 +10,7 @@ class FakeStorage implements WatchStorage {
   writes: string[] = [];
   getGate: Promise<void> = Promise.resolve();
   failNextWrite = false;
+  failNextRead = false;
 
   constructor(value: string | null) {
     this.value = value;
@@ -17,6 +18,10 @@ class FakeStorage implements WatchStorage {
 
   async getItem() {
     await this.getGate;
+    if (this.failNextRead) {
+      this.failNextRead = false;
+      throw new Error('read unavailable');
+    }
     return this.value;
   }
 
@@ -65,6 +70,20 @@ test('failed persistence does not publish optimistic state and queue recovers', 
   assert.deepEqual(published, []);
   await store.mutate(() => ({ entries: [], value: undefined }));
   assert.deepEqual(store.snapshot().entries, []);
+});
+
+test('failed hydration stays unhydrated, writes nothing, and retries before mutation', async () => {
+  const existing = makeScopedWatchEntry(product({ sku_id: 'old' }), 'sku', '2026-09-01T00:00:00Z')!;
+  const storage = new FakeStorage(JSON.stringify([existing]));
+  storage.failNextRead = true;
+  const store = new WatchlistStore(storage);
+  await assert.rejects(() => store.mutate(() => ({ entries: [], value: undefined })), /read unavailable/);
+  assert.equal(store.snapshot().hydrated, false);
+  assert.equal(storage.writes.length, 0);
+  await store.mutate((entries) => ({ entries, value: undefined }));
+  assert.equal(store.snapshot().hydrated, true);
+  assert.equal(store.snapshot().entries[0]?.skuId, 'old');
+  assert.equal(storage.writes.length, 1);
 });
 
 test('serialized concurrent alert writes enforce one free alert', async () => {

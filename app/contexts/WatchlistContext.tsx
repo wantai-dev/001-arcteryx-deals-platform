@@ -11,6 +11,7 @@ import {
   FREE_ALERT_LIMIT,
   FREE_WATCHLIST_LIMIT,
   saveEntryAlert,
+  saveSourceAlert,
   toggleScopedWatch,
 } from '../lib/watchlist';
 import { watchlistStore } from '../lib/watchlistRuntimeStore';
@@ -28,6 +29,7 @@ type WatchlistContextValue = {
   isModelSaved: (sourceOrKey: ModelWatchSource | string) => boolean;
   getModelEntry: (sourceOrKey: ModelWatchSource | string) => WatchEntry | undefined;
   saveAlert: (entryId: string, draft: AlertDraft) => Promise<boolean>;
+  saveAlertForSource: (source: Product | CatalogProduct, scope: 'sku' | 'model', draft: AlertDraft, resolvedOffers?: Product[]) => Promise<boolean>;
   removeAlert: (entryId: string) => Promise<void>;
   setAlertTarget: (product: Product, target: number | null) => Promise<void>;
   remove: (skuIdOrEntryId: string) => Promise<void>;
@@ -50,7 +52,7 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
     const snapshot = store.snapshot();
     setEntries(snapshot.entries);
     setHydrated(snapshot.hydrated);
-    void store.hydrate();
+    void store.hydrate().catch(() => undefined);
     return unsubscribe;
   }, [store]);
 
@@ -98,6 +100,13 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
     const result = saveEntryAlert(current, entryId, draft, isPro);
     return { entries: result.entries, value: result.accepted };
   }), [isPro, mutate]);
+
+  const saveAlertForSource = useCallback((source: Product | CatalogProduct, scope: 'sku' | 'model', draft: AlertDraft, resolvedOffers: Product[] = []) => (
+    mutate(async (current) => {
+      const result = saveSourceAlert(current, source, scope, draft, isPro, resolvedOffers);
+      return { entries: result.entries, value: result.accepted };
+    })
+  ), [isPro, mutate]);
 
   const removeAlert = useCallback((entryId: string) => mutate(async (current) => ({
     entries: current.map((entry) => entry.id === entryId
@@ -160,12 +169,13 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
       isModelSaved,
       getModelEntry,
       saveAlert,
+      saveAlertForSource,
       removeAlert,
       setAlertTarget,
       remove,
       removeEntry,
     }),
-    [entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, removeEntry, saveAlert, setAlertTarget, toggle, toggleModel],
+    [entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, removeEntry, saveAlert, saveAlertForSource, setAlertTarget, toggle, toggleModel],
   );
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;

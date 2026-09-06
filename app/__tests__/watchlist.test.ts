@@ -9,6 +9,7 @@ import {
   parseWatchEntries,
   parseStoredWatchEntries,
   saveEntryAlert,
+  saveSourceAlert,
   setWatchAlertTarget,
   toggleWatchEntry,
   WATCHLIST_STORAGE_KEY,
@@ -148,4 +149,29 @@ test('free alert quota allows replacing self but rejects a second active alert',
   assert.equal(rejected.accepted, false);
   assert.equal(rejected.reason, 'alert-limit');
   assert.equal(activeAlertCount(rejected.entries), 1);
+});
+
+test('source alert atomically creates the selected model watch and alert', () => {
+  const source = product({ sku_id: 'model-source', official_product_id: 'X1234567' });
+  const result = saveSourceAlert([], source, 'model', {
+    mode: 'percent10', targetAmount: 90, targetCurrency: 'USD', localEnabled: true,
+  }, false);
+  assert.equal(result.accepted, true);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0]?.scope, 'model');
+  assert.equal(result.entries[0]?.skuId, '');
+  assert.equal(result.entries[0]?.alert?.targetAmount, 90);
+});
+
+test('source alert quota failure does not leave a newly-created watch behind', () => {
+  const first = makeScopedWatchEntry(product({ sku_id: 'first' }), 'sku')!;
+  const active = saveEntryAlert([first], first.id!, {
+    mode: 'custom', targetAmount: 90, targetCurrency: 'USD', localEnabled: true,
+  }, false).entries;
+  const result = saveSourceAlert(active, product({ sku_id: 'second' }), 'sku', {
+    mode: 'custom', targetAmount: 80, targetCurrency: 'USD', localEnabled: true,
+  }, false);
+  assert.equal(result.accepted, false);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries.some((entry) => entry.skuId === 'second'), false);
 });

@@ -31,16 +31,13 @@ import {
 import {
   AppearancePreference,
   AppPreferences,
-  applyPreferencePatches,
+  createPreferenceStore,
   DEFAULT_PREFERENCES,
-  migratePreferences,
-  PREFERENCES_V1_KEY,
   PREFERENCES_V2_KEY,
-  REGION_V1_KEY,
-  updatePreferences,
 } from "../lib/preferences";
 
-export const PREFERENCES_STORAGE_KEY = 'geardrop.preferences.v1';
+export const PREFERENCES_STORAGE_KEY = PREFERENCES_V2_KEY;
+export const LEGACY_PREFERENCES_STORAGE_KEY = "geardrop.preferences.v1";
 export const RATES_STORAGE_KEY = "geardrop.currency-rates.v1";
 const RATE_MAX_AGE_MS = 86400000;
 type RateStatus = "original" | "loading" | "live" | "cached" | "unavailable";
@@ -88,57 +85,25 @@ function parseSnapshot(raw: string | null) {
 
 export function PreferencesProvider({ children }: PropsWithChildren) {
   const [preferences, setState] = useState<AppPreferences>(DEFAULT_PREFERENCES);
-  const ref = useRef(preferences);
-  const pending = useRef<Partial<AppPreferences>[]>([]);
-  const queue = useRef(Promise.resolve());
-  const hydratedRef = useRef(false);
+  const store = useRef(createPreferenceStore(AsyncStorage));
   const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState<RateSnapshot | null>(null);
   const [rateStatus, setRateStatus] = useState<RateStatus>("original");
-  const persist = useCallback((next: AppPreferences) => {
-    queue.current = queue.current
-      .catch(() => undefined)
-      .then(() =>
-        AsyncStorage.setItem(PREFERENCES_V2_KEY, JSON.stringify(next)),
-      );
-    return queue.current;
-  }, []);
   const patch = useCallback(
-    (change: Partial<AppPreferences>) => {
-      if (!hydratedRef.current) pending.current.push(change);
-      const next = updatePreferences(ref.current, change);
-      ref.current = next;
-      setState(next);
-      return hydratedRef.current ? persist(next) : Promise.resolve();
-    },
-    [persist],
+    (change: Partial<AppPreferences>) => store.current.update(change),
+    [],
   );
   useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(PREFERENCES_V2_KEY),
-      AsyncStorage.getItem(PREFERENCES_V1_KEY),
-      AsyncStorage.getItem(REGION_V1_KEY),
-      AsyncStorage.getItem(RATES_STORAGE_KEY),
-    ])
-      .then(([v2, v1, region, rates]) => {
-        const next = applyPreferencePatches(
-          migratePreferences(v2, v1, region),
-          pending.current,
-        );
-        pending.current = [];
-        ref.current = next;
-        hydratedRef.current = true;
-        setState(next);
-        setSnapshot(parseSnapshot(rates));
-        setHydrated(true);
-        return persist(next);
-      })
-      .catch(() => {
-        hydratedRef.current = true;
-        setHydrated(true);
-        return persist(ref.current);
-      });
-  }, [persist]);
+    const unsubscribe = store.current.subscribe((next, ready) => {
+      setState(next);
+      setHydrated(ready);
+    });
+    void store.current.hydrate().catch(() => undefined);
+    void AsyncStorage.getItem(RATES_STORAGE_KEY).then((rates) =>
+      setSnapshot(parseSnapshot(rates)),
+    );
+    return unsubscribe;
+  }, []);
   const refreshRates = useCallback(async () => {
     setRateStatus((current) =>
       preferences.currency === "original"
@@ -163,7 +128,11 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
     }
   }, [preferences.currency, snapshot]);
   useEffect(() => {
-    if (preferences.currency === "original") setRateStatus("original");
+    if (preferences.currency === "original") {
+      setRateStatus("original");
+      return;
+    }
+    if (snapshot && rateStatus === "original") setRateStatus("cached");
     const fetchedAt = snapshot ? Date.parse(snapshot.fetchedAt) : 0;
     if (
       hydrated &&
@@ -172,7 +141,7 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
         Date.now() - fetchedAt > RATE_MAX_AGE_MS)
     )
       void refreshRates();
-  }, [hydrated, preferences.currency, refreshRates, snapshot]);
+  }, [hydrated, preferences.currency, rateStatus, refreshRates, snapshot]);
   const setLanguage = useCallback(
     (language: LanguageChoice) => patch({ language }),
     [patch],

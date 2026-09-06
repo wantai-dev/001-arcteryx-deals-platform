@@ -74,6 +74,16 @@ test('missing rates fall back to the source amount and currency', () => {
   assert.deepEqual(convertAmount(100, 'EUR', 'original', snapshot), { value: 100, currency: 'EUR', converted: false });
 });
 
+test('invalid amounts and rates never produce a converted value', () => {
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+    assert.deepEqual(convertAmount(value, 'USD', 'CAD', snapshot), { value, currency: 'USD', converted: false });
+  }
+  for (const badRate of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+    const invalid = { date: '2026-07-10', fetchedAt: '2026-07-10T12:00:00Z', rates: { EUR: 1, USD: badRate, CAD: 1.6 } };
+    assert.deepEqual(convertAmount(100, 'USD', 'CAD', invalid), { value: 100, currency: 'USD', converted: false });
+  }
+});
+
 test('currency formatting follows locale and currency minor units', () => {
   assert.match(formatCurrencyValue(1234.5, 'USD', 'en-US'), /1,234\.5/);
   assert.match(formatCurrencyValue(1234.5, 'EUR', 'de-DE'), /1\.234,5/);

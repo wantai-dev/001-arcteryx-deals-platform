@@ -27,11 +27,16 @@ export function parseRateRows(value: unknown, fetchedAt = new Date().toISOString
 }
 
 export function convertAmount(value: number, source: string, target: CurrencyPreference, snapshot: RateSnapshot | null) {
+  if (!Number.isFinite(value) || value < 0) return { value, currency: source, converted: false };
   if (target === 'original' || source === target) return { value, currency: source, converted: false };
   const sourceRate = snapshot?.rates[source];
   const targetRate = snapshot?.rates[target];
-  if (!sourceRate || !targetRate) return { value, currency: source, converted: false };
-  return { value: (value / sourceRate) * targetRate, currency: target, converted: true };
+  if (!Number.isFinite(sourceRate) || !Number.isFinite(targetRate) || Number(sourceRate) <= 0 || Number(targetRate) <= 0)
+    return { value, currency: source, converted: false };
+  const converted = (value / Number(sourceRate)) * Number(targetRate);
+  return Number.isFinite(converted) && converted >= 0
+    ? { value: converted, currency: target, converted: true }
+    : { value, currency: source, converted: false };
 }
 
 export function formatCurrencyValue(value: number, currency: string, locale: string, fallbackSymbol = '') {

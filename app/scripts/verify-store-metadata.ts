@@ -93,8 +93,8 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as StoreMetadata
 
 assert.equal(manifest.schemaVersion, 1);
 assert.equal(manifest.target, 'next-app-version');
-assert.equal(manifest.targetVersion, '1.1.0');
-assert.equal(manifest.targetBuildNumber, '11');
+assert.equal(manifest.targetVersion, '1.2.0');
+assert.equal(manifest.targetBuildNumber, '12');
 assert.equal(manifest.appId, '6790165332');
 assert.equal(manifest.bundleId, 'dev.100app.geardrop');
 assert.equal(manifest.primaryLocale, 'en-US');
@@ -149,6 +149,8 @@ for (const localeKey of REQUIRED_LOCALES) {
   assert.equal(occurrences(locale.description, TERMS_URL), 1, `${localeKey}.description must include the standard EULA exactly once`);
   assert.equal(occurrences(locale.description, PRIVACY_URL), 1, `${localeKey}.description must include the privacy URL exactly once`);
   assert.ok(!/\$(?:3\.99|23\.99|49\.99)|€(?:3\.99|23\.99|49\.99)|¥(?:3\.99|23\.99|49\.99)/u.test(locale.description), `${localeKey}.description must not hardcode storefront prices`);
+  assert.ok(!/real[- ]?time|instant(?:ly)?|in Echtzeit|sofort|temps réel|instantané|实时|即時|リアルタイム/iu.test(`${locale.promotionalText}\n${locale.description}\n${locale.whatsNew}`), `${localeKey} must not promise real-time or instant alerts`);
+  assert.ok(!/free trial|kostenlose Test|essai gratuit|免费试用|無料トライアル/iu.test(`${locale.promotionalText}\n${locale.description}\n${locale.whatsNew}`), `${localeKey} must not promise trial eligibility`);
 
   assert.equal(locale.screenshots.length, EXPECTED_SCREENSHOT_SOURCES.length, `${localeKey}.screenshots must cover all six slots`);
   assert.equal(new Set(locale.screenshots).size, locale.screenshots.length, `${localeKey}.screenshots must use unique headlines`);

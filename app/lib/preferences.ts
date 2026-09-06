@@ -61,6 +61,17 @@ function objectValue(raw: string | null) {
     return {};
   }
 }
+function validObjectValue(raw: string | null) {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
 export function normalizePreferences(
   value: Partial<AppPreferences>,
 ): AppPreferences {
@@ -88,11 +99,71 @@ export function migratePreferences(
   v1Raw: string | null,
   regionRaw: string | null,
 ) {
-  if (v2Raw) return normalizePreferences(objectValue(v2Raw));
+  const v2 = validObjectValue(v2Raw);
+  if (v2) return normalizePreferences(v2);
   return normalizePreferences({
     ...objectValue(v1Raw),
     region: regionRaw || undefined,
   });
+}
+
+export type PreferenceStorage = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+};
+
+export function createPreferenceStore(storage: PreferenceStorage) {
+  let state = DEFAULT_PREFERENCES;
+  let hydrated = false;
+  let hydration: Promise<AppPreferences> | null = null;
+  let writes = Promise.resolve();
+  const listeners = new Set<(value: AppPreferences, ready: boolean) => void>();
+  const publish = () => listeners.forEach((listener) => listener(state, hydrated));
+
+  const hydrate = () => {
+    if (hydrated) return Promise.resolve(state);
+    if (hydration) return hydration;
+    hydration = Promise.all([
+      storage.getItem(PREFERENCES_V2_KEY),
+      storage.getItem(PREFERENCES_V1_KEY),
+      storage.getItem(REGION_V1_KEY),
+    ])
+      .then(async ([v2, v1, region]) => {
+        const next = migratePreferences(v2, v1, region);
+        await storage.setItem(PREFERENCES_V2_KEY, JSON.stringify(next));
+        state = next;
+        hydrated = true;
+        publish();
+        return state;
+      })
+      .finally(() => {
+        hydration = null;
+      });
+    return hydration;
+  };
+
+  const update = (change: Partial<AppPreferences>) => {
+    writes = writes.catch(() => undefined).then(async () => {
+      await hydrate();
+      const next = updatePreferences(state, change);
+      await storage.setItem(PREFERENCES_V2_KEY, JSON.stringify(next));
+      state = next;
+      publish();
+    });
+    return writes;
+  };
+
+  return {
+    hydrate,
+    update,
+    getSnapshot: () => ({ preferences: state, hydrated }),
+    subscribe(listener: (value: AppPreferences, ready: boolean) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
 }
 export function updatePreferences(
   current: AppPreferences,

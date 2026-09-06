@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "target": "next-app-version",
-  "targetVersion": "1.1.0",
-  "targetBuildNumber": "11",
+  "targetVersion": "1.2.0",
+  "targetBuildNumber": "12",
   "appId": "6790165332",
   "bundleId": "dev.100app.geardrop",
   "primaryLocale": "en-US",
@@ -39,81 +39,81 @@
     "en-US": {
       "name": "GearDrop: Outdoor Deals",
       "subtitle": "Price Tracker & Buy Signals",
-      "promotionalText": "Browse the three-brand Yearbook, see linked live discounts when available and unlinked Outlet/archive deals, compare regions and price history, and save gear.",
+      "promotionalText": "Choose your market and currency, compare regional prices, explore three-brand deals and Yearbook styles, and follow saved gear with on-device price checks.",
       "keywords": "gear,sale,discount,watchlist,alert,history,hiking,ski,snowboard,camping,climbing,outlet,compare,drop",
-      "description": "GearDrop shows whether an outdoor gear deal is actually worth buying now.\n\nOpen the Yearbook to explore current catalog styles from three outdoor brands, see reliably linked live discounts when available, and browse discounted Outlet/archive listings that could not be reliably linked to a current catalog style.\n\nBrowse current markdowns across regions, filter by brand and category, and view prices in their original currency or your preferred display currency. Each product pairs the current offer with recent price history, low-price signals, and lower-priced regions when available.\n\nSave gear to your watchlist and set a target price. GearDrop tracks movement from the moment you save an item, so you can act on the price instead of the hype.\n\nGEARDROP FEATURES\n• Outdoor deal discovery and a three-brand Yearbook\n• Recent and full price-history views\n• All-time-low and 90-day-low signals\n• Clear buy-or-wait guidance\n• Cross-region price comparison\n• Watchlists and target-price alerts\n• English, Simplified Chinese, German, French, and Japanese\n\nGearDrop Pro unlocks full price history and an expanded watchlist. Purchases and localized prices are handled by Apple.\n\nGearDrop is an independent shopping tool. Prices, stock, and availability can change; confirm final details with the merchant before buying.\n\nTerms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nPrivacy Policy: https://geardrop.100app.dev/privacy.html",
-      "whatsNew": "New in 1.1: Explore the Yearbook to browse current outdoor styles, see live deals only when they can be reliably linked, and review unlinked discounted Outlet/archive listings. Deals also adds brand and source filters, with cleaner, more consistent product names across listings.",
+      "description": "GearDrop helps you decide whether an outdoor gear deal is worth buying now.\n\nChoose your shopping market and display currency, then browse current markdowns across regions. Filter and sort deals, compare the same product family across markets, and see recent price history and low-price signals when data is available.\n\nExplore the Yearbook for current catalog styles from three outdoor brands. GearDrop links a live offer only when the match is reliable; other discounted Outlet and archive listings remain clearly separated.\n\nSave an item or model and set a target price. GearDrop can schedule on-device checks. iOS decides when background work runs, and you must reopen GearDrop after force-quitting before checks can resume. Notifications require permission and are not guaranteed at an exact time.\n\nGearDrop Pro unlocks full price history and additional tracking capacity. Products and localized prices shown on the paywall come from Apple StoreKit. Availability and eligibility can vary by storefront.\n\nGearDrop is an independent shopping tool. Prices, stock, and availability can change; confirm final details with the merchant before buying.\n\nTerms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nPrivacy Policy: https://geardrop.100app.dev/privacy.html",
+      "whatsNew": "New in 1.2:\n• Pick a market and display currency together.\n• Use refreshed search, filters, sorting, and regional comparison.\n• Follow saved items and models with on-device price checks.\n• Choose System, Light, or Dark appearance.\n• Use GearDrop in English, Simplified Chinese, German, French, or Japanese.\n\niOS chooses when background checks run. Reopen GearDrop after force-quitting before checks can resume. Pro prices are loaded from Apple StoreKit.",
       "screenshots": [
-        "See Today’s Outdoor Price Drops",
-        "Know When It’s Really a Low",
-        "Compare Prices Across Regions",
-        "Save Gear. Track Every Move.",
-        "Unlock the Full Price History",
-        "Explore Styles. See Linked Deals."
+        "Find Deals in Your Market",
+        "Know When the Price Is Low",
+        "Compare the Same Gear by Region",
+        "Save Gear and Set a Target",
+        "See Full History with GearDrop Pro",
+        "Explore Three-Brand Yearbook Styles"
       ]
     },
     "zh-Hans": {
       "name": "值de：户外装备折扣",
       "subtitle": "比价、价格历史与降价提醒",
-      "promotionalText": "浏览三品牌户外装备图鉴，查看可靠关联的实时折扣与未关联 Outlet／历史折扣，比较地区价格和价格历史，并收藏装备持续跟踪。",
+      "promotionalText": "选择购物市场和显示币种，比较各地区价格，浏览三品牌折扣与装备图鉴，并通过本机价格检查关注装备。",
       "keywords": "特价好物,关注清单,最低价,滑雪装备,徒步装备,露营装备,攀岩装备,冲锋衣",
-      "description": "值de 帮你判断一件户外装备现在到底值不值得买。\n\n打开装备图鉴，可浏览三个户外品牌的现行目录款，在可靠关联且有折扣时查看实时优惠，并浏览尚未可靠关联到现行目录款的 Outlet／历史折扣商品。\n\n浏览不同地区的当前折扣，按品牌和品类筛选，并用商品原币或偏好币种查看价格。每个商品都结合当前售价、近期价格历史、历史低价信号，并在有更低地区价格时直接提示。\n\n把装备加入关注清单并设置目标价。值de 会记录收藏后的价格变化，让你根据真实走势决定买入还是再等等。\n\n主要功能\n• 户外折扣发现与三品牌装备图鉴\n• 近期及完整价格历史\n• 历史最低价与 90 天低价信号\n• 清晰的买入或等待建议\n• 跨地区价格比较\n• 关注清单与目标价提醒\n• 支持英语、简体中文、德语、法语和日语\n\n值de Pro 解锁完整价格历史和更多关注额度。购买与本地化价格均由 Apple 处理。\n\n值de 是独立购物工具。价格、库存和可售状态可能变化，购买前请以商家页面为准。\n\n使用条款 (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n隐私政策: https://geardrop.100app.dev/privacy.html",
-      "whatsNew": "1.1 新增装备图鉴：浏览现行户外款式，仅在可可靠关联时展示实时折扣，并查看未关联的 Outlet／历史折扣商品。折扣页还新增品牌和来源筛选，并改进商品名称的清理与统一显示。",
+      "description": "值de 帮你判断户外装备现在是否值得购买。\n\n选择购物市场与显示币种，浏览不同地区的当前折扣。你可以筛选、排序并比较同一产品系列在不同市场的价格；数据可用时，还能查看近期价格历史和低价信号。\n\n装备图鉴收录三个户外品牌的现行目录款。只有匹配可靠时，值de 才会关联当前优惠；其他 Outlet 与历史折扣会清楚地分开展示。\n\n收藏商品或型号并设置目标价。值de 可安排本机价格检查。后台任务由 iOS 决定执行时间；强制退出后，需重新打开值de 才能恢复检查。通知需要系统权限，无法保证在准确时间送达。\n\n值de Pro 解锁完整价格历史与更多关注额度。付费页显示的产品和本地化价格均来自 Apple StoreKit，供应情况与资格可能因商店地区而异。\n\n值de 是独立购物工具。价格、库存和可售状态可能变化，购买前请以商家页面为准。\n\n使用条款 (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n隐私政策: https://geardrop.100app.dev/privacy.html",
+      "whatsNew": "1.2 新功能：\n• 同时选择购物市场与显示币种。\n• 更新搜索、筛选、排序和跨地区比较。\n• 收藏商品与型号，通过本机价格检查关注目标价。\n• 选择跟随系统、浅色或深色外观。\n• 支持英语、简体中文、德语、法语和日语。\n\n后台检查时间由 iOS 决定；强制退出后需重新打开值de 才能恢复。Pro 价格从 Apple StoreKit 加载。",
       "screenshots": [
-        "发现今天的户外装备降价",
-        "判断现在是不是历史低点",
-        "一眼比较不同地区价格",
-        "收藏装备，持续跟踪变化",
-        "解锁完整价格历史",
-        "逛装备图鉴，查看已关联折扣"
+        "发现适合当前市场的折扣",
+        "判断价格是否真的低",
+        "比较同款装备的地区价格",
+        "收藏装备并设置目标价",
+        "用值de Pro 查看完整历史",
+        "浏览三品牌装备图鉴"
       ]
     },
     "de-DE": {
       "name": "GearDrop: Outdoor-Angebote",
       "subtitle": "Preisvergleich & Preisalarm",
-      "promotionalText": "Im Yearbook: drei Outdoor-Marken, verknüpfte Live-Angebote, sofern verfügbar, und nicht verknüpfte Outlet-/Archivdeals. Vergleiche Regionen und Preisverläufe.",
+      "promotionalText": "Wähle Markt und Währung, vergleiche regionale Preise, entdecke Deals und Yearbook-Modelle von drei Marken und beobachte Ausrüstung per Geräteprüfung.",
       "keywords": "ausrüstung,rabatt,merkliste,preisverlauf,wandern,ski,snowboard,camping,klettern,outlet",
-      "description": "GearDrop zeigt dir, ob sich ein Outdoor-Angebot gerade wirklich lohnt.\n\nIm Yearbook findest du aktuelle Katalogmodelle von drei Outdoor-Marken, zuverlässig verknüpfte Live-Angebote, sofern verfügbar, sowie reduzierte Outlet-/Archivangebote, die nicht zuverlässig mit einem aktuellen Katalogmodell verknüpft werden konnten.\n\nEntdecke aktuelle Preisnachlässe aus mehreren Regionen, filtere nach Marke und Kategorie und zeige Preise in der Original- oder deiner bevorzugten Anzeigewährung an. Jedes Produkt verbindet das aktuelle Angebot mit dem Preisverlauf, Tiefpreis-Signalen und günstigeren Regionen, sofern verfügbar.\n\nSpeichere Ausrüstung in deiner Merkliste und lege einen Zielpreis fest. GearDrop verfolgt die Preisbewegung ab dem Speichern, damit du anhand von Daten kaufen oder warten kannst.\n\nFUNKTIONEN\n• Outdoor-Angebote und Yearbook mit drei Marken\n• Aktueller und vollständiger Preisverlauf\n• Allzeit- und 90-Tage-Tief-Signale\n• Klare Kaufen-oder-warten-Empfehlung\n• Preisvergleich zwischen Regionen\n• Merkliste und Zielpreis-Alarme\n• Englisch, Chinesisch, Deutsch, Französisch und Japanisch\n\nGearDrop Pro schaltet den vollständigen Preisverlauf und eine erweiterte Merkliste frei. Käufe und lokalisierte Preise werden von Apple verarbeitet.\n\nGearDrop ist ein unabhängiges Shopping-Tool. Preise, Bestand und Verfügbarkeit können sich ändern. Prüfe vor dem Kauf die Angaben des Händlers.\n\nNutzungsbedingungen (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nDatenschutz: https://geardrop.100app.dev/privacy.html",
-      "whatsNew": "Neu in 1.1: Im Yearbook kannst du aktuelle Outdoor-Modelle durchsuchen, Live-Angebote nur bei zuverlässiger Verknüpfung sehen und nicht verknüpfte reduzierte Outlet-/Archivangebote prüfen. Die Angebotsansicht bietet außerdem neue Marken- und Quellenfilter sowie sauberere, einheitlichere Produktnamen.",
+      "description": "GearDrop hilft dir zu entscheiden, ob sich ein Outdoor-Angebot gerade lohnt.\n\nWähle Einkaufsmarkt und Anzeigewährung. Filtere und sortiere aktuelle Angebote, vergleiche dieselbe Produktfamilie zwischen Märkten und sieh Preisverläufe sowie Tiefpreis-Signale, sofern Daten vorliegen.\n\nDas Yearbook zeigt aktuelle Katalogmodelle von drei Outdoor-Marken. Ein Angebot wird nur bei zuverlässiger Zuordnung verknüpft; andere reduzierte Outlet- und Archivangebote bleiben klar getrennt.\n\nSpeichere Artikel oder Modelle und lege einen Zielpreis fest. GearDrop kann Preisprüfungen auf dem Gerät planen. iOS bestimmt den Zeitpunkt der Hintergrundarbeit. Nach dem erzwungenen Beenden musst du GearDrop erneut öffnen. Mitteilungen benötigen deine Erlaubnis und sind nicht zu einer exakten Zeit garantiert.\n\nGearDrop Pro schaltet den vollständigen Preisverlauf und zusätzliche Beobachtungen frei. Produkte und lokalisierte Preise im Kaufbildschirm stammen aus Apple StoreKit. Verfügbarkeit und Berechtigung können je nach Storefront variieren.\n\nGearDrop ist ein unabhängiges Shopping-Tool. Preise, Bestand und Verfügbarkeit können sich ändern. Prüfe vor dem Kauf die Händlerangaben.\n\nNutzungsbedingungen (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nDatenschutz: https://geardrop.100app.dev/privacy.html",
+      "whatsNew": "Neu in 1.2:\n• Markt und Anzeigewährung gemeinsam wählen.\n• Neue Suche, Filter, Sortierung und Regionalvergleich.\n• Artikel und Modelle mit Preisprüfungen auf dem Gerät beobachten.\n• System-, helles oder dunkles Design wählen.\n• Deutsch, Englisch, Chinesisch, Französisch und Japanisch.\n\niOS legt den Zeitpunkt der Hintergrundprüfungen fest. Nach erzwungenem Beenden GearDrop erneut öffnen. Pro-Preise kommen aus Apple StoreKit.",
       "screenshots": [
-        "Outdoor-Preisnachlässe von heute",
-        "Erkenne echte Tiefpreise",
-        "Vergleiche Preise nach Region",
-        "Speichern und weiterverfolgen",
-        "Den ganzen Preisverlauf sehen",
-        "Modelle entdecken. Verknüpfte Deals sehen."
+        "Angebote für deinen Markt finden",
+        "Echte Tiefpreise erkennen",
+        "Gleiche Ausrüstung regional vergleichen",
+        "Speichern und Zielpreis festlegen",
+        "Mit GearDrop Pro den Verlauf sehen",
+        "Modelle von drei Marken entdecken"
       ]
     },
     "fr-FR": {
       "name": "GearDrop : Bons plans outdoor",
       "subtitle": "Suivi de prix & alertes",
-      "promotionalText": "Yearbook : trois marques outdoor, offres liées si disponibles et promos Outlet/archives non associées. Comparez régions et historique, puis gardez vos favoris.",
+      "promotionalText": "Choisissez marché et devise, comparez les prix régionaux, explorez les offres et modèles de trois marques, puis suivez vos favoris sur l’appareil.",
       "keywords": "équipement,promo,réduction,historique,souhaits,comparateur,randonnée,ski,snowboard,camping",
-      "description": "GearDrop vous aide à savoir si une offre d’équipement outdoor vaut vraiment le coup maintenant.\n\nLe Yearbook regroupe les modèles actuels de trois marques outdoor, affiche les offres liées de façon fiable lorsqu’elles sont disponibles et présente les promotions Outlet/archives qui n’ont pas pu être associées de façon fiable à un modèle actuel du catalogue.\n\nParcourez les baisses de prix actuelles dans plusieurs régions, filtrez par marque et catégorie, et affichez les prix dans leur devise d’origine ou votre devise préférée. Chaque produit associe l’offre actuelle à son historique de prix, ses signaux de prix bas et, si disponible, aux régions moins chères.\n\nEnregistrez votre équipement dans votre liste de suivi et fixez un prix cible. GearDrop suit l’évolution depuis l’ajout pour vous aider à acheter ou attendre selon les données.\n\nFONCTIONNALITÉS\n• Bons plans outdoor et Yearbook de trois marques\n• Historique de prix récent et complet\n• Signaux de plus bas historique et sur 90 jours\n• Conseil clair : acheter ou attendre\n• Comparaison de prix entre régions\n• Liste de suivi et alertes de prix cible\n• Anglais, chinois simplifié, allemand, français et japonais\n\nGearDrop Pro débloque l’historique complet et une liste de suivi étendue. Les achats et les prix localisés sont gérés par Apple.\n\nGearDrop est un outil d’achat indépendant. Les prix, stocks et disponibilités peuvent changer. Vérifiez les informations du marchand avant tout achat.\n\nConditions d’utilisation (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nConfidentialité: https://geardrop.100app.dev/privacy.html",
-      "whatsNew": "Nouveau dans la version 1.1 : explorez le Yearbook pour parcourir les modèles outdoor actuels, afficher les offres uniquement lorsqu’elles sont associées de façon fiable et consulter les promotions Outlet/archives non associées. La liste des offres ajoute aussi des filtres par marque et source, ainsi que des noms de produits plus clairs et cohérents.",
+      "description": "GearDrop vous aide à décider si une offre d’équipement outdoor vaut le coup maintenant.\n\nChoisissez votre marché d’achat et votre devise d’affichage. Filtrez et triez les promotions, comparez une même famille de produits entre les marchés et consultez l’historique récent ainsi que les signaux de prix bas lorsque les données sont disponibles.\n\nLe Yearbook présente les modèles actuels de trois marques outdoor. GearDrop ne lie une offre que si la correspondance est fiable ; les autres promotions Outlet et archives restent clairement séparées.\n\nEnregistrez un article ou un modèle et fixez un prix cible. GearDrop peut programmer des vérifications de prix sur l’appareil. iOS choisit quand les tâches en arrière-plan s’exécutent. Après avoir forcé la fermeture, rouvrez GearDrop pour reprendre les vérifications. Les notifications nécessitent votre autorisation et leur heure exacte n’est pas garantie.\n\nGearDrop Pro débloque l’historique complet et une capacité de suivi supplémentaire. Les produits et prix localisés affichés sur l’écran d’achat proviennent d’Apple StoreKit. La disponibilité et l’éligibilité varient selon la vitrine.\n\nGearDrop est un outil d’achat indépendant. Les prix, stocks et disponibilités peuvent changer. Vérifiez les informations du marchand avant tout achat.\n\nConditions d’utilisation (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nConfidentialité: https://geardrop.100app.dev/privacy.html",
+      "whatsNew": "Nouveautés de la version 1.2 :\n• Choisissez ensemble marché et devise d’affichage.\n• Profitez de la nouvelle recherche, des filtres, du tri et de la comparaison régionale.\n• Suivez articles et modèles avec des vérifications sur l’appareil.\n• Choisissez le thème Système, Clair ou Sombre.\n• Utilisez GearDrop en cinq langues.\n\niOS choisit l’heure des vérifications en arrière-plan. Rouvrez GearDrop après une fermeture forcée. Les prix Pro viennent d’Apple StoreKit.",
       "screenshots": [
-        "Les baisses outdoor du jour",
-        "Repérez un vrai prix bas",
-        "Comparez les prix par région",
-        "Enregistrez et suivez chaque baisse",
-        "Débloquez tout l’historique",
-        "Explorez les modèles et offres associées"
+        "Trouvez les offres de votre marché",
+        "Repérez un prix vraiment bas",
+        "Comparez le même produit par région",
+        "Enregistrez et fixez un prix cible",
+        "Voir tout l’historique avec GearDrop Pro",
+        "Explorez les modèles de trois marques"
       ]
     },
     "ja": {
       "name": "GearDrop：アウトドアセール",
       "subtitle": "価格履歴・値下げ通知・買い時",
-      "promotionalText": "3ブランドのアウトドアYearbookで現行モデル、連携済みセール、未連携のOutlet／アーカイブ割引を閲覧。地域価格と履歴を比較できます。",
+      "promotionalText": "市場と表示通貨を選び、地域別価格を比較。3ブランドのセールとYearbookを探し、端末上の価格チェックで保存したギアを見守れます。",
       "keywords": "割引情報,最安値,ウォッチリスト,登山用品,スキー用品,キャンプ用品",
-      "description": "GearDropは、アウトドア用品のセールが「今、本当に買い時か」を判断するためのアプリです。\n\nYearbookでは3つのアウトドアブランドの現行カタログモデルを閲覧でき、確実に紐付いたセールがある場合は表示します。現行カタログ項目と確実に連携できなかったOutlet／アーカイブの割引商品も確認できます。\n\n複数地域の現在の値下げ情報をまとめて確認し、ブランドやカテゴリで絞り込み、元の通貨または選択した表示通貨で価格を確認できます。商品ごとに現在価格、価格履歴、過去最安値・90日最安値のシグナル、より安い地域がある場合はその情報を表示します。\n\n気になる商品をウォッチリストに保存し、目標価格を設定できます。保存後の価格変動を追跡するため、セール表示だけに頼らず「買う・待つ」を判断できます。\n\n主な機能\n• セール検索と3ブランドのYearbook\n• 直近および全期間の価格履歴\n• 過去最安値・90日最安値シグナル\n• 買い時・待ち時のわかりやすい判断\n• 地域ごとの価格比較\n• ウォッチリストと目標価格アラート\n• 英語、簡体字中国語、ドイツ語、フランス語、日本語に対応\n\nGearDrop Proでは、全期間の価格履歴と拡張されたウォッチ機能を利用できます。購入処理と地域別価格はAppleが提供します。\n\nGearDropは独立したショッピングツールです。価格、在庫、販売状況は変わる場合があります。購入前に販売店の情報をご確認ください。\n\n利用規約 (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nプライバシーポリシー: https://geardrop.100app.dev/privacy.html",
-      "whatsNew": "バージョン1.1では、Yearbookで現行のアウトドアモデルを閲覧し、確実に紐付けられた場合のみセール情報を確認できるようになりました。未連携のOutlet／アーカイブ割引、ブランド・情報元フィルター、商品名のより正確で統一された表示にも対応しました。",
+      "description": "GearDropは、アウトドア用品が今買い時かを判断するためのアプリです。\n\n購入市場と表示通貨を選び、各地域のセールを絞り込み、並べ替えできます。同じ製品系統の地域別価格を比較し、データがある場合は最近の価格履歴と安値シグナルを確認できます。\n\nYearbookでは3つのアウトドアブランドの現行モデルを閲覧できます。信頼できる一致がある場合のみセールを連携し、その他のOutlet／アーカイブ割引は明確に分けて表示します。\n\n商品やモデルを保存し、目標価格を設定できます。GearDropは端末上の価格チェックを予約できます。バックグラウンド処理の実行時刻はiOSが決定します。強制終了後はGearDropを再度開くまでチェックを再開できません。通知には許可が必要で、正確な時刻の配信は保証されません。\n\nGearDrop Proでは全期間の価格履歴と追加の追跡枠を利用できます。購入画面の商品と地域別価格はApple StoreKitから取得します。提供状況や利用資格はストアによって異なります。\n\nGearDropは独立したショッピングツールです。価格、在庫、販売状況は変わる場合があります。購入前に販売店の情報をご確認ください。\n\n利用規約 (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nプライバシーポリシー: https://geardrop.100app.dev/privacy.html",
+      "whatsNew": "バージョン1.2の新機能：\n• 購入市場と表示通貨をまとめて選択。\n• 検索、フィルター、並べ替え、地域比較を刷新。\n• 商品とモデルを保存し、端末上で価格をチェック。\n• システム、ライト、ダークの外観を選択。\n• 英語、簡体字中国語、ドイツ語、フランス語、日本語に対応。\n\nバックグラウンドチェックの時刻はiOSが決定します。強制終了後はGearDropを再度開いてください。Pro価格はApple StoreKitから取得します。",
       "screenshots": [
-        "今日のアウトドア値下げを発見",
-        "本当の最安値かひと目で確認",
-        "地域ごとの価格を比較",
-        "保存して価格変動を追跡",
-        "全期間の価格履歴を確認",
-        "装備図鑑で現行モデルと連携済みセールを確認"
+        "選んだ市場のセールを発見",
+        "本当に安い価格か確認",
+        "同じギアを地域別に比較",
+        "保存して目標価格を設定",
+        "GearDrop Proで全履歴を確認",
+        "3ブランドのYearbookを探索"
       ]
     }
   }

@@ -1,102 +1,95 @@
-# GearDrop iOS Device Checklist
+# GearDrop 1.2 Device Checklist
 
-This checklist closes the acceptance items that cannot be proven by local static checks alone.
+Record every result against the exact signed 1.2.0 / Build 12 candidate.
 
-## Local Gate
-
-Run from `app/` before device testing:
-
-```sh
-npm run verify
-```
-
-Expected final line:
+## Device and build
 
 ```text
-verify_local_ok
-```
-
-## Expo Go Device Smoke
-
-Start Metro on LAN:
-
-```sh
-npm run start -- --host lan --port 8081
-```
-
-Expected server line:
-
-```text
-Metro: exp://<LAN-IP>:8081
-```
-
-On iPhone:
-
-1. Open Expo Go and scan the QR code.
-2. Confirm the app opens without a red screen.
-3. Confirm the default tab is Deals.
-4. Switch Deals, Watchlist, and Me tabs.
-5. On Deals, choose Region: Germany and confirm euro prices show.
-6. Open search, enter `beta`, and confirm beta products show.
-7. Open a product detail screen.
-8. Confirm price chart, verdict, cheaper-region row, Alert button, and Buy button are visible.
-9. Tap heart to save; open Watchlist and confirm the saved item appears.
-10. Force quit Expo Go, reopen the project, and confirm Watchlist still contains the saved item.
-11. Open Alert, submit a real test email and target below current price, and confirm the UI closes without error.
-12. Confirm the local notification permission prompt appears when requested and the test notification is delivered; capture the banner or Notification Center entry when possible.
-13. Tap Buy and confirm the system browser opens the original product URL.
-
-Record evidence:
-
-```text
+source_commit=
+build_id=
+artifact_sha256=
 device_model=
 iOS_version=
-Expo_Go_version=
-Metro_URL=
-red_screen=no
-tabs_ok=yes/no
-de_filter_euro_ok=yes/no
-beta_search_ok=yes/no
-detail_chart_verdict_ok=yes/no
-watchlist_persists_after_force_quit=yes/no
-price_alert_insert_ok=yes/no
-local_notification_delivered=yes/no
-local_notification_evidence=
-buy_opens_system_browser=yes/no
+install_source=
+test_storefront=
 ```
 
-## Simulator Path
+## Core navigation and accessibility
 
-If CoreSimulator is healthy, use the full Xcode developer directory:
+- [ ] Fresh install opens Deals without a red screen.
+- [ ] Tabs appear in order: Deals, Yearbook, Watchlist, Me.
+- [ ] Primary interactive controls have at least a 44×44 pt target.
+- [ ] Keyboard does not cover search, target-price, purchase, restore, or support controls.
+- [ ] Dynamic Type and VoiceOver expose readable labels and no clipped primary action.
+- [ ] Default product imagery covers all 11 shipped category classes when remote images fail.
 
-```sh
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl list devices available
-npm run ios -- --port 8081
+## Market, language, and appearance
+
+- [ ] Market and currency save as one choice and survive relaunch.
+- [ ] Switching Original → CNY with cached rates immediately shows CNY and cached status.
+- [ ] Invalid or unavailable rates keep the original amount/currency and never show NaN, Infinity, or a negative alert target.
+- [ ] English, Simplified Chinese, German, French, and Japanese cover Deals, detail, Yearbook, Watchlist, Me, Paywall, and Privacy.
+- [ ] System, Light, and Dark follow the selected appearance without relaunch.
+- [ ] Muted/faint text remains readable; product-photo background is consistent.
+
+## Watch and notifications
+
+- [ ] Save an item and a model, set/edit/remove a target, and verify the documented free limit.
+- [ ] Denied notification permission shows a recoverable state and does not claim an alert is active.
+- [ ] With permission granted, arm a target and confirm the runtime schedules its background task.
+- [ ] Confirm a due target produces the expected local notification and tapping it opens the correct product/model.
+- [ ] Relaunch preserves watches, targets, and notification preference.
+- [ ] Force quit, wait through a scheduled window, and confirm the app makes no promise of running; reopen and verify scheduling resumes.
+- [ ] Airplane/offline and stale-data paths do not produce a false price-drop notification.
+
+Record:
+```text
+notification_permission=
+scheduled_task_identifier=
+scheduled_at=
+delivered_at=
+tap_destination=
+force_quit_result=
+reopen_resume_result=
 ```
 
-If `simctl list devices available` hangs or returns no device list, do not count Simulator acceptance as complete.
+## StoreKit / Pro
 
-## EAS Build And Submit
+- [ ] Paywall loads current StoreKit products and localized prices for the test storefront.
+- [ ] Annual is presented first without a fabricated saving or trial.
+- [ ] Monthly, annual, and lifetime purchase paths are tested as available.
+- [ ] Cancellation and pending purchase keep Free access and show recoverable copy.
+- [ ] Active `Pro` entitlement unlocks only the implemented Pro features.
+- [ ] Restore Purchases works after reinstall; no-purchase restore does not unlock Pro.
+- [ ] Offline/relaunch state matches RevenueCat customer information without a local Pro toggle.
 
-Required external state:
+## Purchase and outbound links
 
-- Expo account login or `EXPO_TOKEN`
-- Apple Developer account access
-- App Store Connect app record for bundle id `dev.100app.geardrop`
+- [ ] Buy opens the original merchant URL in the system browser.
+- [ ] Privacy, support, Terms, and Manage Subscription links open their intended destinations.
+- [ ] Final price/stock disclaimer is visible where required.
 
-Commands:
+## Localized App Store captures
 
-```sh
-npm run eas:build:ios:preview
-npm run eas:build:ios
-npm run eas:submit:ios
-```
+For each of `en-US`, `zh-Hans`, `de-DE`, `fr-FR`, and `ja`:
 
-Record evidence:
+- [ ] Capture six specified screens from this exact signed build at 1320×2868.
+- [ ] StoreKit price matches locale/storefront.
+- [ ] No tester identity, debug UI, placeholder, fixture, fake notification, invented price, or prototype content.
+- [ ] Run `npm run verify:store-screenshots`; all 30 images pass RGB/no-alpha/dimension checks.
+
+## Final record
 
 ```text
-eas_preview_build_id=
-eas_production_build_id=
-app_store_connect_app_id=
-submit_status=
+core_navigation=pass/fail
+market_currency=pass/fail
+five_languages=pass/fail
+appearance=pass/fail
+watch_notifications=pass/fail
+storekit=pass/fail
+links=pass/fail
+screenshots=pass/fail
+open_issues=
+tester=
+tested_at=
 ```

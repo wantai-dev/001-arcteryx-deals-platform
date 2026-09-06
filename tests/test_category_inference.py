@@ -23,6 +23,7 @@ class CategoryInferenceTests(unittest.TestCase):
     def test_specific_product_types_win_over_material_or_sport_words(self):
         cases = (
             ("裤装", "Men's Insulated Snowboard Pants"),
+            ("裤装", "Arc'teryx Rho Boot Cut Bottoms - Women's"),
             ("鞋类", "Women's Insulated Snowboard Boots"),
             ("配件", "Insulated Snowboard Gloves"),
             ("配件", "Logo Trucker Cap"),

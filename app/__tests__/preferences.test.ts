@@ -62,6 +62,40 @@ test('all current production deal categories avoid Chinese-label leakage in non-
   }
 });
 
+test('the 2026-09-07 public Yearbook category additions have natural labels in all five languages', () => {
+  const additions = [
+    '3-in-1-jackets', 'big-wave-surfing', 'casual-fleece', 'casual-jackets', 'casual-pants',
+    'casual-shorts', 'crew-neck', 'crew-neck-sweatshirts', 'flannel', 'full-suits', 'hip-packs',
+    'insulated-pants', 'jumpsuits-overalls', 'leggings', 'lightweight', 'lightweight-jackets',
+    'midweight', 'miir', 'one-pieces', 'packing-cubes', 'parkas-coats', 'performance-fleece',
+    'performance-jackets', 'performance-packs', 'performance-pants', 'performance-shorts',
+    'performance-t-shirts', 'polo', 'puffer-jacket', 'puffer-jackets', 'skirts-skorts', 'skorts',
+    'spring-suits', 'tanks', 'towel', 'waders-wading-pants', 'wading-accessories', 'wading-boots',
+    'wading-gear', 'wading-jackets', 'wading-pants', 'wetsuit-tops', 'wetsuit-vests', 'windbreakers',
+  ];
+  for (const language of ['en', 'zh-Hans', 'de', 'fr', 'ja'] as const) {
+    for (const category of additions) {
+      assert.notEqual(localizedCategory(language, category), category, `${language}:${category}`);
+    }
+  }
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, 'puffer-jacket')),
+    ['Puffer Jacket', '蓬松保暖夹克', 'Steppjacke', 'Doudoune', 'パファージャケット'],
+  );
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, 'skirts-skorts')),
+    ['Skirts & Skorts', '半身裙与裙裤', 'Röcke & Skorts', 'Jupes et jupes-shorts', 'スカート・スコート'],
+  );
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, 'waders-wading-pants')),
+    ['Waders & Wading Pants', '连体涉水裤与涉水长裤', 'Wathosen & Angelhosen', 'Waders et pantalons de pêche', 'ウェーダー・ウェーディングパンツ'],
+  );
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, 'miir')),
+    ['MiiR Drinkware', 'MiiR 水具', 'MiiR-Trinkgefäße', 'Contenants MiiR', 'MiiRボトル'],
+  );
+});
+
 test('every shipped language covers the complete UI message catalog', () => {
   for (const language of LANGUAGE_OPTIONS) {
     if (language === 'system') continue;

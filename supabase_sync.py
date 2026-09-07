@@ -55,6 +55,7 @@ def infer_category(name: str, url: str) -> str:
     hay = u + " " + n
     if "veilance" in hay: return "Veilance商务系列"
     if "binding" in hay: return "固定器"
+    if re.search(r"\b(?:bikinis?|swimsuits?|swimwear|boardshorts?)\b|\bswim[- ](?:shorts|trunks|tops|bottoms)\b", hay): return "泳装"
     # Match product types before materials and use word boundaries for short/pant.
     # This keeps e.g. "short-sleeve" out of pants while still recognizing shorts.
     if re.search(r"\b(?:pants?|bibs?|shorts|joggers?|leggings?|tights?|bottoms)\b|\bshort\b(?![- ]sleeve)", hay): return "裤装"

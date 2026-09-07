@@ -67,6 +67,13 @@ class CategoryInferenceTests(unittest.TestCase):
         )
         self.assertEqual(row["category"], "裤装")
 
+    def test_swim_types_are_not_mistaken_for_generic_pants_or_tops(self):
+        for name in ("Sunamee Bikini Bottoms Women's", "Bottom Turn Bikini Top Women's", "Swim Trunks", "Hydropeak Boardshorts"):
+            with self.subTest(name=name):
+                self.assert_category("泳装", name)
+        self.assert_category("鞋类", "Swim Sandals")
+        self.assert_category("裤装", "Capilene Midweight Bottoms")
+
 
 if __name__ == "__main__":
     unittest.main()

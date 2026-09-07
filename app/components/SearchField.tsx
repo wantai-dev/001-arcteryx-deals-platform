@@ -9,6 +9,7 @@ type Props = {
   value: string;
   placeholder: string;
   accessibilityLabel?: string;
+  clearAccessibilityLabel: string;
   onChangeText: (value: string) => void;
 };
 
@@ -16,6 +17,7 @@ export function SearchField({
   value,
   placeholder,
   accessibilityLabel = placeholder,
+  clearAccessibilityLabel,
   onChangeText,
 }: Props) {
   const { colors } = useTheme();
@@ -36,7 +38,7 @@ export function SearchField({
       {value ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${accessibilityLabel}: clear`}
+          accessibilityLabel={clearAccessibilityLabel}
           style={styles.clear}
           onPress={() => onChangeText("")}
         >

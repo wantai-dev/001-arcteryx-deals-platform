@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -121,6 +122,23 @@ export default function YearbookScreen() {
     null,
   );
   const [alertProduct, setAlertProduct] = useState<CatalogProduct | null>(null);
+
+  async function toggleModelWithFeedback(
+    product: CatalogProduct,
+    offers: Product[],
+  ) {
+    try {
+      const accepted = await watchlist.toggleModel(product, offers);
+      if (!accepted) {
+        Alert.alert(
+          prefs.t("deals.watchLimitTitle"),
+          prefs.t("deals.watchLimitBody", { count: watchlist.freeLimit }),
+        );
+      }
+    } catch {
+      Alert.alert(b("watchSaveErrorTitle"), b("watchSaveErrorBody"));
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -347,6 +365,7 @@ export default function YearbookScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder={b("searchYearbook")}
+              clearAccessibilityLabel={b("clearSearch")}
             />
             <ControlRow
               sortLabel={`${b("sort")} · ${sortLabel(sort, prefs.language)}`}
@@ -369,17 +388,7 @@ export default function YearbookScreen() {
                 saved={watchlist.isModelSaved(item.value)}
                 onOpen={() => setSelectedProduct(item.value)}
                 onToggleSave={(offers) =>
-                  void watchlist
-                    .toggleModel(item.value, offers)
-                    .then((accepted) => {
-                      if (!accepted)
-                        Alert.alert(
-                          prefs.t("deals.watchLimitTitle"),
-                          prefs.t("deals.watchLimitBody", {
-                            count: watchlist.freeLimit,
-                          }),
-                        );
-                    })
+                  void toggleModelWithFeedback(item.value, offers)
                 }
               />
             ) : (
@@ -468,18 +477,31 @@ export default function YearbookScreen() {
             setAlertProduct(selectedProduct);
             setSelectedProduct(null);
           }}
+          onToggleSave={() =>
+            void toggleModelWithFeedback(
+              selectedProduct,
+              dealIndex.byCatalogId[selectedProduct.catalog_product_id] || [],
+            )
+          }
         />
       ) : null}
-      {alertProduct && watchlist.getModelEntry(alertProduct)?.id ? (
+      {alertProduct ? (
         <AlertModal
           visible
           source={alertProduct}
           entry={watchlist.getModelEntry(alertProduct)}
+          lockedScope="model"
           onClose={() => setAlertProduct(null)}
+          onDelete={async () => {
+            const entry = watchlist.getModelEntry(alertProduct);
+            if (entry?.id) await watchlist.removeAlert(entry.id);
+          }}
           onSubmit={(draft) =>
-            watchlist.saveAlert(
-              watchlist.getModelEntry(alertProduct)!.id!,
+            watchlist.saveAlertForSource(
+              alertProduct,
+              "model",
               draft,
+              dealIndex.byCatalogId[alertProduct.catalog_product_id] || [],
             )
           }
         />
@@ -627,11 +649,13 @@ function CatalogDetailSheet({
   offers,
   onClose,
   onAlert,
+  onToggleSave,
 }: {
   product: CatalogProduct;
   offers: Product[];
   onClose: () => void;
   onAlert: () => void;
+  onToggleSave: () => void;
 }) {
   const prefs = usePreferences();
   const { currency } = useMarket();
@@ -647,15 +671,17 @@ function CatalogDetailSheet({
   const best = selection.offer;
   const saved = watchlist.isModelSaved(product);
 
-  async function openAlert() {
-    if (!saved && !(await watchlist.toggleModel(product, offers))) {
-      Alert.alert(
-        prefs.t("deals.watchLimitTitle"),
-        prefs.t("deals.watchLimitBody", { count: watchlist.freeLimit }),
-      );
-      return;
-    }
+  function openAlert() {
     onAlert();
+  }
+
+  function viewDeal() {
+    if (!best) return;
+    onClose();
+    router.push({
+      pathname: "/product/[skuId]",
+      params: { skuId: best.sku_id },
+    });
   }
 
   return (
@@ -666,7 +692,10 @@ function CatalogDetailSheet({
       onRequestClose={onClose}
     >
       <View style={styles.backdrop}>
-        <View style={styles.detailSheet}>
+        <ScrollView
+          style={styles.detailSheet}
+          contentContainerStyle={styles.detailContent}
+        >
           <View style={styles.detailHead}>
             <Text style={styles.detailTitle}>{b("modelDetail")}</Text>
             <Pressable
@@ -691,12 +720,7 @@ function CatalogDetailSheet({
           {best ? (
             <Pressable
               style={styles.detailPrimary}
-              onPress={() =>
-                router.push({
-                  pathname: "/product/[skuId]",
-                  params: { skuId: best.sku_id },
-                })
-              }
+              onPress={viewDeal}
             >
               <Text style={styles.detailPrimaryText}>
                 {b("viewDeal")} ·{" "}
@@ -716,7 +740,7 @@ function CatalogDetailSheet({
           </Pressable>
           <Pressable
             style={styles.detailSecondary}
-            onPress={() => void watchlist.toggleModel(product, offers)}
+            onPress={onToggleSave}
           >
             <Text style={styles.detailSecondaryText}>
               {b("modelWatch")} · {saved ? "✓" : "+"}
@@ -724,11 +748,11 @@ function CatalogDetailSheet({
           </Pressable>
           <Pressable
             style={styles.detailSecondary}
-            onPress={() => void openAlert()}
+            onPress={openAlert}
           >
             <Text style={styles.detailSecondaryText}>{b("setAlert")}</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -1078,10 +1102,13 @@ const makeStyles = (colors: ThemeColors) =>
     },
     sortOptionText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
     detailSheet: {
-      gap: 10,
+      maxHeight: "90%",
       borderTopLeftRadius: 22,
       borderTopRightRadius: 22,
       backgroundColor: colors.card,
+    },
+    detailContent: {
+      gap: 10,
       padding: 20,
       paddingBottom: 34,
     },

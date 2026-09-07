@@ -243,6 +243,7 @@ export default function DealsScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder={b("searchDeals")}
+              clearAccessibilityLabel={b("clearSearch")}
             />
             <FilterChips
               value={filters}

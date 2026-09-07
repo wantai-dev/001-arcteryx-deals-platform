@@ -2,22 +2,22 @@
 
 Last updated: 2026-09-07, Build 14 preparation.
 
-This ledger records the pending **1.2.0 / Build 14** candidate. Build 14 is not source-frozen, built, signed, uploaded, attached, device-accepted, or captured. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is VALID and available to the existing internal TestFlight group, but a physical-device check found that the alert modal labels an official list price as the current price. Build 13 is therefore superseded and none of its candidate-specific acceptance fields complete a Build 14 gate. A physical purchase attempt also returned an undifferentiated failure without an Apple confirmation sheet; Build 14 will preserve actionable, sanitized failure outcomes before this path is retested. The website independently advanced to `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
+This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366c9e22a17bd273cc839bf49c026`. The source is frozen for signing and the iOS Simulator Release build succeeded, but EAS signing, Apple upload, signed-device acceptance and final screenshots remain open. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is VALID and available to the existing internal TestFlight group, but a physical-device check found that the alert modal labels an official list price as the current price. Build 13 is therefore superseded and none of its candidate-specific acceptance fields complete a Build 14 gate. Build 14 now separates live, catalog, saved and unavailable price references and returns actionable, sanitized purchase outcomes. The website independently runs `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
 
 ## Candidate status
 
 | Gate | Current evidence | Remaining requirement |
 |---|---|---|
-| Source freeze | Build 14 is pinned in release configuration; alert price-source correction is still being integrated | Freeze the exact final source and clean integration/native trees |
-| Local gate | Build 13 historical gate passed | Rerun tests, typecheck, config/assets/metadata, Doctor, live/rates and iOS export on frozen Build 14 |
-| Repository tests | Build 13 historical Python and Node suites passed | Rerun complete Python and Node suites on frozen Build 14 |
+| Source freeze | `6a46261` is clean, with Build 14 pinned in release configuration and alert price-source correction integrated | Keep the exact source unchanged through signing |
+| Local gate | Build 14 `npm run verify` passed with `verify_local_ok`; config/assets/metadata/typecheck/Doctor/live/rates/iOS export passed | Preserve the evidence with the signed artifact |
+| Repository tests | App 165/165, Python 261/261, Node 30/30 pass | Repeat or attach fresh signed-candidate evidence if source changes |
 | Preferences migration | Build 13 tests and device observations exist | Repeat the required signed physical-device smoke on Build 14 |
 | Market/currency | Build 13 market and legacy-currency observations exist | Repeat the required signed physical-device smoke on Build 14 |
 | Notifications | Build 13 exposed the alert current-price source defect | Verify corrected source semantics, scheduling, tap route, relaunch and offline behavior on signed Build 14 |
 | Appearance/localization | Build 13 layout and localization observations exist | Complete the signed Build 14 language/appearance matrix |
 | StoreKit | Three live IAPs were APPROVED during Build 13 acceptance | Verify current products, cancel, sandbox purchase, pending, purchased restore, entitlement and offline behavior on signed Build 14 |
 | Privacy/support | Website currently serves the Build 13 source disclosure | Recheck final Build 14 source against production URL bytes and data flow |
-| Signed artifact | Build 13 EAS artifact was independently verified | Produce and independently verify the Build 14 EAS artifact, version, profile, architecture and signature |
+| Signed artifact | Build 13 EAS artifact was independently verified; Build 14 Simulator Release build succeeded | Queue EAS production Build 14 and independently verify IPA version, profile, architecture and signature |
 | Screenshots | Build 13 had no accepted final screenshot set | Capture exact signed Build 14: 5 × 6 opaque 1320×2868 PNGs, pass the gate and read back ASC |
 | App Store Connect | Build 13 is VALID, attached to editable 1.2.0 and in the existing internal group | Upload Build 14, wait for VALID, attach it to 1.2.0 and verify the existing internal group and five-language metadata |
 | Submission | 1.2.0 remains PREPARE_FOR_SUBMISSION; existing 1.0 remains public | User authorized release; submit only after the Build 14 acceptance gates above |

@@ -32,3 +32,13 @@ test("specific categories win over generic top and bottom labels", () => {
   assert.equal(defaultImageKind("short-sleeve"), "shirt");
   assert.equal(defaultImageKind("shorts"), "pants");
 });
+
+test("concrete product types win over snowboard and swim activity labels", () => {
+  assert.equal(defaultImageKind("snowboard-boots"), "shoes");
+  assert.equal(defaultImageKind("snowboard-pants"), "pants");
+  assert.equal(defaultImageKind("hardshell-pants"), "pants");
+  assert.equal(defaultImageKind("swim sandals"), "shoes");
+  assert.equal(defaultImageKind("snowboard-jackets"), "jacket");
+  assert.equal(defaultImageKind("snowboards"), "snowboard");
+  assert.equal(defaultImageKind("splitboards"), "snowboard");
+});

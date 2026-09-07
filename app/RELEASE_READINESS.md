@@ -1,6 +1,6 @@
 # GearDrop 1.2 iOS Release Readiness
 
-Last updated: 2026-09-07, Build 14 preparation.
+Last updated: 2026-09-07, Build 14 signed/internal beta.
 
 This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366c9e22a17bd273cc839bf49c026` (EAS source commit `20d917237fb8141492b323b0ae1356b59808739a`, docs-only after the app source freeze). The source, local gates, EAS signature and Apple processing are complete; signed-device acceptance and final screenshots remain open. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is superseded. A physical-device check found that its alert modal labels an official list price as the current price; Build 14 now separates live, catalog, saved and unavailable price references and returns actionable, sanitized purchase outcomes. The website independently runs `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
 

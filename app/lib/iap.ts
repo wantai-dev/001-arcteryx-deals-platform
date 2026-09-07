@@ -16,6 +16,31 @@ export type ProPlan = {
   trialDays: number | null;
 };
 
+export type ProPurchaseOutcome =
+  | 'purchased'
+  | 'cancelled'
+  | 'pending'
+  | 'missing_entitlement'
+  | 'network_error'
+  | 'store_unavailable'
+  | 'purchase_restricted'
+  | 'unavailable'
+  | 'failed';
+
+export type ProPurchaseResult = { outcome: ProPurchaseOutcome; code?: string };
+export type ProRestoreOutcome = 'restored' | 'not_found' | 'failed';
+
+export type RevenueCatPurchaseErrorCodes = Record<string, string> & {
+  PURCHASE_CANCELLED_ERROR: string;
+  STORE_PROBLEM_ERROR: string;
+  PURCHASE_NOT_ALLOWED_ERROR: string;
+  NETWORK_ERROR: string;
+  INSUFFICIENT_PERMISSIONS_ERROR: string;
+  PAYMENT_PENDING_ERROR: string;
+  PRODUCT_REQUEST_TIMED_OUT_ERROR: string;
+  OFFLINE_CONNECTION_ERROR: string;
+};
+
 type ProductLike = {
   identifier: string;
   priceString: string;
@@ -81,6 +106,63 @@ export async function restoreProPurchase<TCustomer extends CustomerInfoLike>(
   } catch (error) {
     return { outcome: 'failed', error };
   }
+}
+
+export async function purchaseProPackage<TCustomer extends CustomerInfoLike>(
+  purchasePackage: () => Promise<{ customerInfo: TCustomer }>,
+  applyCustomerInfo: (customerInfo: TCustomer) => void,
+  errorCodes: RevenueCatPurchaseErrorCodes,
+  canMakePayments?: () => Promise<boolean>,
+): Promise<ProPurchaseResult> {
+  if (canMakePayments) {
+    try {
+      if (!(await canMakePayments())) return { outcome: 'purchase_restricted' };
+    } catch {
+      // Let the purchase call return the authoritative store error.
+    }
+  }
+  try {
+    const { customerInfo } = await purchasePackage();
+    applyCustomerInfo(customerInfo);
+    return { outcome: hasProEntitlement(customerInfo) ? 'purchased' : 'missing_entitlement' };
+  } catch (error) {
+    return classifyPurchaseError(error, errorCodes);
+  }
+}
+
+export function classifyPurchaseError(error: unknown, errorCodes: RevenueCatPurchaseErrorCodes): ProPurchaseResult {
+  const code = safePurchaseErrorCode(error, errorCodes);
+  if (code === errorCodes.PURCHASE_CANCELLED_ERROR) return { outcome: 'cancelled', code };
+  if (code === errorCodes.PAYMENT_PENDING_ERROR) return { outcome: 'pending', code };
+  if (code === errorCodes.NETWORK_ERROR || code === errorCodes.OFFLINE_CONNECTION_ERROR || code === errorCodes.PRODUCT_REQUEST_TIMED_OUT_ERROR) return { outcome: 'network_error', code };
+  if (code === errorCodes.STORE_PROBLEM_ERROR) return { outcome: 'store_unavailable', code };
+  if (code === errorCodes.PURCHASE_NOT_ALLOWED_ERROR || code === errorCodes.INSUFFICIENT_PERMISSIONS_ERROR) return { outcome: 'purchase_restricted', code };
+  return code ? { outcome: 'failed', code } : { outcome: 'failed' };
+}
+
+function safePurchaseErrorCode(error: unknown, errorCodes: RevenueCatPurchaseErrorCodes): string | null {
+  if (!error || typeof error !== 'object' || !('code' in error)) return null;
+  const code = error.code;
+  if (typeof code !== 'string' && typeof code !== 'number') return null;
+  const normalized = String(code);
+  return Object.values(errorCodes).includes(normalized) ? normalized : null;
+}
+
+export type ProPurchaseConcern = Extract<ProPurchaseOutcome, 'pending' | 'missing_entitlement' | 'store_unavailable'>;
+export type ProPurchaseConcernResult = ProPurchaseResult & { outcome: ProPurchaseConcern };
+
+export function purchaseConcern(result: ProPurchaseResult): ProPurchaseConcernResult | null {
+  return result.outcome === 'pending' || result.outcome === 'missing_entitlement' || result.outcome === 'store_unavailable'
+    ? result as ProPurchaseConcernResult : null;
+}
+
+export function resolveRestoreFeedback(concern: ProPurchaseConcernResult | null, restoreOutcome: ProRestoreOutcome): {
+  concern: ProPurchaseConcernResult | null;
+  notice: ProRestoreOutcome | ProPurchaseConcern;
+} {
+  if (restoreOutcome === 'restored') return { concern: null, notice: 'restored' };
+  if (concern) return { concern, notice: concern.outcome };
+  return { concern: null, notice: restoreOutcome };
 }
 
 export type ProPlanEntry<TPackage extends PackageLike> = {

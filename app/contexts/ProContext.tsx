@@ -8,11 +8,13 @@ import {
   loadProResources,
   ProPlan,
   ProPlanId,
+  ProPurchaseResult,
+  ProRestoreOutcome,
+  purchaseProPackage,
   restoreProPurchase,
 } from '../lib/iap';
 
 type PurchaseState = 'loading' | 'ready' | 'unavailable' | 'error';
-type PurchaseOutcome = 'purchased' | 'restored' | 'cancelled' | 'pending' | 'not_found' | 'failed';
 type OfferCodeOutcome = 'presented' | 'unavailable';
 type PurchasesSdk = typeof import('react-native-purchases').default;
 
@@ -23,8 +25,8 @@ type ProContextValue = {
   state: PurchaseState;
   busyPlan: ProPlanId | 'restore' | 'redeem' | null;
   error: string | null;
-  purchase: (planId: ProPlanId) => Promise<PurchaseOutcome>;
-  restore: () => Promise<PurchaseOutcome>;
+  purchase: (planId: ProPlanId) => Promise<ProPurchaseResult>;
+  restore: () => Promise<ProRestoreOutcome>;
   redeemOfferCode: () => Promise<OfferCodeOutcome>;
   refresh: () => Promise<void>;
 };
@@ -139,28 +141,26 @@ export function ProProvider({ children }: PropsWithChildren) {
     }
   }, [load]);
 
-  const purchase = useCallback(async (planId: ProPlanId): Promise<PurchaseOutcome> => {
+  const purchase = useCallback(async (planId: ProPlanId): Promise<ProPurchaseResult> => {
     const sdk = sdkRef.current;
     const purchasePackage = packagesRef.current.get(planId);
-    if (!sdk || !purchasePackage) return 'not_found';
+    if (!sdk || !purchasePackage) return { outcome: 'unavailable' };
 
     setBusyPlan(planId);
     setError(null);
     try {
-      const result = await sdk.purchasePackage(purchasePackage);
-      applyCustomerInfo(result.customerInfo);
-      return hasProEntitlement(result.customerInfo) ? 'purchased' : 'not_found';
-    } catch (nextError) {
-      if (isRevenueCatError(nextError, sdk.PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR)) return 'cancelled';
-      if (isRevenueCatError(nextError, sdk.PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR)) return 'pending';
-      setError(errorMessage(nextError));
-      return 'not_found';
+      return await purchaseProPackage(
+        () => sdk.purchasePackage(purchasePackage),
+        applyCustomerInfo,
+        sdk.PURCHASES_ERROR_CODE,
+        () => sdk.canMakePayments(),
+      );
     } finally {
       setBusyPlan(null);
     }
   }, [applyCustomerInfo]);
 
-  const restore = useCallback(async (): Promise<PurchaseOutcome> => {
+  const restore = useCallback(async (): Promise<ProRestoreOutcome> => {
     const sdk = sdkRef.current;
     if (!sdk) return 'failed';
 
@@ -207,10 +207,6 @@ export function usePro() {
   const value = useContext(ProContext);
   if (!value) throw new Error('usePro must be used inside ProProvider');
   return value;
-}
-
-function isRevenueCatError(error: unknown, code: string) {
-  return Boolean(error && typeof error === 'object' && 'code' in error && String(error.code) === code);
 }
 
 function errorMessage(error: unknown) {

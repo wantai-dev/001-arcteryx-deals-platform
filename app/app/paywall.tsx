@@ -15,7 +15,13 @@ import { BrandLogo } from "../components/BrandLogo";
 import { usePreferences } from "../contexts/PreferencesContext";
 import { usePro } from "../contexts/ProContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { ProPlan, ProPlanId } from "../lib/iap";
+import {
+  ProPlan,
+  ProPlanId,
+  ProPurchaseConcernResult,
+  purchaseConcern,
+  resolveRestoreFeedback,
+} from "../lib/iap";
 import { ThemeColors, radii, typography } from "../lib/theme";
 
 const TERMS_URL =
@@ -34,6 +40,7 @@ export default function PaywallScreen() {
     usePro();
   const [selectedId, setSelectedId] = useState<ProPlanId>("annual");
   const [notice, setNotice] = useState<string | null>(null);
+  const [purchaseConcernResult, setPurchaseConcernResult] = useState<ProPurchaseConcernResult | null>(null);
   useEffect(() => {
     if (plans.length && !plans.some((p) => p.id === selectedId))
       setSelectedId(plans.find((p) => p.id === "annual")?.id || plans[0]!.id);
@@ -44,18 +51,23 @@ export default function PaywallScreen() {
     if (!selected) return;
     setNotice(null);
     const result = await purchase(selected.id);
-    if (result === "purchased") router.back();
-    else if (result === "pending") setNotice(t("paywall.pending"));
-    else if (result !== "cancelled") setNotice(t("paywall.purchaseFailed"));
+    const concern = purchaseConcern(result);
+    setPurchaseConcernResult(concern);
+    if (result.outcome === "purchased") router.back();
+    else if (result.outcome !== "cancelled") setNotice(purchaseNotice(result.outcome, result.code, t));
   }
   async function handleRestore() {
     setNotice(null);
     const outcome = await restore();
-    setNotice(outcome === "restored"
+    const feedback = resolveRestoreFeedback(purchaseConcernResult, outcome);
+    setPurchaseConcernResult(feedback.concern);
+    setNotice(feedback.notice === "restored"
       ? t("paywall.restored")
-      : outcome === "failed"
+      : feedback.notice === "failed"
         ? t("paywall.restoreFailed")
-        : t("paywall.nothingToRestore"));
+        : feedback.notice === "not_found"
+          ? t("paywall.nothingToRestore")
+          : purchaseNotice(feedback.notice, feedback.concern?.code, t, true));
   }
   async function handleRedeemOfferCode() {
     setNotice(null);
@@ -125,10 +137,10 @@ export default function PaywallScreen() {
         )}
         <Pressable
           accessibilityRole="button"
-          disabled={Boolean(busyPlan) || (!isPro && !selected)}
+          disabled={Boolean(busyPlan) || Boolean(purchaseConcernResult) || (!isPro && !selected)}
           style={[
             styles.cta,
-            (busyPlan || (!isPro && !selected)) && styles.disabled,
+            (busyPlan || purchaseConcernResult || (!isPro && !selected)) && styles.disabled,
           ]}
           onPress={() => void buy()}
         >
@@ -185,6 +197,26 @@ export default function PaywallScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+function purchaseNotice(
+  outcome: string,
+  code: string | undefined,
+  t: ReturnType<typeof usePreferences>["t"],
+  afterRestore = false,
+) {
+  const key = outcome === "pending"
+    ? "paywall.pending"
+    : outcome === "missing_entitlement"
+      ? afterRestore ? "paywall.purchaseStillSyncing" : "paywall.purchaseSyncing"
+      : outcome === "store_unavailable"
+        ? afterRestore ? "paywall.storeStillUnconfirmed" : "paywall.storeUnavailable"
+        : outcome === "network_error"
+          ? "paywall.purchaseNetworkError"
+          : outcome === "purchase_restricted"
+            ? "paywall.purchaseRestricted"
+            : "paywall.purchaseFailed";
+  const message = t(key);
+  return code ? `${message} ${t("paywall.referenceCode", { code })}` : message;
 }
 function label(id: ProPlanId, t: ReturnType<typeof usePreferences>["t"]) {
   return t(

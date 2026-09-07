@@ -6,9 +6,18 @@ import {
   hasProEntitlement,
   loadProResources,
   PackageLike,
+  purchaseConcern,
+  purchaseProPackage,
+  resolveRestoreFeedback,
   PRO_PRODUCT_IDS,
   restoreProPurchase,
 } from '../lib/iap';
+
+const errorCodes = {
+  PURCHASE_CANCELLED_ERROR: '1', STORE_PROBLEM_ERROR: '2', PURCHASE_NOT_ALLOWED_ERROR: '3',
+  NETWORK_ERROR: '10', INSUFFICIENT_PERMISSIONS_ERROR: '19', PAYMENT_PENDING_ERROR: '20',
+  PRODUCT_REQUEST_TIMED_OUT_ERROR: '32', OFFLINE_CONNECTION_ERROR: '35',
+};
 
 function makePackage(
   productId: string,
@@ -59,6 +68,47 @@ test('restoreProPurchase distinguishes service failure from a successful empty r
 
   assert.equal(failed.outcome, 'failed');
   assert.equal(empty.outcome, 'not_found');
+});
+
+test('purchaseProPackage keeps processed-but-unsynced transactions distinct from a purchase', async () => {
+  const outcomes: string[] = [];
+  const result = await purchaseProPackage(
+    async () => ({ customerInfo: { entitlements: { active: {} } } }),
+    (info) => outcomes.push(hasProEntitlement(info) ? 'pro' : 'free'),
+    errorCodes,
+  );
+  assert.deepEqual(result, { outcome: 'missing_entitlement' });
+  assert.deepEqual(outcomes, ['free']);
+  assert.deepEqual(purchaseConcern(result), { outcome: 'missing_entitlement' });
+});
+
+test('purchaseProPackage returns sanitized outcomes and codes for known SDK errors only', async () => {
+  const fail = (error: unknown) => purchaseProPackage(async () => { throw error; }, () => undefined, errorCodes);
+  assert.deepEqual(await fail({ code: '1', message: 'private' }), { outcome: 'cancelled', code: '1' });
+  assert.deepEqual(await fail({ code: 20, userInfo: { receipt: 'private' } }), { outcome: 'pending', code: '20' });
+  assert.deepEqual(await fail({ code: '10' }), { outcome: 'network_error', code: '10' });
+  assert.deepEqual(await fail({ code: '2' }), { outcome: 'store_unavailable', code: '2' });
+  assert.deepEqual(await fail({ code: '3' }), { outcome: 'purchase_restricted', code: '3' });
+  assert.deepEqual(await fail({ code: '11', message: 'credential detail' }), { outcome: 'failed' });
+  assert.deepEqual(await fail(new Error('raw detail')), { outcome: 'failed' });
+});
+
+test('payment preflight blocks disallowed devices without calling StoreKit', async () => {
+  let calls = 0;
+  const result = await purchaseProPackage(
+    async () => { calls += 1; return { customerInfo: { entitlements: { active: {} } } }; },
+    () => undefined,
+    errorCodes,
+    async () => false,
+  );
+  assert.deepEqual(result, { outcome: 'purchase_restricted' });
+  assert.equal(calls, 0);
+});
+
+test('restore feedback clears the purchase concern only after a confirmed entitlement', () => {
+  const concern = { outcome: 'store_unavailable', code: '2' } as const;
+  assert.deepEqual(resolveRestoreFeedback(concern, 'not_found'), { concern, notice: 'store_unavailable' });
+  assert.deepEqual(resolveRestoreFeedback(concern, 'restored'), { concern: null, notice: 'restored' });
 });
 
 test('buildProPlanEntries converts a StoreKit one-week trial to seven days', () => {

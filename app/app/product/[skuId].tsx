@@ -43,6 +43,7 @@ export default function ProductDetailScreen() {
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const { width } = useWindowDimensions();
   const contextProduct = getProduct(skuId);
@@ -128,6 +129,8 @@ export default function ProductDetailScreen() {
   }
 
   async function toggleSaved() {
+    if (watchBusy) return;
+    setWatchBusy(true);
     try {
       const savedNow = await watchlist.toggle(currentProduct);
       if (!savedNow) {
@@ -135,6 +138,8 @@ export default function ProductDetailScreen() {
       }
     } catch {
       Alert.alert(watchCopy.remove, watchCopy.removeFailed);
+    } finally {
+      setWatchBusy(false);
     }
   }
 
@@ -150,11 +155,15 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.nav}>
-          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" accessibilityLabel={watchCopy.back} style={styles.iconButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color={colors.ink} />
           </Pressable>
           <Pressable
-            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={saved ? t('watch.remove') : t('watch.save')}
+            accessibilityState={{ selected: saved, disabled: watchBusy, busy: watchBusy }}
+            disabled={watchBusy}
+            style={[styles.iconButton, watchBusy && styles.disabled]}
             onPress={requestToggleSaved}
           >
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={23} color={saved ? colors.danger : colors.ink} />
@@ -228,8 +237,10 @@ export default function ProductDetailScreen() {
                 const alternativeCurrency = displayedCurrency(item.currency);
                 const alternativeConversion = convertAmount(item.sale_price, item.currency, alternativeCurrency as never, rateSnapshot);
                 const converted = alternativeCurrency !== item.currency && alternativeConversion.converted;
-                return <Pressable key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
-                  <View style={styles.altInfo}><Text style={styles.altMeta}>{regionFlag(item.region)} {regionLabel(item.region)} · {PLATFORM[platformKey(item)]?.label || item.dealer}</Text><Text style={styles.altText}>{formatMoney(item.sale_price, item.currency, item.symbol)}{converted ? ` · ${formatOriginalMoney(item.sale_price, item.currency, item.symbol)}` : ''}</Text></View>
+                const source = PLATFORM[platformKey(item)]?.label || item.dealer;
+                const alternativeLabel = `${regionLabel(item.region)} · ${source} · ${formatMoney(item.sale_price, item.currency, item.symbol)}`;
+                return <Pressable accessibilityRole="button" accessibilityLabel={alternativeLabel} key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
+                  <View style={styles.altInfo}><Text style={styles.altMeta}>{regionFlag(item.region)} {regionLabel(item.region)} · {source}</Text><Text style={styles.altText}>{formatMoney(item.sale_price, item.currency, item.symbol)}{converted ? ` · ${formatOriginalMoney(item.sale_price, item.currency, item.symbol)}` : ''}</Text></View>
                   <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                 </Pressable>;
               })}
@@ -244,6 +255,8 @@ export default function ProductDetailScreen() {
       </ScrollView>
         <View style={[styles.actions, { paddingBottom: Math.max(10, insets.bottom) }]}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('product.alert')}
             style={[styles.actionButton, styles.alertButton]}
             onPress={async () => {
               await softImpact();
@@ -253,7 +266,7 @@ export default function ProductDetailScreen() {
             <Ionicons name="notifications-outline" size={18} color={colors.ink} />
             <Text style={styles.alertText}>{t('product.alert')}</Text>
           </Pressable>
-          <Pressable style={[styles.actionButton, styles.buyButton]} onPress={() => openBuyUrl(currentProduct.url)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })} style={[styles.actionButton, styles.buyButton]} onPress={() => openBuyUrl(currentProduct.url)}>
             <Text style={styles.buyText} numberOfLines={2}>{t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })}</Text>
             <Ionicons name="open-outline" size={18} color={colors.onPill} />
           </Pressable>
@@ -268,6 +281,7 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  disabled: { opacity: 0.45 },
   content: {
     paddingBottom: 100,
   },

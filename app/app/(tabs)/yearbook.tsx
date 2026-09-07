@@ -535,7 +535,12 @@ function CurrentCard({
   );
   const best = selection.offer;
   return (
-    <Pressable style={styles.card} onPress={onOpen}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${b("modelDetail")}: ${product.name}`}
+      style={styles.card}
+      onPress={onOpen}
+    >
       <View style={styles.photo}>
         <DefaultImage
           category={product.categories.join(" ")}
@@ -607,6 +612,8 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
   if (!best) return null;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${b("viewDeal")}: ${product.name}`}
       style={styles.card}
       onPress={() =>
         router.push({
@@ -719,6 +726,8 @@ function CatalogDetailSheet({
           </Text>
           {best ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={b("viewDeal")}
               style={styles.detailPrimary}
               onPress={viewDeal}
             >
@@ -733,12 +742,16 @@ function CatalogDetailSheet({
             </Pressable>
           ) : null}
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={b("openOfficial")}
             style={styles.detailSecondary}
             onPress={() => void Linking.openURL(product.source_url)}
           >
             <Text style={styles.detailSecondaryText}>{b("openOfficial")}</Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={b("modelWatch")}
             style={styles.detailSecondary}
             onPress={onToggleSave}
           >
@@ -747,6 +760,8 @@ function CatalogDetailSheet({
             </Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={b("setAlert")}
             style={styles.detailSecondary}
             onPress={openAlert}
           >
@@ -834,6 +849,8 @@ function Segment({
   const { styles } = useBrowseStyles();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={[styles.segmentButton, active && styles.segmentActive]}
       onPress={onPress}
     >
@@ -1102,6 +1119,8 @@ const makeStyles = (colors: ThemeColors) =>
     },
     sortOptionText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
     detailSheet: {
+      flexGrow: 0,
+      flexShrink: 1,
       maxHeight: "90%",
       borderTopLeftRadius: 22,
       borderTopRightRadius: 22,

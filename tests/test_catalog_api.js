@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import catalogHandler, {
   PAGE_SIZE,
+  dataRevision,
   decorateProduct,
   isVisibleProduct,
   parseCatalogRequest,
@@ -41,6 +42,31 @@ const products = [
     dealer: 'ssense', status: 'active', url: 'https://www.ssense.com/en-us/men/product/arcteryx/beta/1',
   },
 ].filter(isVisibleProduct).map(decorateProduct);
+
+test('catalog data revision changes when public product content changes', () => {
+  const before = [{
+    sku_id: 'evo:swim',
+    category: '其他',
+    last_updated: '2026-09-07 08:05:58',
+    status: 'active',
+  }];
+  const after = [{ ...before[0], category: '泳装' }];
+
+  assert.notEqual(dataRevision(before), dataRevision(after));
+});
+
+test('catalog data revision is stable across record and object key order', () => {
+  const left = [
+    { sku_id: 'b', category: '固定器', size_stock: { M: 'in_stock', S: 'out_of_stock' } },
+    { sku_id: 'a', category: '泳装', sizes: ['S', 'M'] },
+  ];
+  const right = [
+    { sizes: ['S', 'M'], category: '泳装', sku_id: 'a' },
+    { size_stock: { S: 'out_of_stock', M: 'in_stock' }, category: '固定器', sku_id: 'b' },
+  ];
+
+  assert.equal(dataRevision(left), dataRevision(right));
+});
 
 function responseRecorder() {
   return {

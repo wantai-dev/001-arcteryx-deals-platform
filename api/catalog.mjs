@@ -359,11 +359,29 @@ function codeRevision() {
   }
 }
 
+function stableRevisionValue(value) {
+  if (Array.isArray(value)) return value.map(stableRevisionValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, stableRevisionValue(value[key])]),
+    );
+  }
+  return value;
+}
+
 function dataRevision(rows) {
   const hash = crypto.createHash('sha256');
   hash.update(`rows=${rows.length}\n`);
-  for (const product of rows) {
-    hash.update(`${product.sku_id || ''}\t${product.last_updated || ''}\t${product.status || ''}\n`);
+  const ordered = rows
+    .map((product) => stableRevisionValue(publicProduct(product)))
+    .map((product) => ({
+      sku: String(product.sku_id || ''),
+      serialized: JSON.stringify(product),
+    }))
+    .sort((left, right) => left.sku < right.sku ? -1 : left.sku > right.sku ? 1
+      : left.serialized < right.serialized ? -1 : left.serialized > right.serialized ? 1 : 0);
+  for (const product of ordered) {
+    hash.update(`${product.serialized}\n`);
   }
   return hash.digest('hex').slice(0, 20);
 }

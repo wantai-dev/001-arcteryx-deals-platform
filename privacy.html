@@ -131,8 +131,8 @@
     <section>
       <h2>Information we store</h2>
       <ul>
-        <li>Saved products, saved-time price snapshots, and notification preference are stored locally on your device.</li>
-        <li>When you create a price alert, GearDrop stores the email address you enter, target price, product SKU, current price, region, product URL, image URL, and an unsubscribe token so the alert can be managed.</li>
+        <li>Saved products, saved-time price snapshots, item and model alert settings, and notification preference are stored locally on your device.</li>
+        <li>If you separately choose a one-time email alert for an individual item, GearDrop stores the email address you enter, target price, product SKU, current price, region, product URL, image URL, and an unsubscribe token. Editing or deleting an on-device alert does not delete this email subscription; use its emailed unsubscribe link.</li>
         <li>When you contact support, GearDrop stores your email address, subject, message, language, request status, and timestamps so the request can be answered and managed.</li>
         <li>Apple processes Pro purchases. RevenueCat receives an anonymous app user ID, device and operating-system information, App Store receipt and purchase history to validate transactions, restore purchases, and provide Pro entitlement status.</li>
         <li>GearDrop does not ask for account passwords, payment card numbers, precise location, contacts, photos, or health data.</li>
@@ -151,7 +151,7 @@
     <section>
       <h2>Notifications and purchases</h2>
       <p>
-        This version uses local notifications for alert testing. Remote push notifications are not enabled.
+        Local notifications deliver on-device item and model target-price alerts and can also be used for alert testing. Remote push notifications are not enabled. Optional item email alerts are separate and do not require iOS notification permission.
         Pro purchases are processed by Apple through in-app purchase and validated by RevenueCat.
       </p>
     </section>
@@ -173,8 +173,8 @@
       <p>
         Device-local watchlist data remains on your device until you remove it or uninstall the
         app. RevenueCat retains purchase and entitlement records under its service policies; App Store
-        purchases remain associated with your Apple ID. Price alerts remain stored until they are
-        unsubscribed, expire, or are removed during service maintenance. Support requests remain until
+        purchases remain associated with your Apple ID. Email alert records, including delivered one-time
+        alerts, remain stored until deleted through their emailed unsubscribe link or removed during service maintenance. Support requests remain until
         they are resolved and removed under service-maintenance procedures. Abuse-prevention fingerprints
         are automatically pruned by the service.
       </p>

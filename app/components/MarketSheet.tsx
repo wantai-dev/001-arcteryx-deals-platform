@@ -93,7 +93,7 @@ export function MarketSheet(props: Props) {
                 <Pressable
                   key={option.value}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected }}
+                  accessibilityState={{ checked: selected, disabled: busy }}
                   style={styles.region}
                   onPress={() => setDraftRegion(option.value)}
                   disabled={busy}
@@ -122,7 +122,7 @@ export function MarketSheet(props: Props) {
                   <Pressable
                     key={option.value}
                     accessibilityRole="radio"
-                    accessibilityState={{ selected }}
+                    accessibilityState={{ checked: selected, disabled: busy }}
                     style={[styles.currency, selected && styles.currencyActive]}
                     onPress={() => setDraftCurrency(option.value)}
                     disabled={busy}

@@ -4,7 +4,7 @@
 
 在不改版本号和不执行生产写入的边界内，消除 GearDrop 1.2 偏好状态、付费权益文案与发布校验中的已知缺陷，交付可由根任务验收和上线的独立提交。
 
-## 当前状态：实现完成，等待最终集成验收
+## 当前状态：实现与本地集成验证完成，等待根任务真机/商店资产验收
 
 ## 已确认事实
 
@@ -25,15 +25,13 @@
 - RevenueCat 权益与 offerings 独立结算；恢复购买区分无记录与服务失败；已购用户从 Me 进入 RevenueCat 管理 URL 或 Apple 订阅入口；StoreKit `P1W` 试用按结构化周期解析为 7 天。
 - Me 补齐“跟随系统”、版本/build 页脚及语言、外观、市场、通知控件的辅助功能角色、标签和选择状态；移除会把中文 `de` 强制大写的样式。
 - 五语类别补齐 `other` 与 `泳装`，产品历史范围和图表低点改为真实的 12 个月/区间语义。
-- `npm test`：121 tests / 121 pass；`npm run typecheck` 退出 0；`npm run verify:config` 输出 `config_ok ... version=1.1.0 ... buildNumber=11`（合并候选版本前）。
-- `npm run verify` 曾在上述订阅/辅助功能尾改前通过完整本地门：测试、config、assets、metadata、typecheck、Expo Doctor 20/20、汇率、实时数据与 iOS export；最终提交仍需在合并 1.2/12 后重跑。
+- 合并 `codex/geardrop-release-20260907` 后，`npm run verify` 在 1.2.0 / Build 12 上通过：129 tests / 129 pass、config、release assets、五语 metadata、typecheck、Expo Doctor 20/20、实时汇率、实时数据（6793 products / 100478 history / 1352 accepted Yearbook rows）与 iOS export（1534 modules，HBC 5.6 MB），最终输出 `verify_local_ok`。
+- `npm run verify:store-screenshots` 在最终集成上按预期退出 1，并逐项列出全部 30 张缺失截图。
 
 ## 下一步
 
-1. 提交本分支实现。
-2. 合并 `codex/geardrop-release-20260907` 的 1.2.0 / Build 12 候选并更新配置守门的冻结期望。
-3. 重跑完整验证和 30 张截图硬门；截图缺失应保持失败。
-4. 交给根任务做真机/CUA 偏好持久化、全部地区、CNY、辅助功能和原生 StoreKit 验收。
+1. 交给根任务做真机/CUA 偏好持久化、全部地区、CNY、辅助功能和原生 StoreKit 验收。
+2. 生成并签核 5 语 × 6 张商店截图后重跑截图硬门。
 
 ## 死路
 

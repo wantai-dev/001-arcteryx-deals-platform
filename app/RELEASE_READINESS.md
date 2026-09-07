@@ -2,13 +2,13 @@
 
 Last updated: 2026-09-07 CST.
 
-This document is the evidence ledger for **1.2.0 / Build 12**. Earlier builds do not satisfy a row for this candidate.
+This document is the evidence ledger for **1.2.0 / Build 13**. Earlier builds do not satisfy a row for this candidate. Build 12 reached internal TestFlight; Build 13 also unifies the remaining Me market picker with the other market entrances.
 
 ## Candidate status
 
 | Gate | Required evidence | Current status |
 |---|---|---|
-| Source freeze | Exact commit, clean tree, app version 1.2.0 and iOS build 12 | Pending root integration and version freeze |
+| Source freeze | Exact commit, clean tree, app version 1.2.0 and iOS build 13 | Pending root integration and version freeze |
 | Local gate | Tests, typecheck, config, assets, store metadata, Expo Doctor, live data/rates, iOS export | Pending on final integrated commit |
 | Preferences migration | Valid v1+region and v2 migration; malformed/read/write failure; pre-hydration and concurrent writes | Pure-store regression tests added; rerun on final commit |
 | Market/currency | Real catalog markets, paired persistence, valid conversion and safe invalid-rate fallback | Static/unit coverage present; device pass pending |

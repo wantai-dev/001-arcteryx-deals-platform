@@ -1,6 +1,6 @@
 # GearDrop 1.2 Device Checklist
 
-Record every result against the exact signed 1.2.0 / Build 12 candidate.
+Record every result against the exact signed 1.2.0 / Build 13 candidate.
 
 ## Device and build
 

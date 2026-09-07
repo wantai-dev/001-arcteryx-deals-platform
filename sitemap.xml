@@ -7,6 +7,9 @@
     <loc>https://geardrop.100app.dev/sitemap-products.xml</loc>
   </sitemap>
   <sitemap>
+    <loc>https://geardrop.100app.dev/sitemap-deals.xml</loc>
+  </sitemap>
+  <sitemap>
     <loc>https://geardrop.100app.dev/sitemap-insights.xml</loc>
   </sitemap>
 </sitemapindex>

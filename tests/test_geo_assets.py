@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EVALUATED_AT = dt.datetime(2026, 9, 7, 12, tzinfo=dt.timezone.utc)
 
 
 def load_module(name: str, path: Path):
@@ -23,6 +24,36 @@ def load_module(name: str, path: Path):
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def indexable_row(
+    sku: str,
+    brand: str = "arcteryx",
+    dealer: str = "evo",
+    region: str = "us",
+    category: str = "裤装",
+) -> dict[str, object]:
+    return {
+        "sku_id": sku,
+        "brand": brand,
+        "dealer": dealer,
+        "region": region,
+        "category": category,
+        "full_name": f"{brand} {sku}",
+        "original_price": 200,
+        "sale_price": 100,
+        "discount_pct": 50,
+        "currency": "USD",
+        "symbol": "$",
+        "image_url": f"//images.example.com/{sku}.jpg",
+        "url": f"https://retailer.example.com/{sku}",
+        "url_http_status": 200,
+        "status": "active",
+        "last_updated": "2026-09-07T08:00:00+00:00",
+        "last_seen_at": "2026-09-07T08:00:00+00:00",
+        "sizes": ["M"],
+        "size_stock": {"M": "in_stock"},
+    }
 
 
 class GeoAssetTests(unittest.TestCase):
@@ -55,14 +86,16 @@ class GeoAssetTests(unittest.TestCase):
 
     def test_local_geo_readiness_contract_passes(self):
         rows = [
-            {"sku_id": "a-1", "brand": "arcteryx", "dealer": "evo", "region": "us", "status": "active", "last_updated": "2026-08-31T01:00:00+00:00"},
-            {"sku_id": "a-2", "brand": "arcteryx", "dealer": "mec", "region": "ca", "status": "active", "last_updated": "2026-08-31T02:00:00+00:00"},
-            {"sku_id": "b-1", "brand": "burton", "dealer": "evo", "region": "us", "status": "active", "last_updated": "2026-08-31T03:00:00+00:00"},
+            indexable_row("a-1", category="裤装"),
+            indexable_row("a-2", dealer="mec", region="ca", category="鞋类"),
+            indexable_row("b-1", brand="burton", category="抓绒/摇粒绒"),
+            indexable_row("b-2", brand="burton", category="夹克/外套"),
+            indexable_row("p-1", brand="patagonia", category="保暖夹克"),
         ]
         with tempfile.TemporaryDirectory() as directory:
             dynamic_root = Path(directory)
             for path, value in self.catalog_module.build_outputs(
-                rows, output_root=dynamic_root
+                rows, output_root=dynamic_root, evaluated_at=EVALUATED_AT
             ).items():
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(value, encoding="utf-8")
@@ -83,7 +116,7 @@ class GeoAssetTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         report = json.loads(result.stdout)
         self.assertEqual(report["summary"]["failed"], 0)
-        self.assertGreaterEqual(report["summary"]["passed"], 80)
+        self.assertGreaterEqual(report["summary"]["passed"], 130)
         self.assertEqual(report["observed_ai_visibility"], "not_measured")
 
     def test_catalog_snapshots_are_not_part_of_the_code_release(self):
@@ -94,6 +127,7 @@ class GeoAssetTests(unittest.TestCase):
             "global_data.json",
             "dealers/results.json",
             "sitemap-products.xml",
+            "sitemap-deals.xml",
             "catalog-status.json",
         ):
             with self.subTest(path=path):
@@ -138,15 +172,92 @@ class GeoAssetTests(unittest.TestCase):
         namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
         self.assertEqual(root.find("sm:url/sm:loc", namespace).text, url)
 
+    def test_index_policy_reports_reasons_and_normalizes_protocol_relative_images(self):
+        row = indexable_row("policy-ok")
+        self.assertEqual(
+            self.catalog_module.assess_product_indexability(row, EVALUATED_AT), []
+        )
+        self.assertEqual(
+            self.catalog_module.normalize_external_url(row["image_url"]),
+            "https://images.example.com/policy-ok.jpg",
+        )
+        rejected = {
+            **row,
+            "discount_pct": 20,
+            "original_price": 100,
+            "sale_price": 80,
+            "url_http_status": 503,
+            "last_updated": "2026-08-01T00:00:00+00:00",
+            "last_seen_at": "2026-08-01T00:00:00+00:00",
+            "size_stock": {"M": "out_of_stock"},
+        }
+        self.assertEqual(
+            self.catalog_module.assess_product_indexability(rejected, EVALUATED_AT),
+            [
+                "source_unverified",
+                "discount_below_threshold",
+                "out_of_stock",
+                "stale_observation",
+            ],
+        )
+        conflicting = {
+            **row,
+            "original_price": 100,
+            "sale_price": 90,
+            "discount_pct": 80,
+        }
+        self.assertIn(
+            "discount_below_threshold",
+            self.catalog_module.assess_product_indexability(conflicting, EVALUATED_AT),
+        )
+        self.assertIn(
+            "inactive",
+            self.catalog_module.assess_product_indexability(
+                {**row, "status": None}, EVALUATED_AT
+            ),
+        )
+
+    def test_deal_hubs_are_server_readable_and_paginated_with_stable_urls(self):
+        rows = [indexable_row(f"pants-{number:03d}") for number in range(61)]
+        outputs = self.catalog_module.build_outputs(rows, evaluated_at=EVALUATED_AT)
+        first = outputs[ROOT / "brands" / "arcteryx.html"]
+        second = outputs[ROOT / "brands" / "arcteryx" / "page" / "2.html"]
+        sitemap = outputs[ROOT / "sitemap-deals.xml"]
+        self.assertIn('<meta name="robots" content="index,follow', first)
+        self.assertIn('rel="next" href="https://geardrop.100app.dev/brands/arcteryx/page/2.html"', first)
+        self.assertIn('rel="prev" href="https://geardrop.100app.dev/brands/arcteryx.html"', second)
+        self.assertEqual(first.count('<article class="deal-card">'), 60)
+        self.assertEqual(second.count('<article class="deal-card">'), 1)
+        self.assertIn('https://geardrop.100app.dev/brands/arcteryx/page/2.html', sitemap)
+        self.assertIn('"@type": "ItemList"', first)
+
+    def test_deal_hubs_collapse_regional_duplicates_and_report_offer_coverage(self):
+        us = indexable_row("same-us", region="us")
+        ca = indexable_row("same-ca", region="ca")
+        us["full_name"] = ca["full_name"] = "Arc'teryx Shared Jacket"
+        hub = self.catalog_module.hub_definitions()[0]
+        rows = self.catalog_module.hub_rows([us, ca], hub)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["_market_count"], 2)
+        self.assertEqual(rows[0]["_offer_count"], 2)
+        source = self.catalog_module.render_deal_hub(hub, rows, 1, "zh-CN")
+        self.assertEqual(source.count('<article class="deal-card">'), 1)
+        self.assertIn("覆盖 2 个地区 · 2 条报价", source)
+
     def test_catalog_generator_builds_reproducible_localized_data_pages(self):
         rows = [
-            {"sku_id": "a-1", "brand": "arcteryx", "dealer": "evo", "region": "us", "status": "active", "last_updated": "2026-08-28T01:00:00+00:00"},
-            {"sku_id": "a-2", "brand": "arcteryx", "dealer": "mec", "region": "ca", "status": "active", "last_updated": "2026-08-28T02:00:00+00:00"},
-            {"sku_id": "b-1", "brand": "burton", "dealer": "evo", "region": "us", "status": "active", "last_updated": "2026-08-28T03:00:00+00:00"},
+            indexable_row("a-1"),
+            indexable_row("a-2", dealer="mec", region="ca"),
+            indexable_row("b-1", brand="burton"),
         ]
-        outputs = self.catalog_module.build_outputs(rows)
+        outputs = self.catalog_module.build_outputs(rows, evaluated_at=EVALUATED_AT)
         summary = json.loads(outputs[ROOT / "catalog-status.json"])
-        self.assertEqual(summary["schema_version"], "1.1.0")
+        self.assertEqual(summary["schema_version"], "1.2.0")
+        self.assertEqual(summary["indexed_product_urls"], 3)
+        self.assertEqual(
+            summary["deal_sitemap_url"],
+            "https://geardrop.100app.dev/sitemap-deals.xml",
+        )
         self.assertEqual(sum(item["total"] for item in summary["brand_platform_matrix"]), 3)
         self.assertEqual(sum(item["total"] for item in summary["region_brand_matrix"]), 3)
         expected = {

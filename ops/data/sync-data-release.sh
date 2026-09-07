@@ -75,6 +75,9 @@ for required in \
   public/dealers/results.json \
   public/dealers/results.json.gz \
   public/sitemap-products.xml \
+  public/sitemap-deals.xml \
+  public/brands/arcteryx.html \
+  public/categories/pants.html \
   public/publication.json \
   public/data-manifest.json \
   ARTIFACT_REVISION \

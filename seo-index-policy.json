@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "minimum_discount_pct": 45,
+  "maximum_age_days": 14,
+  "required_url_http_status": 200,
+  "supported_brands": ["arcteryx", "burton", "patagonia"],
+  "retired_dealers": ["ssense"],
+  "hub_page_size": 60,
+  "category_hubs": [
+    {
+      "slug": "pants",
+      "category": "裤装",
+      "zh_title": "户外裤装折扣",
+      "en_title": "Outdoor pants deals"
+    },
+    {
+      "slug": "footwear",
+      "category": "鞋类",
+      "zh_title": "户外鞋履折扣",
+      "en_title": "Outdoor footwear deals"
+    },
+    {
+      "slug": "fleece",
+      "category": "抓绒/摇粒绒",
+      "zh_title": "户外抓绒折扣",
+      "en_title": "Outdoor fleece deals"
+    },
+    {
+      "slug": "jackets",
+      "category": "夹克/外套",
+      "zh_title": "户外夹克与外套折扣",
+      "en_title": "Outdoor jacket deals"
+    },
+    {
+      "slug": "insulated-jackets",
+      "category": "保暖夹克",
+      "zh_title": "户外保暖夹克折扣",
+      "en_title": "Insulated jacket deals"
+    }
+  ]
+}

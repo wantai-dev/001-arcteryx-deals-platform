@@ -1,6 +1,6 @@
 # GearDrop 1.2 Device Checklist
 
-Record every result against the exact signed 1.2.0 / Build 13 candidate.
+Record every result against the exact signed 1.2.0 / Build 14 candidate. Build 13 observations are historical and do not complete a Build 14 row.
 
 ## Device and build
 
@@ -56,7 +56,7 @@ reopen_resume_result=
 ## StoreKit / Pro
 
 - [ ] Paywall loads current StoreKit products and localized prices for the test storefront.
-- [ ] Annual is presented first without a fabricated saving or trial.
+- [ ] Annual is selected by default without a fabricated saving or trial.
 - [ ] Monthly, annual, and lifetime purchase paths are tested as available.
 - [ ] Cancellation and pending purchase keep Free access and show recoverable copy.
 - [ ] Active `Pro` entitlement unlocks only the implemented Pro features.

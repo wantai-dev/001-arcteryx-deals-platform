@@ -4,7 +4,7 @@
 
 This file defines the conversion story and capture requirements; it is not a completed screenshot set. Final images depend on the final signed next-version build, current StoreKit products, and a fresh device smoke pass.
 
-Use iPhone 16 Pro Max portrait at 1320×2868 for Apple’s 6.9-inch screenshot well. Capture only the final signed 1.2.0 / Build 13 candidate. The first three slots are the search-results story and must remain in this order.
+Use iPhone 16 Pro Max portrait at 1320×2868 for Apple’s 6.9-inch screenshot well. Capture only the final signed 1.2.0 / Build 14 candidate. The first three slots are the search-results story and must remain in this order.
 
 ## Slots
 

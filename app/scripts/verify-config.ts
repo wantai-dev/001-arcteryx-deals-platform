@@ -118,7 +118,7 @@ assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleName, '值de');
 assert.equal(expo.locales?.['zh-Hans']?.android?.app_name, '值de');
 assert.equal(expo.ios?.bundleIdentifier, 'dev.100app.geardrop');
 assert.equal(expo.ios?.supportsTablet, false, 'release candidate must remain iPhone-only until iPad UI and screenshots are verified');
-assert.equal(expo.ios?.buildNumber, '13');
+assert.equal(expo.ios?.buildNumber, '14');
 assert.equal(expo.ios?.config?.usesNonExemptEncryption, false);
 assertNoTrademark(expo.name, 'expo.name');
 assertNoTrademark(expo.slug, 'expo.slug');

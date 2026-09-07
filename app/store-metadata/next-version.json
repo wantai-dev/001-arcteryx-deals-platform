@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "target": "next-app-version",
   "targetVersion": "1.2.0",
-  "targetBuildNumber": "13",
+  "targetBuildNumber": "14",
   "appId": "6790165332",
   "bundleId": "dev.100app.geardrop",
   "primaryLocale": "en-US",

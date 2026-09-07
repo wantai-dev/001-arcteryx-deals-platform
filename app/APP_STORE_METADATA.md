@@ -2,7 +2,7 @@
 
 ## Release boundary
 
-The canonical five-language package is `store-metadata/next-version.json`, prepared for **1.2.0 / Build 13**. It is a release candidate until the exact version/build is frozen and read back from App Store Connect. Apply it only to the verified editable 1.2.0 version; preserve the public release.
+The canonical five-language package is `store-metadata/next-version.json`, prepared for **1.2.0 / Build 14**. It is a release candidate until the exact version/build is frozen and read back from App Store Connect. Apply it only to the verified editable 1.2.0 version; preserve the public release.
 
 Run `npm run verify:store-metadata` before and after every metadata edit. The verifier enforces Apple field limits, the 100-byte keyword limit, five exact locales, six unique screenshot headlines, required legal links, brand-neutral public copy, no hard-coded StoreKit prices, and no promises of instant alerts or trial eligibility.
 
@@ -46,7 +46,7 @@ Replace this draft with exact signed-build navigation steps and current App Stor
 
 ## Apply sequence
 
-1. Freeze the exact 1.2.0 / Build 13 source and signed artifact.
+1. Freeze the exact 1.2.0 / Build 14 source and signed artifact.
 2. Run the full local release gate and physical-device checklist.
 3. Complete StoreKit purchase/restore and notification scheduling checks.
 4. Capture and validate all 30 localized screenshots.

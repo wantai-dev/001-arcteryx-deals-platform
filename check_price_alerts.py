@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 import html as html_lib
+import hashlib
 import os, sys, json, urllib.request, urllib.parse, ssl
 from datetime import datetime, timezone
 from typing import Callable
@@ -29,14 +30,15 @@ def http_get(path: str) -> list | dict:
     with urllib.request.urlopen(req, context=_CTX, timeout=30) as r:
         return json.loads(r.read())
 
-def http_patch(path: str, body: dict) -> None:
+def http_patch(path: str, body: dict) -> bool:
     req = urllib.request.Request(f"{SUPABASE_URL}{path}",
         data=json.dumps(body).encode(), method="PATCH",
-        headers={**_H, "Content-Type":"application/json", "Prefer":"return=minimal"})
-    with urllib.request.urlopen(req, context=_CTX, timeout=20):
-        pass
+        headers={**_H, "Content-Type":"application/json", "Prefer":"return=representation"})
+    with urllib.request.urlopen(req, context=_CTX, timeout=20) as response:
+        updated = json.loads(response.read() or b"[]")
+        return isinstance(updated, list) and len(updated) == 1
 
-def send_email_resend(to: str, subject: str, html: str) -> bool:
+def send_email_resend(to: str, subject: str, html: str, *, idempotency_key: str) -> bool:
     if not RESEND_API_KEY:
         print(f"  (dry-run, no RESEND_API_KEY) → {to}: {subject}")
         return False
@@ -47,7 +49,11 @@ def send_email_resend(to: str, subject: str, html: str) -> bool:
         "html": html,
     }).encode()
     req = urllib.request.Request("https://api.resend.com/emails", data=body,
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"})
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotency_key,
+        })
     try:
         with urllib.request.urlopen(req, context=_CTX, timeout=15) as r:
             return r.status in (200, 201, 202)
@@ -64,6 +70,24 @@ def _https_url(value: object, fallback: str = "") -> str:
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         return fallback
     return candidate
+
+def alert_idempotency_key(alert: dict) -> str:
+    alert_id = str(alert.get("id") or "").strip()
+    created_at = str(alert.get("created_at") or "").strip()
+    if not alert_id or not created_at:
+        raise ValueError("alert id and created_at are required for idempotent delivery")
+    generation = hashlib.sha256(f"{alert_id}\0{created_at}".encode()).hexdigest()
+    return f"price-alert/{generation}"
+
+def alert_patch_path(alert: dict) -> str:
+    alert_id = urllib.parse.quote(str(alert["id"]), safe="")
+    created_at = urllib.parse.quote(str(alert["created_at"]), safe="")
+    target = alert.get("target_price")
+    target_filter = "is.null" if target is None else f"eq.{urllib.parse.quote(str(target), safe='')}"
+    return (
+        f"/rest/v1/price_alerts?id=eq.{alert_id}"
+        f"&notified_at=is.null&created_at=eq.{created_at}&target_price={target_filter}"
+    )
 
 def render_email(alert: dict, current_price: float) -> tuple[str, str]:
     sym = {"USD":"$","CAD":"C$","EUR":"€","GBP":"£","JPY":"¥","CHF":"CHF","SEK":"kr","DKK":"kr","AUD":"A$"}.get(alert.get("currency",""), "$")
@@ -103,8 +127,8 @@ def render_email(alert: dict, current_price: float) -> tuple[str, str]:
 def process_alerts(
     alerts: list[dict],
     products: list[dict],
-    sender: Callable[[str, str, str], bool] = send_email_resend,
-    patcher: Callable[[str, dict], None] = http_patch,
+    sender: Callable[..., bool] = send_email_resend,
+    patcher: Callable[[str, dict], bool] = http_patch,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
 ) -> dict[str, int]:
     price_by_sku = {p["sku_id"]: p for p in products}
@@ -130,13 +154,18 @@ def process_alerts(
             "image_url": product.get("image_url") or alert.get("image_url"),
         }
         subject, html = render_email(alert, current_price)
-        if not sender(alert["email"], subject, html):
+        try:
+            idempotency_key = alert_idempotency_key(alert)
+        except ValueError as error:
+            failed += 1
+            print(f"  alert generation err id={alert.get('id')}: {error}", file=sys.stderr)
+            continue
+        if not sender(alert["email"], subject, html, idempotency_key=idempotency_key):
             failed += 1
             continue
         try:
-            alert_id = urllib.parse.quote(str(alert["id"]), safe="")
-            patcher(
-                f"/rest/v1/price_alerts?id=eq.{alert_id}",
+            marked = patcher(
+                alert_patch_path(alert),
                 {"notified_at": now().isoformat()},
             )
         except Exception as error:
@@ -146,14 +175,21 @@ def process_alerts(
                 file=sys.stderr,
             )
             continue
+        if not marked:
+            failed += 1
+            print(
+                f"  PATCH stale generation id={alert['id']}; current alert remains pending",
+                file=sys.stderr,
+            )
+            continue
         sent += 1
     return {"sent": sent, "failed": failed, "skipped": skipped, "missing_sku": missing}
 
 def main(
     *,
     getter: Callable[[str], list | dict] | None = None,
-    patcher: Callable[[str, dict], None] | None = None,
-    sender: Callable[[str, str, str], bool] | None = None,
+    patcher: Callable[[str, dict], bool] | None = None,
+    sender: Callable[..., bool] | None = None,
 ) -> int:
     if not SUPABASE_KEY:
         print("SUPABASE_KEY env required", file=sys.stderr)

@@ -37,7 +37,8 @@ This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366
 - EAS build: `ea1e91ab-f0bd-493a-bd08-98fc5d4d75ff`, FINISHED, production / STORE, source commit `20d917237fb8141492b323b0ae1356b59808739a`.
 - IPA: 30,194,486 bytes; SHA-256 `90375b2e8fe27ae973ec0bc401697b93412eb34465c71ab01c18eeb27d77f459`; independent `verify_ipa.py` result is `signature=verified_deep_strict` with Bundle `dev.100app.geardrop`, version `1.2.0 (14)`, arm64, iPhone-only, minimum iOS 16.4, `fetch`/`processing` background modes and `ITSAppUsesNonExemptEncryption=false`.
 - Apple delivery UUID and Build ID: `fbda784c-d365-4ba0-b157-3ce7f0a45cfd`; processing `VALID`, audience `APP_STORE_ELIGIBLE`. It is attached to editable App Store version `e389da5e-3468-42d1-b6d3-e19bb844d12d` and the existing internal group `96d283f8-1b42-4dc6-9d99-d04a9d1c553b`; beta detail readback is `IN_BETA_TESTING` / `READY_FOR_BETA_SUBMISSION`.
-- Evidence files: `.agent/release-evidence/ipa-14-verification.json`, `.agent/release-evidence/altool-upload-14.log`, `.agent/release-evidence/asc-build-14-linked.json`.
+- ASC final readback also confirms five version locales plus five app-info locales (10 resources total) and all three IAP product IDs are `APPROVED`; evidence `.agent/release-evidence/asc-build-14-closeout.json`.
+- Evidence files: `.agent/release-evidence/ipa-14-verification.json`, `.agent/release-evidence/altool-upload-14.log`, `.agent/release-evidence/asc-build-14-linked.json`, `.agent/release-evidence/asc-build-14-closeout.json`.
 
 ## Remaining device and screenshot conditions
 

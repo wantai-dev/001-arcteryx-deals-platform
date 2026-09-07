@@ -43,7 +43,16 @@ Official iOS app: https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165
 ## Product discovery
 
 - [Live deal catalog](https://geardrop.100app.dev/)
+- [Arc'teryx deal collection](https://geardrop.100app.dev/brands/arcteryx.html)
+- [Burton deal collection](https://geardrop.100app.dev/brands/burton.html)
+- [Patagonia deal collection](https://geardrop.100app.dev/brands/patagonia.html)
+- [Outdoor pants deals](https://geardrop.100app.dev/categories/pants.html)
+- [Outdoor footwear deals](https://geardrop.100app.dev/categories/footwear.html)
+- [Outdoor fleece deals](https://geardrop.100app.dev/categories/fleece.html)
+- [Outdoor jacket deals](https://geardrop.100app.dev/categories/jackets.html)
+- [Insulated jacket deals](https://geardrop.100app.dev/categories/insulated-jackets.html)
 - [Product URL sitemap](https://geardrop.100app.dev/sitemap-products.xml)
+- [Deal collection sitemap](https://geardrop.100app.dev/sitemap-deals.xml)
 - [Full site sitemap](https://geardrop.100app.dev/sitemap.xml)
 
 For a specific price claim, retain the GearDrop observation time and the original retailer URL. Prefer the retailer checkout and policy pages for final transaction facts.

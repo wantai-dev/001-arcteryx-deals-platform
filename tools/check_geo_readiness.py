@@ -39,6 +39,16 @@ STATIC_PAGES = {
     "/en/brands/arcteryx.html": {"Organization", "WebSite", "CollectionPage", "Brand", "SoftwareApplication"},
     "/en/brands/burton.html": {"Organization", "WebSite", "CollectionPage", "Brand", "SoftwareApplication"},
     "/en/brands/patagonia.html": {"Organization", "WebSite", "CollectionPage", "Brand", "SoftwareApplication"},
+    "/categories/pants.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/categories/footwear.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/categories/fleece.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/categories/jackets.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/categories/insulated-jackets.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/en/categories/pants.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/en/categories/footwear.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/en/categories/fleece.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/en/categories/jackets.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
+    "/en/categories/insulated-jackets.html": {"Organization", "WebSite", "CollectionPage", "ItemList", "SoftwareApplication"},
     "/catalog-status.html": {"Organization", "WebPage", "Dataset", "SoftwareApplication"},
     "/en/catalog-status.html": {"Organization", "WebPage", "Dataset", "SoftwareApplication"},
     "/insights/catalog-coverage.html": {"Organization", "WebPage", "Dataset", "SoftwareApplication"},
@@ -60,11 +70,30 @@ DYNAMIC_DATA_PATHS = {
     "/insights/regional-coverage.html",
     "/en/insights/regional-coverage.html",
 }
+DYNAMIC_DEAL_PATHS = {
+    "/brands/arcteryx.html",
+    "/brands/burton.html",
+    "/brands/patagonia.html",
+    "/en/brands/arcteryx.html",
+    "/en/brands/burton.html",
+    "/en/brands/patagonia.html",
+    "/categories/pants.html",
+    "/categories/footwear.html",
+    "/categories/fleece.html",
+    "/categories/jackets.html",
+    "/categories/insulated-jackets.html",
+    "/en/categories/pants.html",
+    "/en/categories/footwear.html",
+    "/en/categories/fleece.html",
+    "/en/categories/jackets.html",
+    "/en/categories/insulated-jackets.html",
+}
 DYNAMIC_FILE_PATHS = DYNAMIC_DATA_PATHS | {
     "/catalog-status.json",
+    "/sitemap-deals.xml",
     "/sitemap-products.xml",
     "/sitemap-insights.xml",
-}
+} | DYNAMIC_DEAL_PATHS
 
 
 @dataclass
@@ -266,6 +295,11 @@ class Auditor:
             "/brands/arcteryx.html",
             "/brands/burton.html",
             "/brands/patagonia.html",
+            "/categories/pants.html",
+            "/categories/footwear.html",
+            "/categories/fleece.html",
+            "/categories/jackets.html",
+            "/categories/insulated-jackets.html",
             "/catalog-status.html",
             "/insights/catalog-coverage.html",
             "/insights/brand-source-matrix.html",
@@ -334,7 +368,7 @@ class Auditor:
                 )
                 return
             required = [
-                "function renderProductPage(product)",
+                "function renderProductPage(product, options = {})",
                 "function canonicalProductUrl(sku)",
                 "'@type': 'Product'",
                 "'@type': 'Offer'",
@@ -450,6 +484,7 @@ class Auditor:
         sitemap_index = self.read("/sitemap.xml")
         sitemap_static = self.read("/sitemap-static.xml")
         sitemap_products = self.read("/sitemap-products.xml")
+        sitemap_deals = self.read("/sitemap-deals.xml")
         sitemap_insights = self.read("/sitemap-insights.xml")
         status_raw = self.read("/catalog-status.json")
         if robots:
@@ -483,6 +518,7 @@ class Auditor:
                 expected = {
                     f"{CANONICAL_ORIGIN}/sitemap-static.xml",
                     f"{CANONICAL_ORIGIN}/sitemap-products.xml",
+                    f"{CANONICAL_ORIGIN}/sitemap-deals.xml",
                     f"{CANONICAL_ORIGIN}/sitemap-insights.xml",
                 }
                 self.add(
@@ -502,7 +538,9 @@ class Auditor:
                 expected = {
                     f"{CANONICAL_ORIGIN}{path}"
                     for path in STATIC_PAGES
-                    if path != "/product-detail.html" and path not in DYNAMIC_DATA_PATHS
+                    if path != "/product-detail.html"
+                    and path not in DYNAMIC_DATA_PATHS
+                    and path not in DYNAMIC_DEAL_PATHS
                 }
                 missing = expected - locations
                 self.add(
@@ -529,6 +567,21 @@ class Auditor:
             except ET.ParseError as error:
                 self.checks.append(Check("sitemap:insights", "fail", f"Invalid insight sitemap: {error}"))
 
+        if sitemap_deals:
+            try:
+                root = ET.fromstring(sitemap_deals)
+                namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+                locations = {node.text for node in root.findall("sm:url/sm:loc", namespace)}
+                expected = {f"{CANONICAL_ORIGIN}{path}" for path in DYNAMIC_DEAL_PATHS}
+                self.add(
+                    "sitemap:deals",
+                    expected <= locations,
+                    f"Deal sitemap covers all {len(expected)} primary localized hubs",
+                    f"Deal sitemap missing {sorted(expected - locations)}",
+                )
+            except ET.ParseError as error:
+                self.checks.append(Check("sitemap:deals", "fail", f"Invalid deal sitemap: {error}"))
+
         product_count: int | None = None
         if sitemap_products:
             try:
@@ -551,13 +604,13 @@ class Auditor:
         if status_raw:
             try:
                 status = json.loads(status_raw)
-                declared = status.get("active_product_urls")
+                declared = status.get("indexed_product_urls")
                 boundary = status.get("measurement_boundary", "")
                 self.add(
                     "catalog-status:count",
                     product_count is not None and declared == product_count,
-                    f"Catalog status count matches sitemap ({declared})",
-                    f"Catalog status count={declared}, product sitemap count={product_count}",
+                    f"Catalog index-ready count matches sitemap ({declared})",
+                    f"Catalog index-ready count={declared}, product sitemap count={product_count}",
                 )
                 self.add(
                     "catalog-status:boundary",
@@ -573,10 +626,10 @@ class Auditor:
                     "catalog-status:matrices",
                     bool(brand_matrix)
                     and bool(region_matrix)
-                    and brand_total == declared
-                    and region_total == declared,
+                    and brand_total == status.get("active_product_urls")
+                    and region_total == status.get("active_product_urls"),
                     "Catalog JSON exposes reproducible brand-source and region-brand matrices",
-                    f"Catalog matrix totals brand={brand_total}, region={region_total}, declared={declared}",
+                    f"Catalog matrix totals brand={brand_total}, region={region_total}, active={status.get('active_product_urls')}",
                 )
             except json.JSONDecodeError as error:
                 self.checks.append(Check("catalog-status:json", "fail", f"Invalid catalog status JSON: {error}"))
@@ -666,7 +719,7 @@ def main() -> int:
         type=Path,
         help="Read generated catalog pages and sitemaps from this local data release",
     )
-    parser.add_argument("--min-products", type=int, default=5000)
+    parser.add_argument("--min-products", type=int, default=250)
     parser.add_argument("--output", type=Path, help="Write the structured audit report")
     args = parser.parse_args()
     if args.base_url and args.dynamic_root:

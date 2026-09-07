@@ -175,6 +175,15 @@
 <div class="note">If GearDrop conflicts with the retailer, use the retailer checkout and policy pages as the final transaction source.</div>
 </section>
 <section class="content-section full">
+<h2>Product indexing and aggregation gate</h2>
+<ul>
+<li>The product sitemap includes only active records with at least 45% discount, a successful observation within 14 days, a latest source status of HTTP 200, and complete title, price, currency, image, and retailer URL fields.</li>
+<li>Other active products remain available to users, but their canonical product pages emit noindex,follow and are outside the priority indexing cohort.</li>
+<li>Brand and category collections group regional offers by brand and normalized product name, then show one representative offer with market and offer counts; this does not assert that every regional listing is the same exact SKU.</li>
+<li>Sitemap inclusion means GearDrop recommends crawling the page. It does not prove indexing, citation, or recommendation by Google, Bing, or an AI system.</li>
+</ul>
+</section>
+<section class="content-section full">
 <h2>Machine-readable evidence</h2>
 <p>These surfaces improve discovery and auditability. They do not prove mention, citation, or recommendation by any search or AI system.</p>
 <div class="link-list">

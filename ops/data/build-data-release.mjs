@@ -108,7 +108,9 @@ function artifactRevision(data) {
   const contractFiles = [
     fileURLToPath(import.meta.url),
     path.join(REPO_ROOT, 'api', 'catalog.mjs'),
+    path.join(REPO_ROOT, 'api', 'seo-index.mjs'),
     path.join(REPO_ROOT, 'tools', 'generate_geo_catalog.py'),
+    path.join(REPO_ROOT, 'seo-index-policy.json'),
     path.join(REPO_ROOT, 'product-detail.html'),
   ];
   const digest = crypto.createHash('sha256');
@@ -210,6 +212,8 @@ async function main() {
   for (const required of [
     'data.js', 'h5/data.js', 'global_data.json', 'dealers/results.json',
     'sitemap-products.xml', 'sitemap-insights.xml', 'catalog-status.json',
+    'sitemap-deals.xml', 'brands/arcteryx.html', 'brands/burton.html',
+    'brands/patagonia.html', 'categories/pants.html',
     'publication.json', 'data-manifest.json',
   ]) {
     const filename = path.join(publicRoot, required);

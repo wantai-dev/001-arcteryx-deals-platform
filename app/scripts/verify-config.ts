@@ -274,11 +274,10 @@ assert.ok(watchlistLibSource.includes('FREE_ALERT_LIMIT = 1'), 'Free active aler
 assert.ok(paywallSource.includes("t('paywall.title')"), 'Paywall must render the localized value proposition');
 assert.ok(proContextSource.includes("import('react-native-purchases')"), 'Pro provider must load the RevenueCat native SDK');
 assert.ok(proContextSource.includes('sdk.getOfferings()'), 'Pro provider must load StoreKit-backed offerings');
-assert.ok(proContextSource.includes('Promise.allSettled(['), 'Pro provider must settle entitlement and offering reads independently');
-assert.ok(proContextSource.includes('applyCustomerInfo(customerInfoResult.value)'), 'a successful entitlement read must apply even when offerings fail');
+assert.ok(proContextSource.includes('loadProResources('), 'Pro provider must use the independently tested entitlement/offering loader');
 assert.ok(proContextSource.includes('sdk.purchasePackage'), 'Pro provider must purchase the selected RevenueCat package');
 assert.ok(proContextSource.includes('sdk.restorePurchases()'), 'Pro provider must expose user-triggered restore purchases');
-assert.ok(proContextSource.includes("return 'failed'") && paywallSource.includes('paywall.restoreFailed'), 'restore failures must not be reported as no purchase history');
+assert.ok(proContextSource.includes('restoreProPurchase(') && paywallSource.includes('paywall.restoreFailed'), 'restore failures must use the tested outcome helper and distinct UI copy');
 assert.ok(proContextSource.includes('sdk.presentCodeRedemptionSheet()'), 'Pro provider must use Apple offer-code redemption');
 assert.ok(proContextSource.includes('sdk.addCustomerInfoUpdateListener(listener)'), 'Pro provider must auto-apply redeemed StoreKit entitlements');
 assert.ok(proContextSource.includes('customerInfo.managementURL') && meSource.includes('APPLE_SUBSCRIPTIONS_URL'), 'active Pro users must have a real subscription-management destination');

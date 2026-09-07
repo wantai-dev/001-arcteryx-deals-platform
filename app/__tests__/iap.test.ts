@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildProPlanEntries, hasProEntitlement, PackageLike, PRO_PRODUCT_IDS } from '../lib/iap';
+import {
+  buildProPlanEntries,
+  hasProEntitlement,
+  loadProResources,
+  PackageLike,
+  PRO_PRODUCT_IDS,
+  restoreProPurchase,
+} from '../lib/iap';
 
 function makePackage(
   productId: string,
@@ -28,6 +35,30 @@ test('hasProEntitlement only grants access for the active Pro entitlement', () =
   assert.equal(hasProEntitlement({ entitlements: { active: {} } }), false);
   assert.equal(hasProEntitlement({ entitlements: { active: { Pro: { productIdentifier: PRO_PRODUCT_IDS.annual } } } }), true);
   assert.equal(hasProEntitlement({ entitlements: { active: { pro: { productIdentifier: PRO_PRODUCT_IDS.annual } } } }), false);
+});
+
+test('loadProResources applies a successful Pro entitlement when offerings fail', async () => {
+  const customerInfo = { entitlements: { active: { Pro: { productIdentifier: PRO_PRODUCT_IDS.annual } } } };
+  let applied = false;
+  const result = await loadProResources(
+    async () => customerInfo,
+    async () => { throw new Error('offerings unavailable'); },
+    (next) => { applied = hasProEntitlement(next); },
+  );
+
+  assert.equal(applied, true);
+  assert.equal(result.customerInfoResult.status, 'fulfilled');
+  assert.equal(result.offeringsResult.status, 'rejected');
+});
+
+test('restoreProPurchase distinguishes service failure from a successful empty restore', async () => {
+  const failed = await restoreProPurchase(async () => {
+    throw new Error('offline');
+  });
+  const empty = await restoreProPurchase(async () => ({ entitlements: { active: {} } }));
+
+  assert.equal(failed.outcome, 'failed');
+  assert.equal(empty.outcome, 'not_found');
 });
 
 test('buildProPlanEntries converts a StoreKit one-week trial to seven days', () => {

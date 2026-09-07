@@ -44,11 +44,44 @@ type IntroEligibilityLike = {
   status: number;
 };
 
-type CustomerInfoLike = {
+export type CustomerInfoLike = {
   entitlements: {
     active: Record<string, unknown>;
   };
 };
+
+export async function loadProResources<TCustomer extends CustomerInfoLike, TOfferings>(
+  getCustomerInfo: () => Promise<TCustomer>,
+  getOfferings: () => Promise<TOfferings>,
+  applyCustomerInfo: (customerInfo: TCustomer) => void,
+) {
+  const [customerInfoResult, offeringsResult] = await Promise.allSettled([
+    getCustomerInfo(),
+    getOfferings(),
+  ]);
+  if (customerInfoResult.status === 'fulfilled') {
+    applyCustomerInfo(customerInfoResult.value);
+  }
+  return { customerInfoResult, offeringsResult };
+}
+
+export type RestoreProPurchaseResult<TCustomer extends CustomerInfoLike> =
+  | { outcome: 'restored' | 'not_found'; customerInfo: TCustomer }
+  | { outcome: 'failed'; error: unknown };
+
+export async function restoreProPurchase<TCustomer extends CustomerInfoLike>(
+  restorePurchases: () => Promise<TCustomer>,
+): Promise<RestoreProPurchaseResult<TCustomer>> {
+  try {
+    const customerInfo = await restorePurchases();
+    return {
+      outcome: hasProEntitlement(customerInfo) ? 'restored' : 'not_found',
+      customerInfo,
+    };
+  } catch (error) {
+    return { outcome: 'failed', error };
+  }
+}
 
 export type ProPlanEntry<TPackage extends PackageLike> = {
   plan: ProPlan;

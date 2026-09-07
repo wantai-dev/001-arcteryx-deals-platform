@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  ActivityIndicator,
   Linking,
   Modal,
   Platform,
@@ -73,14 +74,29 @@ export default function MeScreen() {
     [p, products],
   );
   async function toggleNotifications(next: boolean) {
-    if (!next) return p.setNotificationsEnabled(false);
-    const granted = await requestNotificationPermission();
-    await p.setNotificationsEnabled(granted);
-    if (!granted)
-      Alert.alert(
-        p.t("me.notificationsDisabled"),
-        p.t("me.notificationsDisabledBody"),
-      );
+    try {
+      if (!next) return await p.setNotificationsEnabled(false);
+      const granted = await requestNotificationPermission();
+      await p.setNotificationsEnabled(granted);
+      if (!granted)
+        Alert.alert(
+          p.t("me.notificationsDisabled"),
+          p.t("me.notificationsDisabledBody"),
+        );
+    } catch {
+      Alert.alert(p.t("me.preferencesSaveError"));
+    }
+  }
+  async function openManagePro() {
+    if (!isPro) {
+      router.push("/paywall");
+      return;
+    }
+    try {
+      await Linking.openURL(managementURL || APPLE_SUBSCRIPTIONS_URL);
+    } catch {
+      Alert.alert(p.t("me.openSubscriptionsError"));
+    }
   }
   const appearanceLabel = p.t(`me.appearance.${p.appearance}`);
   const languageLabel =
@@ -107,10 +123,7 @@ export default function MeScreen() {
           <Pressable
             accessibilityRole="button"
             style={styles.proButton}
-            onPress={() => {
-              if (!isPro) return router.push("/paywall");
-              void Linking.openURL(managementURL || APPLE_SUBSCRIPTIONS_URL);
-            }}
+            onPress={() => void openManagePro()}
           >
             <Text style={styles.proButtonText}>
               {isPro ? p.t("me.managePro") : p.t("me.upgrade")}
@@ -216,11 +229,9 @@ export default function MeScreen() {
           label: v === "system" ? p.t("me.languageSystem") : LANGUAGE_LABELS[v],
         }))}
         closeLabel={p.t("common.cancel")}
+        errorLabel={p.t("me.preferencesSaveError")}
         onClose={() => setPicker(null)}
-        onSelect={(v) => {
-          void p.setLanguage(v as LanguageChoice);
-          setPicker(null);
-        }}
+        onSelect={(v) => p.setLanguage(v as LanguageChoice)}
         colors={colors}
       />
       <Picker
@@ -231,11 +242,9 @@ export default function MeScreen() {
           (v) => ({ value: v, label: p.t(`me.appearance.${v}`) }),
         )}
         closeLabel={p.t("common.cancel")}
+        errorLabel={p.t("me.preferencesSaveError")}
         onClose={() => setPicker(null)}
-        onSelect={(v) => {
-          void p.setAppearance(v as AppearancePreference);
-          setPicker(null);
-        }}
+        onSelect={(v) => p.setAppearance(v as AppearancePreference)}
         colors={colors}
       />
       <MarketPicker
@@ -288,6 +297,7 @@ function Picker({
   value,
   options,
   closeLabel,
+  errorLabel,
   onClose,
   onSelect,
   colors,
@@ -297,11 +307,30 @@ function Picker({
   value: string;
   options: { value: string; label: string }[];
   closeLabel: string;
+  errorLabel: string;
   onClose: () => void;
-  onSelect: (v: string) => void;
+  onSelect: (v: string) => Promise<void>;
   colors: ThemeColors;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  useEffect(() => {
+    if (visible) setSaveError(false);
+  }, [visible]);
+  async function select(value: string) {
+    if (busy) return;
+    setBusy(true);
+    setSaveError(false);
+    try {
+      await onSelect(value);
+      onClose();
+    } catch {
+      setSaveError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Modal
       visible={visible}
@@ -316,6 +345,8 @@ function Picker({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={closeLabel}
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
               style={s.close}
               onPress={onClose}
             >
@@ -327,16 +358,19 @@ function Picker({
               key={o.value}
               accessibilityRole="radio"
               accessibilityLabel={o.label}
-              accessibilityState={{ selected: o.value === value }}
+              accessibilityState={{ selected: o.value === value, disabled: busy }}
+              disabled={busy}
               style={s.option}
-              onPress={() => onSelect(o.value)}
+              onPress={() => void select(o.value)}
             >
               <Text style={s.rowTitle}>{o.label}</Text>
-              {o.value === value ? (
+              {busy && o.value !== value ? null : o.value === value ? (
                 <Ionicons name="checkmark" size={19} color={colors.buy} />
               ) : null}
             </Pressable>
           ))}
+          {busy ? <ActivityIndicator color={colors.ink} /> : null}
+          {saveError ? <Text accessibilityRole="alert" style={s.saveError}>{errorLabel}</Text> : null}
         </View>
       </View>
     </Modal>
@@ -357,12 +391,28 @@ function MarketPicker({
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [region, setRegion] = useState(p.region);
   const [currency, setCurrency] = useState(p.currency);
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   useEffect(() => {
     if (visible) {
       setRegion(p.region);
       setCurrency(p.currency);
+      setSaveError(false);
     }
   }, [p.currency, p.region, visible]);
+  async function applyMarket() {
+    if (busy) return;
+    setBusy(true);
+    setSaveError(false);
+    try {
+      await p.setMarket({ region, currency });
+      onClose();
+    } catch {
+      setSaveError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Modal
       visible={visible}
@@ -377,6 +427,8 @@ function MarketPicker({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={p.t("common.cancel")}
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
               style={s.close}
               onPress={onClose}
             >
@@ -389,7 +441,8 @@ function MarketPicker({
                 key={r}
                 accessibilityRole="radio"
                 accessibilityLabel={`${p.regionLabel(r)}, ${LOCAL_CURRENCY[r] || "—"}`}
-                accessibilityState={{ selected: r === region }}
+                accessibilityState={{ selected: r === region, disabled: busy }}
+                disabled={busy}
                 style={s.option}
                 onPress={() => setRegion(r)}
               >
@@ -411,7 +464,8 @@ function MarketPicker({
                 key={c}
                 accessibilityRole="radio"
                 accessibilityLabel={c === "original" ? p.t("me.localCurrency") : c}
-                accessibilityState={{ selected: c === currency }}
+                accessibilityState={{ selected: c === currency, disabled: busy }}
+                disabled={busy}
                 style={[s.chip, c === currency && s.chipActive]}
                 onPress={() => setCurrency(c)}
               >
@@ -431,14 +485,14 @@ function MarketPicker({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={p.t("common.done")}
-            style={s.apply}
-            onPress={() => {
-              void p.setMarket({ region, currency });
-              onClose();
-            }}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            style={[s.apply, busy && s.disabled]}
+            onPress={() => void applyMarket()}
           >
-            <Text style={s.applyText}>{p.t("common.done")}</Text>
+            {busy ? <ActivityIndicator color={colors.onPill} /> : <Text style={s.applyText}>{p.t("common.done")}</Text>}
           </Pressable>
+          {saveError ? <Text accessibilityRole="alert" style={s.saveError}>{p.t("me.preferencesSaveError")}</Text> : null}
         </View>
       </View>
     </Modal>
@@ -592,6 +646,8 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.pill,
     },
     applyText: { color: c.onPill, fontSize: 15, fontWeight: "900" },
+    disabled: { opacity: 0.55 },
+    saveError: { color: c.disc, fontSize: 12, lineHeight: 17, marginTop: 10 },
     version: { color: c.muted, fontSize: 11, textAlign: "center", marginTop: 4 },
   });
 }

@@ -2,7 +2,14 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { Platform } from 'react-native';
 import type { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
 
-import { buildProPlanEntries, hasProEntitlement, ProPlan, ProPlanId } from '../lib/iap';
+import {
+  buildProPlanEntries,
+  hasProEntitlement,
+  loadProResources,
+  ProPlan,
+  ProPlanId,
+  restoreProPurchase,
+} from '../lib/iap';
 
 type PurchaseState = 'loading' | 'ready' | 'unavailable' | 'error';
 type PurchaseOutcome = 'purchased' | 'restored' | 'cancelled' | 'pending' | 'not_found' | 'failed';
@@ -41,13 +48,11 @@ export function ProProvider({ children }: PropsWithChildren) {
   }, []);
 
   const load = useCallback(async (sdk: PurchasesSdk) => {
-    const [customerInfoResult, offeringsResult] = await Promise.allSettled([
-      sdk.getCustomerInfo(),
-      sdk.getOfferings(),
-    ]);
-    if (customerInfoResult.status === 'fulfilled') {
-      applyCustomerInfo(customerInfoResult.value);
-    }
+    const { customerInfoResult, offeringsResult } = await loadProResources(
+      () => sdk.getCustomerInfo(),
+      () => sdk.getOfferings(),
+      applyCustomerInfo,
+    );
 
     if (offeringsResult.status === 'rejected') {
       packagesRef.current.clear();
@@ -162,12 +167,13 @@ export function ProProvider({ children }: PropsWithChildren) {
     setBusyPlan('restore');
     setError(null);
     try {
-      const customerInfo = await sdk.restorePurchases();
-      applyCustomerInfo(customerInfo);
-      return hasProEntitlement(customerInfo) ? 'restored' : 'not_found';
-    } catch (nextError) {
-      setError(errorMessage(nextError));
-      return 'failed';
+      const result = await restoreProPurchase(() => sdk.restorePurchases());
+      if (result.outcome === 'failed') {
+        setError(errorMessage(result.error));
+        return result.outcome;
+      }
+      applyCustomerInfo(result.customerInfo);
+      return result.outcome;
     } finally {
       setBusyPlan(null);
     }

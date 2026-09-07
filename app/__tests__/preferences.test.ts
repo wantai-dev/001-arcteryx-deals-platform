@@ -69,6 +69,16 @@ test('every shipped language covers the complete UI message catalog', () => {
   }
 });
 
+test('product comparison copy interpolates source price, rate date, and merchant in all languages', () => {
+  for (const language of ['en', 'zh-Hans', 'de', 'fr', 'ja'] as const) {
+    const estimate = translate(language, 'product.convertedEstimate', { price: 'US$100', date: '2026-09-07' });
+    const buyFrom = translate(language, 'product.buyFrom', { source: 'Example' });
+    assert.ok(estimate.includes('US$100') && estimate.includes('2026-09-07'), language);
+    assert.ok(buyFrom.includes('Example'), language);
+    assert.notEqual(translate(language, 'product.comparisonUnavailable'), 'product.comparisonUnavailable', language);
+  }
+});
+
 test('EUR-base rates convert between non-EUR currencies', () => {
   assert.ok(snapshot);
   const converted = convertAmount(120, 'USD', 'CAD', snapshot);

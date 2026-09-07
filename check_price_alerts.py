@@ -7,11 +7,13 @@
 - target_price 为 NULL: sale_price < last_price_seen (任意下跌)
 
 邮件: Resend API. 需 RESEND_API_KEY env (~/.arcteryx_secrets 里).
-没配 RESEND_API_KEY 时只打 log 不发, 用户测试用.
+没配 RESEND_API_KEY 时只打 log，不发、不写 notified_at，并以失败状态退出。
 """
 from __future__ import annotations
-import os, sys, json, urllib.request, urllib.parse, ssl, time
+import html as html_lib
+import os, sys, json, urllib.request, urllib.parse, ssl
 from datetime import datetime, timezone
+from typing import Callable
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://bupqagkrcvrezjkdbald.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")          # service_role
@@ -19,12 +21,7 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")       # 可选
 RESEND_FROM = os.environ.get("RESEND_FROM", "GearDrop <onboarding@resend.dev>")
 SITE_URL = os.environ.get("SITE_URL", "https://geardrop.100app.dev")
 
-if not SUPABASE_KEY:
-    sys.exit("SUPABASE_KEY env required")
-
 _CTX = ssl.create_default_context()
-_CTX.check_hostname = False
-_CTX.verify_mode = ssl.CERT_NONE
 _H = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
 def http_get(path: str) -> list | dict:
@@ -58,83 +55,128 @@ def send_email_resend(to: str, subject: str, html: str) -> bool:
         print(f"  email send err: {str(e)[:160]}", file=sys.stderr)
         return False
 
+def _https_url(value: object, fallback: str = "") -> str:
+    candidate = str(value or "").strip()
+    try:
+        parsed = urllib.parse.urlsplit(candidate)
+    except ValueError:
+        return fallback
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        return fallback
+    return candidate
+
 def render_email(alert: dict, current_price: float) -> tuple[str, str]:
     sym = {"USD":"$","CAD":"C$","EUR":"€","GBP":"£","JPY":"¥","CHF":"CHF","SEK":"kr","DKK":"kr","AUD":"A$"}.get(alert.get("currency",""), "$")
-    name = alert.get("product_name") or "Arc'teryx 商品"
-    url = alert.get("product_url") or SITE_URL
-    img = alert.get("image_url") or ""
+    name = str(alert.get("product_name") or "Arc'teryx 商品")
+    subject_name = name.replace("\r", " ").replace("\n", " ")
+    site_url = _https_url(SITE_URL, "https://geardrop.100app.dev").rstrip("/")
+    url = _https_url(alert.get("product_url"), site_url)
+    img = _https_url(alert.get("image_url"))
+    safe_name = html_lib.escape(name)
+    safe_url = html_lib.escape(url, quote=True)
+    safe_img = html_lib.escape(img, quote=True)
     target = alert.get("target_price")
     was = alert.get("last_price_seen") or 0
     drop_pct = round((1 - current_price/was)*100) if was > current_price > 0 else 0
-    unsub_url = f"{SITE_URL}/unsubscribe.html?t={urllib.parse.quote(alert['unsubscribe_token'])}"
-    subject = f"🔥 {name} 已降至 {sym}{current_price:.2f}"
+    token = urllib.parse.quote(str(alert.get("unsubscribe_token") or ""), safe="")
+    unsub_url = html_lib.escape(f"{site_url}/unsubscribe.html?t={token}", quote=True)
+    logo_url = html_lib.escape(f"{site_url}/assets/brand/geardrop-logo.png", quote=True)
+    subject = f"🔥 {subject_name} 已降至 {sym}{current_price:.2f}"
     html = f"""<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a">
-<img src="{SITE_URL}/assets/brand/geardrop-logo.png" alt="GearDrop" width="180" style="display:block;width:180px;height:auto;margin:0 0 24px">
+<img src="{logo_url}" alt="GearDrop" width="180" style="display:block;width:180px;height:auto;margin:0 0 24px">
 <h2 style="margin:0 0 16px;font-size:20px">🔥 你订阅的商品降价了</h2>
-{f'<img src="{img}" alt="" style="width:200px;height:auto;border-radius:8px;display:block;margin:0 0 18px">' if img else ''}
-<div style="font-size:16px;font-weight:600;margin-bottom:10px">{name}</div>
+{f'<img src="{safe_img}" alt="" style="width:200px;height:auto;border-radius:8px;display:block;margin:0 0 18px">' if safe_img else ''}
+<div style="font-size:16px;font-weight:600;margin-bottom:10px">{safe_name}</div>
 <table style="font-size:14px;line-height:1.7;margin-bottom:18px">
   <tr><td style="color:#888;padding-right:14px">订阅时:</td><td>{sym}{was:.2f}</td></tr>
   {f'<tr><td style="color:#888;padding-right:14px">目标价:</td><td>{sym}{target:.2f}</td></tr>' if target else ''}
   <tr><td style="color:#888;padding-right:14px">现价:</td><td style="color:#c8362a;font-weight:700;font-size:18px">{sym}{current_price:.2f} {f'（再降 {drop_pct}%）' if drop_pct else ''}</td></tr>
 </table>
-<a href="{url}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:500;font-size:14px">立即查看商品 →</a>
+<a href="{safe_url}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:500;font-size:14px">立即查看商品 →</a>
 <p style="color:#999;font-size:12px;margin-top:32px;border-top:1px solid #eee;padding-top:14px">
-此为单次提醒, 已自动取消订阅. 想继续追踪可重新订阅.<br>
-<a href="{unsub_url}" style="color:#999">退订所有提醒</a>
+这是本条提醒的一次发送。想继续追踪可重新设置提醒。<br>
+<a href="{unsub_url}" style="color:#999">删除本条提醒记录</a>
 </p>
 </body></html>"""
     return subject, html
 
-def main():
+def process_alerts(
+    alerts: list[dict],
+    products: list[dict],
+    sender: Callable[[str, str, str], bool] = send_email_resend,
+    patcher: Callable[[str, dict], None] = http_patch,
+    now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+) -> dict[str, int]:
+    price_by_sku = {p["sku_id"]: p for p in products}
+    sent, failed, skipped, missing = 0, 0, 0, 0
+    for alert in alerts:
+        product = price_by_sku.get(alert["sku_id"])
+        if not product or not product.get("sale_price"):
+            missing += 1
+            continue
+        current_price = float(product["sale_price"])
+        target = alert.get("target_price")
+        previous_price = alert.get("last_price_seen") or 0
+        triggered = current_price <= float(target) if target is not None else (
+            previous_price > 0 and current_price < float(previous_price)
+        )
+        if not triggered:
+            skipped += 1
+            continue
+        # Use the latest product URL/image, which may change after subscription.
+        alert = {
+            **alert,
+            "product_url": product.get("url") or alert.get("product_url"),
+            "image_url": product.get("image_url") or alert.get("image_url"),
+        }
+        subject, html = render_email(alert, current_price)
+        if not sender(alert["email"], subject, html):
+            failed += 1
+            continue
+        try:
+            alert_id = urllib.parse.quote(str(alert["id"]), safe="")
+            patcher(
+                f"/rest/v1/price_alerts?id=eq.{alert_id}",
+                {"notified_at": now().isoformat()},
+            )
+        except Exception as error:
+            failed += 1
+            print(
+                f"  PATCH err id={alert['id']}: {error}; delivery remains pending and may retry",
+                file=sys.stderr,
+            )
+            continue
+        sent += 1
+    return {"sent": sent, "failed": failed, "skipped": skipped, "missing_sku": missing}
+
+def main(
+    *,
+    getter: Callable[[str], list | dict] | None = None,
+    patcher: Callable[[str, dict], None] | None = None,
+    sender: Callable[[str, str, str], bool] | None = None,
+) -> int:
+    if not SUPABASE_KEY:
+        print("SUPABASE_KEY env required", file=sys.stderr)
+        return 2
+    getter = getter or http_get
+    patcher = patcher or http_patch
+    sender = sender or send_email_resend
     # 1. 拉所有待发提醒
-    alerts = http_get("/rest/v1/price_alerts?notified_at=is.null&select=*&limit=500")
+    alerts = getter("/rest/v1/price_alerts?notified_at=is.null&select=*&limit=500")
     if not alerts:
         print("[alerts] 0 pending")
-        return
+        return 0
     print(f"[alerts] {len(alerts)} pending subscribers")
 
     # 2. 拉相关 sku_id 的当前价格 (批量按 in 查询)
     sku_ids = list({a["sku_id"] for a in alerts})
     # PostgREST 'in' filter
     in_filter = "(" + ",".join(urllib.parse.quote(s) for s in sku_ids) + ")"
-    prods = http_get(f"/rest/v1/products?sku_id=in.{in_filter}&select=sku_id,sale_price,original_price,url,image_url")
-    price_by_sku = {p["sku_id"]: p for p in prods}
+    prods = getter(f"/rest/v1/products?sku_id=in.{in_filter}&select=sku_id,sale_price,original_price,url,image_url")
     print(f"[alerts] loaded {len(prods)}/{len(sku_ids)} matching products")
-
-    # 3. 检查触发
-    sent, skipped, missing = 0, 0, 0
-    for a in alerts:
-        p = price_by_sku.get(a["sku_id"])
-        if not p or not p.get("sale_price"):
-            missing += 1
-            continue
-        cur = float(p["sale_price"])
-        target = a.get("target_price")
-        was = a.get("last_price_seen") or 0
-        triggered = False
-        if target is not None:
-            triggered = cur <= float(target)
-        else:
-            triggered = was > 0 and cur < float(was)
-        if not triggered:
-            skipped += 1
-            continue
-        # 用最新 URL/image (商品可能更新过)
-        a["product_url"] = p.get("url") or a.get("product_url")
-        a["image_url"] = p.get("image_url") or a.get("image_url")
-        subject, html = render_email(a, cur)
-        if send_email_resend(a["email"], subject, html):
-            sent += 1
-        else:
-            sent += 1   # 即使 dry-run 也标记 notified 避免反复发
-        try:
-            http_patch(f"/rest/v1/price_alerts?id=eq.{a['id']}",
-                       {"notified_at": datetime.now(timezone.utc).isoformat()})
-        except Exception as e:
-            print(f"  PATCH err id={a['id']}: {e}", file=sys.stderr)
-
-    print(f"[alerts] sent={sent} skipped={skipped} missing_sku={missing}")
+    summary = process_alerts(alerts, prods, sender=sender, patcher=patcher)
+    print("[alerts] " + " ".join(f"{key}={value}" for key, value in summary.items()))
+    return 1 if summary["failed"] else 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -25,6 +25,15 @@ export const DEFAULT_DEAL_FILTERS: DealFilters = {
   lowOnly: false,
 };
 
+export const DEAL_PAGE_SIZE = 300;
+
+export function nextDealVisibleLimit(current: number, total: number) {
+  const retained = Math.max(DEAL_PAGE_SIZE, current);
+  return total > retained
+    ? Math.min(retained + DEAL_PAGE_SIZE, total)
+    : retained;
+}
+
 export type DealFilterOptions = {
   signals?: Record<string, DealSignal>;
   targetCurrency?: CurrencyPreference;

@@ -27,8 +27,10 @@ import { productCategory } from "../../lib/catalog";
 import type { CurrencyPreference } from "../../lib/currency";
 import {
   availableDealRegions,
+  DEAL_PAGE_SIZE,
   DEFAULT_DEAL_FILTERS,
   filterDeals,
+  nextDealVisibleLimit,
   productsForRegion,
   type DealFilters,
 } from "../../lib/deals";
@@ -78,7 +80,7 @@ export default function DealsScreen() {
   const [filters, setFilters] = useState<DealFilters>({
     ...DEFAULT_DEAL_FILTERS,
   });
-  const [visibleLimit, setVisibleLimit] = useState(300);
+  const [visibleLimit, setVisibleLimit] = useState(DEAL_PAGE_SIZE);
   const [marketOpen, setMarketOpen] = useState(false);
   const [scanPending, setScanPending] = useState(false);
   const [scanAttempted, setScanAttempted] = useState(false);
@@ -258,7 +260,7 @@ export default function DealsScreen() {
                   !scanAttempted)
               }
               onChange={(next) => {
-                setVisibleLimit(300);
+                setVisibleLimit(DEAL_PAGE_SIZE);
                 setFilters((current) => ({ ...current, ...next }));
               }}
             />
@@ -323,7 +325,9 @@ export default function DealsScreen() {
         }
         onEndReachedThreshold={0.4}
         onEndReached={() =>
-          setVisibleLimit((value) => Math.min(value + 300, filtered.length))
+          setVisibleLimit((value) =>
+            nextDealVisibleLimit(value, filtered.length),
+          )
         }
       />
       <MarketSheet

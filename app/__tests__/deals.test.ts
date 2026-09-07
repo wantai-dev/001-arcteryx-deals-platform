@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { availableDealRegions, DEFAULT_DEAL_FILTERS, filterDeals } from '../lib/deals';
+import {
+  availableDealRegions,
+  DEAL_PAGE_SIZE,
+  DEFAULT_DEAL_FILTERS,
+  filterDeals,
+  nextDealVisibleLimit,
+} from '../lib/deals';
 import type { RateSnapshot } from '../lib/currency';
 import { product } from './helpers';
 
@@ -10,6 +16,19 @@ const products = [
   product({ sku_id: 'beta-ca', region: 'ca', sale_price: 350, discount_pct: 30, symbol: 'C$', currency: 'CAD' }),
   product({ sku_id: 'beta-de', region: 'de', sale_price: 280, discount_pct: 35, symbol: '€', currency: 'EUR' }),
 ];
+
+test('deal pagination never collapses the first page while results are loading', () => {
+  const afterEmptyEndReached = nextDealVisibleLimit(DEAL_PAGE_SIZE, 0);
+  assert.equal(afterEmptyEndReached, DEAL_PAGE_SIZE);
+  assert.equal(Array.from({ length: 30 }).slice(0, afterEmptyEndReached).length, 30);
+  assert.equal(nextDealVisibleLimit(0, 30), DEAL_PAGE_SIZE);
+});
+
+test('deal pagination stays monotonic when results shrink and later expand', () => {
+  assert.equal(nextDealVisibleLimit(600, 20), 600);
+  assert.equal(nextDealVisibleLimit(600, 900), 900);
+  assert.equal(nextDealVisibleLimit(900, 1_200), 1_200);
+});
 
 test('region filtering returns deals for each loaded country', () => {
   assert.deepEqual(filterDeals(products, 'ca', '', DEFAULT_DEAL_FILTERS).map((item) => item.sku_id), ['beta-ca']);

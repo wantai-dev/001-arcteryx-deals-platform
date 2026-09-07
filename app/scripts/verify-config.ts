@@ -337,6 +337,6 @@ assert.ok(liveDataVerifierSource.includes('YEARBOOK_BRAND_MIN_ROWS'), 'live data
 assert.ok(!liveDataVerifierSource.includes('products.length >= 5000'), 'live data verification must not use a volatile aggregate catalog floor');
 
 console.log(
-  'config_ok name=GearDrop version=1.2.0 bundle=dev.100app.geardrop buildNumber=12 usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
+  'config_ok name=GearDrop version=1.2.0 bundle=dev.100app.geardrop buildNumber=' + expo.ios?.buildNumber + ' usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
     [...pluginNames].join(','),
 );

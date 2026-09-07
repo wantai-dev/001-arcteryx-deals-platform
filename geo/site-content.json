@@ -136,6 +136,16 @@
           "note": "若 GearDrop 与销售平台信息冲突，以销售平台结算页和政策为准；欢迎通过 Support 提供可复核的原始 URL 与时间。"
         },
         {
+          "heading": "商品索引与聚合页门槛",
+          "full": true,
+          "bullets": [
+            "商品 sitemap 只纳入折扣至少 45%、最近 14 天内成功观察、原始销售 URL 最近验证为 HTTP 200，且名称、价格、币种、图片和来源完整的活跃记录。",
+            "未达到门槛的活跃商品仍可供用户查询，但规范商品页会输出 noindex,follow，不参与本轮重点索引。",
+            "品牌和品类聚合页按品牌与标准化商品名合并地区报价，展示一条代表报价及覆盖地区/报价数量；它不宣称不同地区一定是完全相同的 SKU。",
+            "进入 sitemap 只代表 GearDrop 建议抓取该页面，不代表 Google、Bing 或任何 AI 系统已经收录、引用或推荐。"
+          ]
+        },
+        {
           "heading": "机器可读与持续审计",
           "full": true,
           "links": [
@@ -403,6 +413,16 @@
             "Missing size data does not mean in stock or sold out."
           ],
           "note": "If GearDrop conflicts with the retailer, use the retailer checkout and policy pages as the final transaction source."
+        },
+        {
+          "heading": "Product indexing and aggregation gate",
+          "full": true,
+          "bullets": [
+            "The product sitemap includes only active records with at least 45% discount, a successful observation within 14 days, a latest source status of HTTP 200, and complete title, price, currency, image, and retailer URL fields.",
+            "Other active products remain available to users, but their canonical product pages emit noindex,follow and are outside the priority indexing cohort.",
+            "Brand and category collections group regional offers by brand and normalized product name, then show one representative offer with market and offer counts; this does not assert that every regional listing is the same exact SKU.",
+            "Sitemap inclusion means GearDrop recommends crawling the page. It does not prove indexing, citation, or recommendation by Google, Bing, or an AI system."
+          ]
         },
         {
           "heading": "Machine-readable evidence",

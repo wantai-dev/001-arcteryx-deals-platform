@@ -46,7 +46,7 @@ done < "$MANIFEST"
 
 git -C "$REPO_ROOT" archive "$COMMIT" -- "${PUBLIC_PATHS[@]}" \
   | tar -xf - -C "$STAGING/static"
-git -C "$REPO_ROOT" archive "$COMMIT" -- api/catalog.mjs api/product.mjs ops/web/product-server.mjs \
+git -C "$REPO_ROOT" archive "$COMMIT" -- api/catalog.mjs api/product.mjs api/seo-index.mjs seo-index-policy.json ops/web/product-server.mjs \
   | tar -xf - -C "$STAGING"
 
 # api/product.mjs intentionally reads this public template to recover the
@@ -60,6 +60,8 @@ for required in \
   static/sitemap.xml \
   api/catalog.mjs \
   api/product.mjs \
+  api/seo-index.mjs \
+  seo-index-policy.json \
   ops/web/product-server.mjs; do
   if [ ! -s "$STAGING/$required" ]; then
     echo "Release is missing required file: $required" >&2

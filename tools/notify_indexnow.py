@@ -25,7 +25,11 @@ SITE_HOST = "geardrop.100app.dev"
 DEFAULT_ENDPOINT = "https://api.indexnow.org/indexnow"
 MAX_BATCH = 10_000
 MAX_SITEMAP_BYTES = 16 * 1024 * 1024
-DEFAULT_SITEMAPS = (ROOT / "sitemap-products.xml", ROOT / "sitemap-insights.xml")
+DEFAULT_SITEMAPS = (
+    ROOT / "sitemap-products.xml",
+    ROOT / "sitemap-deals.xml",
+    ROOT / "sitemap-insights.xml",
+)
 DEFAULT_KEY_FILE = ROOT / "indexnow-key.txt"
 DEFAULT_KEY_LOCATION = f"{SITE_URL}/indexnow-key.txt"
 

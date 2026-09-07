@@ -16,11 +16,13 @@ const sampleProduct = {
   currency: 'USD',
   symbol: '$',
   gender: 'women',
-  image_url: 'https://images.example.com/lalik.jpg',
+  image_url: '//images.example.com/lalik.jpg',
   region: 'us',
   url: 'https://www.evo.com/outlet/insulated-jackets/burton-lalik-jacket-womens',
   dealer: 'evo',
-  last_updated: '2026-08-13T19:45:57+00:00',
+  last_updated: new Date().toISOString(),
+  last_seen_at: new Date().toISOString(),
+  url_http_status: 200,
   status: 'active',
   sizes: ['S', 'M'],
   size_stock: { S: 'in_stock', M: 'out_of_stock' },
@@ -75,6 +77,9 @@ test('server product page exposes specific canonical Product and Offer facts', (
   assert.ok(html.includes('最终价格、库存、配送、税费和退货条件以销售平台为准'));
   assert.ok(html.includes('不是库存或结算价保证'));
   assert.ok(html.includes('product-detail.html?sku=evo%3Aproducts%2F218050-burton-lalik-jacket-women-s'));
+  assert.ok(html.includes('href="/brands/burton.html"'));
+  assert.ok(html.includes('src="https://images.example.com/lalik.jpg"'));
+  assert.ok(html.includes('content="index,follow,max-image-preview:large,max-snippet:-1"'));
   assert.ok(!html.includes('aggregateRating'));
   assert.ok(!html.includes('reviewCount'));
 
@@ -106,7 +111,42 @@ test('server product endpoint returns cacheable HTML for an active SKU', async (
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['Content-Type'], /^text\/html/);
   assert.match(res.headers['Cache-Control'], /s-maxage=900/);
+  assert.equal(res.headers['X-Robots-Tag'], undefined);
   assert.match(res.body, /<h1>Burton Lalik Jacket Women&#39;s<\/h1>/);
+});
+
+test('server product page keeps lower-confidence deals accessible but noindex', () => {
+  const html = productEndpoint.renderProductPage(
+    { ...sampleProduct, discount_pct: 20, original_price: 100, sale_price: 80 },
+    { evaluatedAt: new Date() },
+  );
+  assert.ok(html.includes('content="noindex,follow"'));
+});
+
+test('server product endpoint emits an X-Robots-Tag for a lower-confidence deal', async (t) => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => [{
+      ...sampleProduct,
+      discount_pct: 20,
+      original_price: 100,
+      sale_price: 80,
+    }],
+  });
+  t.after(() => { global.fetch = originalFetch; });
+
+  const req = {
+    method: 'GET',
+    query: { sku: sampleProduct.sku_id },
+    url: `/p?sku=${encodeURIComponent(sampleProduct.sku_id)}`,
+  };
+  const res = responseRecorder();
+  await productEndpoint(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['X-Robots-Tag'], 'noindex, follow');
+  assert.match(res.body, /content="noindex,follow"/);
 });
 
 test('server product endpoint fails closed for missing and invalid requests', async () => {

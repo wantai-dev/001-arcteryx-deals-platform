@@ -2,6 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  assessProductIndexability,
+  brandHubPath,
+  normalizeExternalUrl,
+} from './seo-index.mjs';
+
 const API_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const SITE_URL = 'https://geardrop.100app.dev';
@@ -9,7 +15,7 @@ const PRODUCT_FIELDS = [
   'sku_id', 'brand', 'model', 'full_name', 'category', 'color',
   'original_price', 'sale_price', 'discount_pct', 'currency', 'symbol',
   'gender', 'image_url', 'region', 'url', 'dealer', 'last_updated',
-  'status', 'sizes', 'size_stock',
+  'last_seen_at', 'url_http_status', 'status', 'sizes', 'size_stock',
 ].join(',');
 
 const BRAND_LABELS = {
@@ -45,12 +51,7 @@ function escapeHtml(value) {
 }
 
 function safeUrl(value) {
-  try {
-    const url = new URL(String(value || ''));
-    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
-  } catch (_) {
-    return '';
-  }
+  return normalizeExternalUrl(value);
 }
 
 function parseMaybeJson(value, fallback) {
@@ -132,7 +133,7 @@ function availability(product) {
   return null;
 }
 
-function renderProductPage(product) {
+function renderProductPage(product, options = {}) {
   const sku = String(product.sku_id);
   const name = productName(product);
   const brandKey = String(product.brand || '').toLowerCase();
@@ -143,8 +144,14 @@ function renderProductPage(product) {
     || product.region || '对应地区';
   const canonical = canonicalProductUrl(sku);
   const interactive = interactiveProductUrl(sku);
+  const brandHub = brandHubPath(brandKey);
   const retailer = safeUrl(product.url);
   const image = safeUrl(product.image_url);
+  const indexability = options.indexability
+    || assessProductIndexability(product, options.evaluatedAt || new Date());
+  const robots = indexability.eligible
+    ? 'index,follow,max-image-preview:large,max-snippet:-1'
+    : 'noindex,follow';
   const price = Number(product.sale_price);
   const originalPrice = Number(product.original_price);
   const currency = String(product.currency || '').toUpperCase();
@@ -219,7 +226,7 @@ function renderProductPage(product) {
         '@id': `${canonical}#breadcrumb`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'GearDrop', item: `${SITE_URL}/` },
-          { '@type': 'ListItem', position: 2, name: brand, item: `${SITE_URL}/?brand=${encodeURIComponent(brandKey)}` },
+          { '@type': 'ListItem', position: 2, name: brand, item: `${SITE_URL}${brandHub}` },
           { '@type': 'ListItem', position: 3, name, item: canonical },
         ],
       },
@@ -244,7 +251,7 @@ function renderProductPage(product) {
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>${escapeHtml(name)} 折扣与价格 · GearDrop</title>
   <meta name="description" content="${escapeHtml(description)}">
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+  <meta name="robots" content="${robots}">
   <link rel="canonical" href="${escapeHtml(canonical)}">
   <meta property="og:type" content="product">
   <meta property="og:site_name" content="GearDrop">
@@ -262,7 +269,7 @@ function renderProductPage(product) {
 <body>
   <header class="top"><div class="top-inner"><a href="/" aria-label="GearDrop 首页"><img class="logo" src="/assets/brand/geardrop-logo.png" alt="GearDrop" width="355" height="76"></a><a class="back" href="/">返回折扣目录</a></div></header>
   <main class="shell">
-    <nav class="breadcrumb" aria-label="面包屑"><a href="/">GearDrop</a> / ${escapeHtml(brand)} / ${escapeHtml(name)}</nav>
+    <nav class="breadcrumb" aria-label="面包屑"><a href="/">GearDrop</a> / <a href="${escapeHtml(brandHub)}">${escapeHtml(brand)}</a> / ${escapeHtml(name)}</nav>
     <article class="product">
       <div class="media">${imageMarkup}</div>
       <div>
@@ -296,12 +303,12 @@ function renderErrorPage(status) {
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} · GearDrop</title><meta name="robots" content="noindex,follow"><link rel="canonical" href="${SITE_URL}/"></head><body><main><h1>${title}</h1><p>${body}</p><p><a href="/">返回 GearDrop 折扣目录</a></p></main></body></html>`;
 }
 
-function sendHtml(req, res, status, html, cacheControl) {
+function sendHtml(req, res, status, html, cacheControl, robots = '') {
   res.statusCode = status;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', cacheControl);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (status !== 200) res.setHeader('X-Robots-Tag', 'noindex, follow');
+  if (status !== 200 || robots) res.setHeader('X-Robots-Tag', robots || 'noindex, follow');
   res.end(req.method === 'HEAD' ? '' : html);
 }
 
@@ -319,12 +326,14 @@ async function handler(req, res) {
   try {
     const product = await fetchProduct(sku);
     if (!product) return sendHtml(req, res, 404, renderErrorPage(404), 'public, max-age=300');
+    const indexability = assessProductIndexability(product, new Date());
     return sendHtml(
       req,
       res,
       200,
-      renderProductPage(product),
+      renderProductPage(product, { indexability }),
       'public, max-age=0, s-maxage=900, stale-while-revalidate=86400',
+      indexability.eligible ? '' : 'noindex, follow',
     );
   } catch (_) {
     return sendHtml(req, res, 503, renderErrorPage(503), 'no-store');

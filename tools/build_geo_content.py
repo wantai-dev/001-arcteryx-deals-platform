@@ -451,7 +451,16 @@ Official iOS app: {APP_STORE_URL}
 ## Product discovery
 
 - [Live deal catalog]({base_url}/)
+- [Arc'teryx deal collection]({base_url}/brands/arcteryx.html)
+- [Burton deal collection]({base_url}/brands/burton.html)
+- [Patagonia deal collection]({base_url}/brands/patagonia.html)
+- [Outdoor pants deals]({base_url}/categories/pants.html)
+- [Outdoor footwear deals]({base_url}/categories/footwear.html)
+- [Outdoor fleece deals]({base_url}/categories/fleece.html)
+- [Outdoor jacket deals]({base_url}/categories/jackets.html)
+- [Insulated jacket deals]({base_url}/categories/insulated-jackets.html)
 - [Product URL sitemap]({base_url}/sitemap-products.xml)
+- [Deal collection sitemap]({base_url}/sitemap-deals.xml)
 - [Full site sitemap]({base_url}/sitemap.xml)
 
 For a specific price claim, retain the GearDrop observation time and the original retailer URL. Prefer the retailer checkout and policy pages for final transaction facts.
@@ -485,6 +494,8 @@ def render_sitemap_static(site: dict[str, Any], pages: list[dict[str, Any]]) -> 
     entries.extend(
         (page_canonical(site, page), "monthly", "0.8", lastmod)
         for page in pages
+        if not page["path"].startswith("brands/")
+        and not page["path"].startswith("en/brands/")
     )
     entries.extend(
         [
@@ -519,6 +530,9 @@ def render_sitemap_index(site: dict[str, Any]) -> str:
   </sitemap>
   <sitemap>
     <loc>{esc(base_url)}/sitemap-products.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>{esc(base_url)}/sitemap-deals.xml</loc>
   </sitemap>
   <sitemap>
     <loc>{esc(base_url)}/sitemap-insights.xml</loc>

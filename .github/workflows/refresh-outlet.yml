@@ -120,7 +120,7 @@ jobs:
           python tools/wait_for_data_release.py --site-url "$SITE_URL" --after "$SYNC_COMPLETED_AT" --timeout-seconds 1800 --interval-seconds 10
           python tools/check_data_quality.py --online --dealer arcteryx_outlet --max-age-hours 36 --max-product-age-hours 72 --min-rows 100 --forbid-region jp
           curl -fsS "$SITE_URL/api/catalog?region=us&limit=1" | python -c 'import json,sys; value=json.load(sys.stdin); assert value["rows"] and value["data_revision"]; print("catalog_revision", value["data_revision"])'
-          python tools/notify_indexnow.py --sitemap-url "$SITE_URL/sitemap-products.xml" --sitemap-url "$SITE_URL/sitemap-insights.xml" --since-days 2 || echo "::warning::IndexNow notification failed or is not configured"
+          python tools/notify_indexnow.py --sitemap-url "$SITE_URL/sitemap-products.xml" --sitemap-url "$SITE_URL/sitemap-deals.xml" --sitemap-url "$SITE_URL/sitemap-insights.xml" --since-days 2 || echo "::warning::IndexNow notification failed or is not configured"
 
       - name: Release Outlet lease
         if: always() && needs.lease-gate.outputs.lease_owned == 'true'

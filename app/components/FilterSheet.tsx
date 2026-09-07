@@ -26,6 +26,7 @@ type Props = {
   sections: FilterSheetSection[];
   resultLabel: string;
   resetLabel: string;
+  closeLabel: string;
   onSelect: (section: string, value: string) => void;
   onReset: () => void;
   onClose: () => void;
@@ -37,6 +38,7 @@ export function FilterSheet({
   sections,
   resultLabel,
   resetLabel,
+  closeLabel,
   onSelect,
   onReset,
   onClose,
@@ -56,7 +58,7 @@ export function FilterSheet({
             <Text style={styles.title}>{title}</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Close"
+              accessibilityLabel={closeLabel}
               style={styles.close}
               onPress={onClose}
             >
@@ -99,10 +101,20 @@ export function FilterSheet({
             ))}
           </ScrollView>
           <View style={styles.actions}>
-            <Pressable style={styles.reset} onPress={onReset}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={resetLabel}
+              style={styles.reset}
+              onPress={onReset}
+            >
               <Text style={styles.resetText}>{resetLabel}</Text>
             </Pressable>
-            <Pressable style={styles.done} onPress={onClose}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={resultLabel}
+              style={styles.done}
+              onPress={onClose}
+            >
               <Text style={styles.doneText}>{resultLabel}</Text>
             </Pressable>
           </View>

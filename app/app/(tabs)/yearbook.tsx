@@ -409,6 +409,7 @@ export default function YearbookScreen() {
         sections={sections}
         resultLabel={b("viewResults", { count: items.length })}
         resetLabel={b("reset")}
+        closeLabel={b("close")}
         onSelect={(key, value) =>
           setFilters((current) => ({
             ...current,

@@ -73,7 +73,12 @@ export function DealCard({
   }, [product.sku_id]);
 
   return (
-    <Pressable style={[styles.card, hero && styles.heroCard]} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${categoryWithBrand}, ${formatMoney(product.sale_price, product.currency, product.symbol)}, ${signalLabel}`}
+      style={[styles.card, hero && styles.heroCard]}
+      onPress={onPress}
+    >
       <View style={styles.imageWrap}>
         <TopoPlaceholder
           category={productCategory(product)}
@@ -110,6 +115,7 @@ export function DealCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={saved ? t("watch.remove") : t("watch.save")}
+            accessibilityState={{ selected: saved }}
             style={styles.saveButton}
             onPress={(event) => {
               event.stopPropagation();

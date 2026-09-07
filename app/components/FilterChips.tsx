@@ -200,6 +200,7 @@ export function FilterChips({
         visible={sortOpen}
         value={value.sort}
         title={b("sort")}
+        closeLabel={b("close")}
         getLabel={(option) => t(`sort.${option}`)}
         onSelect={(sort) => {
           onChange({ sort });
@@ -213,6 +214,7 @@ export function FilterChips({
         sections={sections}
         resultLabel={b("viewResults", { count: resultCount })}
         resetLabel={b("reset")}
+        closeLabel={b("close")}
         onSelect={(key, next) => {
           if (key === "minDiscount")
             onChange({ minDiscount: Number(next) as 0 | 30 | 50 });
@@ -240,6 +242,7 @@ function SortSheet({
   visible,
   value,
   title,
+  closeLabel,
   getLabel,
   onSelect,
   onClose,
@@ -247,6 +250,7 @@ function SortSheet({
   visible: boolean;
   value: string;
   title: string;
+  closeLabel: string;
   getLabel: (value: string) => string;
   onSelect: (value: string) => void;
   onClose: () => void;
@@ -264,13 +268,21 @@ function SortSheet({
         <View style={styles.sortSheet}>
           <View style={styles.sortHead}>
             <Text style={styles.sortTitle}>{title}</Text>
-            <Pressable style={styles.close} onPress={onClose}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={closeLabel}
+              style={styles.close}
+              onPress={onClose}
+            >
               <Ionicons name="close" size={21} color={colors.ink} />
             </Pressable>
           </View>
           {SORT_OPTIONS.map((option) => (
             <Pressable
               key={option}
+              accessibilityRole="radio"
+              accessibilityLabel={getLabel(option)}
+              accessibilityState={{ checked: option === value }}
               style={styles.sortOption}
               onPress={() => onSelect(option)}
             >

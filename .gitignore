@@ -22,6 +22,9 @@ miniprogram/project.private.config.json
 # 临时文件
 temp_images/
 *.tmp
+/.agent/release-build/
+/.agent/release-tools/
+/.agent/release-evidence/
 
 # 大数据文件（爬虫每次会重新生成）
 /.crawl_manifest.json

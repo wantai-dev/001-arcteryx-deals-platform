@@ -40,6 +40,7 @@ import {
   type RateSnapshot,
 } from "../../lib/currency";
 import { availableDealRegions, productsForRegion } from "../../lib/deals";
+import { alertPriceReferenceForCatalog } from "../../lib/alertPriceReference";
 import {
   marketCurrencyOptions,
   marketRegionOptions,
@@ -465,6 +466,7 @@ export default function YearbookScreen() {
         <AlertModal
           visible
           source={alertProduct}
+          priceReference={alertPriceReferenceForCatalog(alertProduct)}
           entry={watchlist.getModelEntry(alertProduct)}
           lockedScope="model"
           onClose={() => setAlertProduct(null)}

@@ -18,6 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { BRAND, PLATFORM, platformKey, productCategory, productName, regionFlag, releaseSeason } from '../../lib/catalog';
 import { openBuyUrl, softImpact } from '../../lib/actions';
 import { hasUncomparableRegionalOffer } from '../../lib/cheaperAlternatives';
+import { alertPriceReferenceForProduct } from '../../lib/alertPriceReference';
 import { convertAmount } from '../../lib/currency';
 import { emailAlertCopy, saveAlertAndSyncEmail } from '../../lib/emailAlertSync';
 import { computeSignal, historyToPoints, recentPoints } from '../../lib/signals';
@@ -97,6 +98,7 @@ export default function ProductDetailScreen() {
   }
 
   const currentProduct = product;
+  const alertPriceReference = alertPriceReferenceForProduct(currentProduct, rateSnapshot);
   const name = productName(currentProduct);
   const imageCandidates = Array.from(new Set([currentProduct.image_url, ...currentProduct.images].filter(Boolean))) as string[];
   const visibleImages = imageCandidates.filter((uri) => !failedImages[uri]);
@@ -271,7 +273,7 @@ export default function ProductDetailScreen() {
             <Ionicons name="open-outline" size={18} color={colors.onPill} />
           </Pressable>
         </View>
-      <AlertModal visible={alertOpen} source={currentProduct} entry={watchlist.getEntry(currentProduct.sku_id)} historicalLow={signal?.minPrice} onClose={() => setAlertOpen(false)} onSubmit={submitAlert} />
+      <AlertModal visible={alertOpen} source={currentProduct} priceReference={alertPriceReference} entry={watchlist.getEntry(currentProduct.sku_id)} historicalLow={signal?.minPrice} onClose={() => setAlertOpen(false)} onSubmit={submitAlert} />
     </SafeAreaView>
   );
 }

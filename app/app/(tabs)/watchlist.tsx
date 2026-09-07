@@ -20,6 +20,7 @@ import { fetchPriceCandidates } from '../../lib/alertProductSource';
 import { BRAND, productName } from '../../lib/catalog';
 import { lowestComparableCandidate } from '../../lib/candidateComparison';
 import { emailAlertCopy, saveAlertAndSyncEmail } from '../../lib/emailAlertSync';
+import { watchAlertPriceReference } from '../../lib/alertPriceReference';
 import { insertPriceAlert } from '../../lib/supabase';
 import { radii, typography, type ThemeColors } from '../../lib/theme';
 import type { Product, WatchEntry } from '../../lib/types';
@@ -91,6 +92,7 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
   const [imageFailed, setImageFailed] = useState(false);
   const currentPrice = preferences.formatMoney(current, currency || '', symbol);
   const alertSource = product || snapshot;
+  const priceReference = watchAlertPriceReference(entry, row.currentCandidate);
   const open = () => {
     const skuId = product?.sku_id || snapshot?.skuId;
     if (skuId) router.push({ pathname: '/product/[skuId]', params: { skuId } });
@@ -116,9 +118,9 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
       <Text style={styles.price}>{currentPrice} <Text style={styles.now}>{currentVerified ? copy.now : copy.savedPrice}</Text></Text>
       {removeError ? <Text style={styles.rowError}>{removeError}</Text> : null}
     </View>
-    {alertSource ? <AlertModal visible={alertOpen} source={alertSource} entry={entry} lockedScope={entry.scope || 'sku'} onClose={() => setAlertOpen(false)} onDelete={async () => watchlist.removeAlert(entry.id!)} onSubmit={(draft: AlertDraft) => saveAlertAndSyncEmail(draft, {
+    {alertSource ? <AlertModal visible={alertOpen} source={alertSource} priceReference={priceReference} entry={entry} lockedScope={entry.scope || 'sku'} onClose={() => setAlertOpen(false)} onDelete={async () => watchlist.removeAlert(entry.id!)} onSubmit={(draft: AlertDraft) => saveAlertAndSyncEmail(draft, {
       skuId: entry.scope === 'sku' ? entry.skuId : undefined,
-      sourceCurrency: product?.currency || snapshot?.currency || draft.targetCurrency,
+      sourceCurrency: priceReference.currency || draft.targetCurrency,
       rates: preferences.rateSnapshot,
       saveLocal: (nextDraft) => watchlist.saveAlert(entry.id!, nextDraft),
       registerEmail: insertPriceAlert,

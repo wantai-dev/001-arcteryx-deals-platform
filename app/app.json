@@ -3,7 +3,7 @@
     "name": "GearDrop",
     "slug": "geardrop",
     "owner": "noir-madlax",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "scheme": "geardrop",
     "locales": {
       "zh-Hans": {
@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "dev.100app.geardrop",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "config": {
         "usesNonExemptEncryption": false
       }

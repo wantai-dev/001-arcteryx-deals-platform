@@ -3,20 +3,14 @@ import { StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useTheme } from "../contexts/ThemeContext";
+import {
+  defaultImageKind,
+  type DefaultImageKind,
+} from "../lib/defaultImage";
 import type { ThemeColors } from "../lib/theme";
 
-export type DefaultImageKind =
-  | "jacket"
-  | "fleece"
-  | "pants"
-  | "overall"
-  | "shirt"
-  | "swim"
-  | "beanie"
-  | "shoes"
-  | "bag"
-  | "snowboard"
-  | "other";
+export { defaultImageKind };
+export type { DefaultImageKind };
 
 type Props = {
   category?: string | null;
@@ -43,23 +37,6 @@ const silhouettes: Record<DefaultImageKind, string> = {
     "M55 12c-8 0-13 7-13 16v64c0 10 7 16 18 16s18-6 18-16V28c0-9-5-16-13-16H55Z M45 42h30M45 79h30",
   other: "M60 18 91 36v48L60 102 29 84V36L60 18Z M29 36l31 18 31-18M60 54v48",
 };
-
-export function defaultImageKind(category?: string | null): DefaultImageKind {
-  const value = (category || "").toLocaleLowerCase();
-  if (/overall|bib|背带/.test(value)) return "overall";
-  if (/fleece|midlayer|抓绒|摇粒绒|卫衣/.test(value)) return "fleece";
-  if (/pant|short|裤|裙/.test(value)) return "pants";
-  if (/shirt|tee|top|上衣|内衣/.test(value)) return "shirt";
-  if (/swim|泳/.test(value)) return "swim";
-  if (/beanie|hat|cap|headwear|帽|配件|glove|sock/.test(value)) return "beanie";
-  if (/shoe|boot|footwear|鞋/.test(value)) return "shoes";
-  if (/bag|pack|背包/.test(value)) return "bag";
-  if (/snowboard|splitboard|board|滑雪板|固定器/.test(value))
-    return "snowboard";
-  if (/jacket|shell|coat|parka|夹克|冲锋衣|保暖|羽绒|veilance/.test(value))
-    return "jacket";
-  return "other";
-}
 
 export function DefaultImage({ category, brand, compact = false }: Props) {
   const { colors } = useTheme();

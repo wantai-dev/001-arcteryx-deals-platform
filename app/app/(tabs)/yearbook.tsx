@@ -543,7 +543,7 @@ function CurrentCard({
     >
       <View style={styles.photo}>
         <DefaultImage
-          category={product.categories.join(" ")}
+          category={product.categories[0] || "other"}
           brand={product.brand}
         />
         <Status
@@ -624,7 +624,7 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
     >
       <View style={styles.photo}>
         <DefaultImage
-          category={product.categories.join(" ")}
+          category={product.categories[0] || productCategory(best)}
           brand={BRAND[product.brand_key].label}
         />
         <Status tone="archive" text={b("archiveFrom")} />

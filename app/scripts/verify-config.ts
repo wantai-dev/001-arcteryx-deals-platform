@@ -96,6 +96,7 @@ const watchlistSource = readFileSync(join(root, 'app/(tabs)/watchlist.tsx'), 'ut
 const watchlistLibSource = readFileSync(join(root, 'lib/watchlist.ts'), 'utf8');
 const productDetailSource = readFileSync(join(root, 'app/product/[skuId].tsx'), 'utf8');
 const alertModalSource = readFileSync(join(root, 'components/AlertModal.tsx'), 'utf8');
+const emailAlertSyncSource = readFileSync(join(root, 'lib/emailAlertSync.ts'), 'utf8');
 const priceAlertsSource = readFileSync(join(root, 'lib/priceAlerts.ts'), 'utf8');
 const liveDataVerifierSource = readFileSync(join(root, 'scripts/verify-live-data.ts'), 'utf8');
 const notificationRouteSource = readFileSync(join(root, 'lib/notificationRoute.ts'), 'utf8');
@@ -301,15 +302,26 @@ for (const hardcodedPrice of ['$3.99', '$23.99', '$49.99']) {
 assert.ok(existsSync(join(root, '.env.example')), 'missing RevenueCat public SDK key example');
 assert.ok(dealCardSource.includes('formatMoney(product.sale_price'), 'Deal cards must use display-currency formatting');
 assert.ok(productDetailSource.includes('formatMoney(currentProduct.sale_price'), 'Product detail must use display-currency formatting');
-assert.ok(watchlistSource.includes('formatMoney(product.sale_price'), 'Watchlist must use display-currency formatting');
+assert.ok(
+  watchlistSource.includes('lowestComparableCandidate(matches, preferences.rateSnapshot)') &&
+    watchlistSource.includes("preferences.formatMoney(current, currency || '', symbol)"),
+  'Watchlist must format the current comparable SKU or model candidate in the display currency',
+);
 assert.ok(productDetailSource.includes('<AlertModal'), 'Product detail must keep the original-currency alert modal');
 assert.ok(alertModalSource.includes('<KeyboardAvoidingView'), 'Price alert modal must move above the on-screen keyboard');
 assert.ok(
   alertModalSource.includes("behavior={Platform.OS === 'ios' ? 'padding' : 'height'}"),
   'Price alert modal must define keyboard avoidance behavior on iOS and Android',
 );
-assert.ok(productDetailSource.includes('await insertPriceAlert'), 'Alert flow must write price_alerts');
-assert.ok(productDetailSource.includes('buildPriceAlertRequest'), 'Alert flow must use the tested price alert request helper');
+assert.ok(
+  productDetailSource.includes('saveAlertAndSyncEmail(') &&
+    productDetailSource.includes('registerEmail: insertPriceAlert'),
+  'item email alerts must pass the real registration API through the shared save-and-sync flow',
+);
+assert.ok(
+  emailAlertSyncSource.indexOf('await deps.saveLocal(draft)') < emailAlertSyncSource.indexOf('await deps.registerEmail({'),
+  'email registration must run only after the local quota and persistence check succeeds',
+);
 assert.ok(productDetailSource.includes("watchlist.saveAlertForSource"), 'Alert flow must persist item/model targets for the price monitor');
 assert.ok(priceMonitorTaskSource.includes('evaluatePriceAlerts'), 'Price monitor must evaluate persisted target prices');
 assert.ok(productDetailSource.includes('openBuyUrl(currentProduct.url)'), 'Buy button must use openBuyUrl');

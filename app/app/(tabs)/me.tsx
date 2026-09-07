@@ -174,7 +174,6 @@ export default function MeScreen() {
             </View>
             <Switch
               accessibilityLabel={p.t("me.notifications")}
-              accessibilityRole="switch"
               value={p.notificationsEnabled}
               onValueChange={(v) => void toggleNotifications(v)}
               trackColor={{ false: colors.hair2 as string, true: colors.buy }}
@@ -358,7 +357,7 @@ function Picker({
               key={o.value}
               accessibilityRole="radio"
               accessibilityLabel={o.label}
-              accessibilityState={{ selected: o.value === value, disabled: busy }}
+              accessibilityState={{ checked: o.value === value, disabled: busy }}
               disabled={busy}
               style={s.option}
               onPress={() => void select(o.value)}
@@ -441,7 +440,7 @@ function MarketPicker({
                 key={r}
                 accessibilityRole="radio"
                 accessibilityLabel={`${p.regionLabel(r)}, ${LOCAL_CURRENCY[r] || "—"}`}
-                accessibilityState={{ selected: r === region, disabled: busy }}
+                accessibilityState={{ checked: r === region, disabled: busy }}
                 disabled={busy}
                 style={s.option}
                 onPress={() => setRegion(r)}
@@ -464,7 +463,7 @@ function MarketPicker({
                 key={c}
                 accessibilityRole="radio"
                 accessibilityLabel={c === "original" ? p.t("me.localCurrency") : c}
-                accessibilityState={{ selected: c === currency, disabled: busy }}
+                accessibilityState={{ checked: c === currency, disabled: busy }}
                 disabled={busy}
                 style={[s.chip, c === currency && s.chipActive]}
                 onPress={() => setCurrency(c)}

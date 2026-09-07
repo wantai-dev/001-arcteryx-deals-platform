@@ -40,6 +40,10 @@ import {
   type RateSnapshot,
 } from "../../lib/currency";
 import { availableDealRegions, productsForRegion } from "../../lib/deals";
+import {
+  marketCurrencyOptions,
+  marketRegionOptions,
+} from "../../lib/marketOptions";
 import { fetchYearbookProducts } from "../../lib/supabase";
 import { radii, typography, type ThemeColors } from "../../lib/theme";
 import type {
@@ -74,25 +78,6 @@ type Filters = {
 type Item =
   | { kind: "current"; value: CatalogProduct }
   | { kind: "archive"; value: YearbookArchiveStyle };
-const REGION_CURRENCY: Record<string, string> = {
-  us: "USD",
-  ca: "CAD",
-  gb: "GBP",
-  au: "AUD",
-  de: "EUR",
-  fr: "EUR",
-  nl: "EUR",
-  fi: "EUR",
-  ie: "EUR",
-  it: "EUR",
-  es: "EUR",
-  at: "EUR",
-  be: "EUR",
-  ch: "CHF",
-  se: "SEK",
-  dk: "DKK",
-};
-
 export default function YearbookScreen() {
   const { products: allDeals } = useProducts();
   const prefs = usePreferences();
@@ -441,22 +426,12 @@ export default function YearbookScreen() {
         title={b("market")}
         region={region}
         currency={currency}
-        regions={regionOptions.map((value) => ({
-          value,
-          label: prefs.regionLabel(value),
-          currency:
-            value === "all"
-              ? b("localCurrency")
-              : REGION_CURRENCY[value] || "—",
-        }))}
-        currencies={
-          [
-            { value: "original", label: b("localCurrency") },
-            { value: "CNY", label: "CNY" },
-            { value: "USD", label: "USD" },
-            { value: "EUR", label: "EUR" },
-          ] as Array<{ value: CurrencyPreference; label: string }>
-        }
+        regions={marketRegionOptions(
+          regionOptions,
+          (value) => prefs.regionLabel(value),
+          b("localCurrency"),
+        )}
+        currencies={marketCurrencyOptions(currency, b("localCurrency"))}
         ratesNote={b("ratesNote")}
         catalogNote={b("catalogMarketNote")}
         applyLabel={b("apply")}

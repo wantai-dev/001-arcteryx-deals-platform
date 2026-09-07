@@ -24,7 +24,6 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useWatchlist } from "../../contexts/WatchlistContext";
 import { browseText } from "../../lib/browseI18n";
 import { productCategory } from "../../lib/catalog";
-import type { CurrencyPreference } from "../../lib/currency";
 import {
   availableDealRegions,
   DEAL_PAGE_SIZE,
@@ -34,28 +33,13 @@ import {
   productsForRegion,
   type DealFilters,
 } from "../../lib/deals";
+import {
+  marketCurrencyOptions,
+  marketRegionOptions,
+} from "../../lib/marketOptions";
 import type { ThemeColors } from "../../lib/theme";
 import type { Product } from "../../lib/types";
 import { yearbookFreshnessLabel } from "../../lib/yearbook";
-
-const REGION_CURRENCY: Record<string, string> = {
-  us: "USD",
-  ca: "CAD",
-  gb: "GBP",
-  au: "AUD",
-  de: "EUR",
-  fr: "EUR",
-  nl: "EUR",
-  fi: "EUR",
-  ie: "EUR",
-  it: "EUR",
-  es: "EUR",
-  at: "EUR",
-  be: "EUR",
-  ch: "CHF",
-  se: "SEK",
-  dk: "DKK",
-};
 
 export default function DealsScreen() {
   const {
@@ -335,22 +319,12 @@ export default function DealsScreen() {
         title={b("market")}
         region={region}
         currency={currency}
-        regions={regionOptions.map((value) => ({
-          value,
-          label: prefs.regionLabel(value),
-          currency:
-            value === "all"
-              ? b("localCurrency")
-              : REGION_CURRENCY[value] || "—",
-        }))}
-        currencies={
-          [
-            { value: "original", label: b("localCurrency") },
-            { value: "CNY", label: "CNY" },
-            { value: "USD", label: "USD" },
-            { value: "EUR", label: "EUR" },
-          ] as Array<{ value: CurrencyPreference; label: string }>
-        }
+        regions={marketRegionOptions(
+          regionOptions,
+          (value) => prefs.regionLabel(value),
+          b("localCurrency"),
+        )}
+        currencies={marketCurrencyOptions(currency, b("localCurrency"))}
         ratesNote={b("ratesNote")}
         catalogNote={b("catalogMarketNote")}
         applyLabel={b("apply")}

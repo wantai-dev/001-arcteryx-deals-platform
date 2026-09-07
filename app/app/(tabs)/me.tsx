@@ -17,12 +17,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MarketSheet } from "../../components/MarketSheet";
 import { useProducts } from "../../contexts/ProductsContext";
 import { usePreferences } from "../../contexts/PreferencesContext";
 import { usePro } from "../../contexts/ProContext";
 import { useTheme } from "../../contexts/ThemeContext";
-import { CURRENCY_OPTIONS, CurrencyPreference } from "../../lib/currency";
-import { regionFlag } from "../../lib/catalog";
+import { browseText } from "../../lib/browseI18n";
+import { availableDealRegions } from "../../lib/deals";
 import {
   LANGUAGE_LABELS,
   LANGUAGE_OPTIONS,
@@ -30,29 +31,15 @@ import {
 } from "../../lib/i18n";
 import { AppearancePreference } from "../../lib/preferences";
 import {
+  marketCurrencyOptions,
+  marketRegionOptions,
+} from "../../lib/marketOptions";
+import {
   openSupportUrl,
   requestNotificationPermission,
 } from "../../lib/actions";
 import { ThemeColors, radii } from "../../lib/theme";
 
-const LOCAL_CURRENCY: Record<string, CurrencyPreference> = {
-  us: "USD",
-  ca: "CAD",
-  gb: "GBP",
-  au: "original",
-  de: "EUR",
-  fr: "EUR",
-  nl: "EUR",
-  fi: "EUR",
-  ie: "EUR",
-  at: "EUR",
-  be: "EUR",
-  dk: "original",
-  it: "EUR",
-  es: "EUR",
-  se: "original",
-  ch: "CHF",
-};
 const APPLE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
 
 export default function MeScreen() {
@@ -61,18 +48,14 @@ export default function MeScreen() {
   const { isPro, managementURL, state } = usePro();
   const { products, loadedCount } = useProducts();
   const p = usePreferences();
+  const b = (
+    key: Parameters<typeof browseText>[1],
+    params?: Record<string, string | number>,
+  ) => browseText(p.language, key, params);
   const [picker, setPicker] = useState<
     "market" | "language" | "appearance" | null
   >(null);
-  const regions = useMemo(
-    () => [
-      "all",
-      ...[...new Set(products.map((x) => x.region))].sort((a, b) =>
-        p.regionLabel(a).localeCompare(p.regionLabel(b), p.locale),
-      ),
-    ],
-    [p, products],
-  );
+  const regions = useMemo(() => availableDealRegions(products), [products]);
   async function toggleNotifications(next: boolean) {
     try {
       if (!next) return await p.setNotificationsEnabled(false);
@@ -246,11 +229,24 @@ export default function MeScreen() {
         onSelect={(v) => p.setAppearance(v as AppearancePreference)}
         colors={colors}
       />
-      <MarketPicker
+      <MarketSheet
         visible={picker === "market"}
-        regions={regions}
+        title={b("market")}
+        region={p.region}
+        currency={p.currency}
+        regions={marketRegionOptions(
+          regions,
+          (value) => p.regionLabel(value),
+          b("localCurrency"),
+        )}
+        currencies={marketCurrencyOptions(p.currency, b("localCurrency"))}
+        ratesNote={b("ratesNote")}
+        catalogNote={b("catalogMarketNote")}
+        applyLabel={b("apply")}
+        closeLabel={b("close")}
+        errorLabel={b("marketSaveError")}
+        onApply={(region, currency) => p.setMarket({ region, currency })}
         onClose={() => setPicker(null)}
-        colors={colors}
       />
     </SafeAreaView>
   );
@@ -375,129 +371,6 @@ function Picker({
     </Modal>
   );
 }
-function MarketPicker({
-  visible,
-  regions,
-  onClose,
-  colors,
-}: {
-  visible: boolean;
-  regions: string[];
-  onClose: () => void;
-  colors: ThemeColors;
-}) {
-  const p = usePreferences();
-  const s = useMemo(() => makeStyles(colors), [colors]);
-  const [region, setRegion] = useState(p.region);
-  const [currency, setCurrency] = useState(p.currency);
-  const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState(false);
-  useEffect(() => {
-    if (visible) {
-      setRegion(p.region);
-      setCurrency(p.currency);
-      setSaveError(false);
-    }
-  }, [p.currency, p.region, visible]);
-  async function applyMarket() {
-    if (busy) return;
-    setBusy(true);
-    setSaveError(false);
-    try {
-      await p.setMarket({ region, currency });
-      onClose();
-    } catch {
-      setSaveError(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
-          <View style={s.sheetHead}>
-            <Text style={s.sheetTitle}>{p.t("me.market")}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={p.t("common.cancel")}
-              accessibilityState={{ disabled: busy }}
-              disabled={busy}
-              style={s.close}
-              onPress={onClose}
-            >
-              <Ionicons name="close" size={20} color={colors.ink} />
-            </Pressable>
-          </View>
-          <ScrollView style={s.marketList}>
-            {regions.map((r) => (
-              <Pressable
-                key={r}
-                accessibilityRole="radio"
-                accessibilityLabel={`${p.regionLabel(r)}, ${LOCAL_CURRENCY[r] || "—"}`}
-                accessibilityState={{ checked: r === region, disabled: busy }}
-                disabled={busy}
-                style={s.option}
-                onPress={() => setRegion(r)}
-              >
-                    <Text style={s.rowTitle}>{regionFlag(r)}  {p.regionLabel(r)}</Text>
-                {r === region ? (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={19}
-                    color={colors.buy}
-                  />
-                ) : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-          <Text style={s.section}>{p.t("me.currency")}</Text>
-          <View style={s.chips}>
-            {CURRENCY_OPTIONS.map((c) => (
-              <Pressable
-                key={c}
-                accessibilityRole="radio"
-                accessibilityLabel={c === "original" ? p.t("me.localCurrency") : c}
-                accessibilityState={{ checked: c === currency, disabled: busy }}
-                disabled={busy}
-                style={[s.chip, c === currency && s.chipActive]}
-                onPress={() => setCurrency(c)}
-              >
-                <Text style={[s.chipText, c === currency && s.chipTextActive]}>
-                  {c === "original" ? p.t("me.localCurrency") : c}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={s.rowSub}>
-            {currency === "original"
-              ? `${p.t("me.localCurrency")}: ${LOCAL_CURRENCY[region] || "—"}`
-              : p.rateDate
-                ? p.t("me.ratesUpdated", { date: p.rateDate })
-                : p.t("me.ratesUnavailable")}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={p.t("common.done")}
-            accessibilityState={{ disabled: busy }}
-            disabled={busy}
-            style={[s.apply, busy && s.disabled]}
-            onPress={() => void applyMarket()}
-          >
-            {busy ? <ActivityIndicator color={colors.onPill} /> : <Text style={s.applyText}>{p.t("common.done")}</Text>}
-          </Pressable>
-          {saveError ? <Text accessibilityRole="alert" style={s.saveError}>{p.t("me.preferencesSaveError")}</Text> : null}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.bg },
@@ -618,34 +491,6 @@ function makeStyles(c: ThemeColors) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.border,
     },
-    marketList: { maxHeight: 300 },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginVertical: 10,
-    },
-    chip: {
-      minHeight: 44,
-      justifyContent: "center",
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.borderStrong,
-      paddingHorizontal: 12,
-    },
-    chipActive: { backgroundColor: c.pill },
-    chipText: { color: c.ink, fontWeight: "800" },
-    chipTextActive: { color: c.onPill },
-    apply: {
-      minHeight: 52,
-      marginTop: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 12,
-      backgroundColor: c.pill,
-    },
-    applyText: { color: c.onPill, fontSize: 15, fontWeight: "900" },
-    disabled: { opacity: 0.55 },
     saveError: { color: c.disc, fontSize: 12, lineHeight: 17, marginTop: 10 },
     version: { color: c.muted, fontSize: 11, textAlign: "center", marginTop: 4 },
   });

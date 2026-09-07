@@ -14,16 +14,19 @@ import {
 import { useTheme } from "../contexts/ThemeContext";
 import { regionFlag } from "../lib/catalog";
 import type { CurrencyPreference } from "../lib/currency";
+import type {
+  MarketCurrencyOption,
+  MarketRegionOption,
+} from "../lib/marketOptions";
 import { radii, type ThemeColors } from "../lib/theme";
 
-type RegionOption = { value: string; label: string; currency: string };
 type Props = {
   visible: boolean;
   title: string;
   region: string;
   currency: CurrencyPreference;
-  regions: RegionOption[];
-  currencies: Array<{ value: CurrencyPreference; label: string }>;
+  regions: MarketRegionOption[];
+  currencies: MarketCurrencyOption[];
   ratesNote: string;
   catalogNote: string;
   applyLabel: string;
@@ -93,6 +96,7 @@ export function MarketSheet(props: Props) {
                 <Pressable
                   key={option.value}
                   accessibilityRole="radio"
+                  accessibilityLabel={`${option.label}, ${option.currency}`}
                   accessibilityState={{ checked: selected, disabled: busy }}
                   style={styles.region}
                   onPress={() => setDraftRegion(option.value)}

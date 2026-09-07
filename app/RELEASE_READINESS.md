@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-07, Build 14 preparation.
 
-This ledger records the pending **1.2.0 / Build 14** candidate. Build 14 is not source-frozen, built, signed, uploaded, attached, device-accepted, or captured. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is VALID and available to the existing internal TestFlight group, but a physical-device check found that the alert modal labels an official list price as the current price. Build 13 is therefore superseded and none of its candidate-specific acceptance fields complete a Build 14 gate. The website continues to run `6d411d7`; App Store 1.2.0 has not been submitted for review.
+This ledger records the pending **1.2.0 / Build 14** candidate. Build 14 is not source-frozen, built, signed, uploaded, attached, device-accepted, or captured. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is VALID and available to the existing internal TestFlight group, but a physical-device check found that the alert modal labels an official list price as the current price. Build 13 is therefore superseded and none of its candidate-specific acceptance fields complete a Build 14 gate. A physical purchase attempt also returned an undifferentiated failure without an Apple confirmation sheet; Build 14 will preserve actionable, sanitized failure outcomes before this path is retested. The website independently advanced to `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
 
 ## Candidate status
 
@@ -24,8 +24,8 @@ This ledger records the pending **1.2.0 / Build 14** candidate. Build 14 is not 
 
 ## Current production and superseded Build 13 evidence
 
-- Website: `https://geardrop.100app.dev`, root HTTP 200 readback, `X-Code-Revision=6d411d7776e08d3a74be176b35de646811048ab0`.
-- Data publication: revision `e3ef16435ab519057f6a`, artifact `ba829f2a7aa7088cd58b`; publication source revision `4e67f95` is distinct from running website code. All 604 category repairs applied with zero concurrent skips/readback errors; independent subsequent repair plan has zero remaining changes, and public static/API categories agree.
+- Website: `https://geardrop.100app.dev`, root HTTP 200 readback after the independent SEO rollout, API `X-Code-Revision=ae306995aa91cb6526d4af378f0c7b630605275c`. The homepage, catalog API and Arc'teryx aggregation page returned HTTP 200.
+- Latest observed data publication: revision `d5ef1e7fde596d64f8e1`, artifact `a60fc6b14231177f6109`, publication source `ae306995aa91cb6526d4af378f0c7b630605275c`, 6,794 active products; evidence `web-current-after-seo-merge.json`. Earlier in this release all 604 category repairs applied with zero concurrent skips/readback errors, the independent subsequent repair plan had zero remaining changes, and public static/API categories agreed. These are timestamped observations, not permanent live values.
 - Official catalog: authoritative sync and independent readback 1,459 products across three brands; daily workflow enabled. Counts are observations from this release, not permanent live values.
 - Superseded Build 13 EAS build: `6e8bb8fd-e08c-4a81-a6cb-59e536396e96`, production / STORE, FINISHED.
 - Superseded Build 13 IPA: 30,187,639 bytes; SHA-256 `a23fddba5c83d3c4e26466841a0c1992143757200df463fdd3547e14dcb0dd30`.

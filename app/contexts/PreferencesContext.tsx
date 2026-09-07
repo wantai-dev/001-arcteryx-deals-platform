@@ -33,14 +33,16 @@ import {
   AppPreferences,
   createPreferenceStore,
   DEFAULT_PREFERENCES,
+  PreferenceRateStatus,
+  PreferenceRateSource,
   PREFERENCES_V2_KEY,
+  preferenceRateStatus,
+  rateSnapshotNeedsRefresh,
 } from "../lib/preferences";
 
 export const PREFERENCES_STORAGE_KEY = PREFERENCES_V2_KEY;
 export const LEGACY_PREFERENCES_STORAGE_KEY = "geardrop.preferences.v1";
 export const RATES_STORAGE_KEY = "geardrop.currency-rates.v1";
-const RATE_MAX_AGE_MS = 86400000;
-type RateStatus = "original" | "loading" | "live" | "cached" | "unavailable";
 type Value = {
   languageChoice: LanguageChoice;
   language: AppLanguage;
@@ -50,9 +52,10 @@ type Value = {
   appearance: AppearancePreference;
   notificationsEnabled: boolean;
   hydrated: boolean;
-  rateStatus: RateStatus;
+  rateStatus: PreferenceRateStatus;
   rateDate: string | null;
   rateSnapshot: RateSnapshot | null;
+  preferencesError: boolean;
   setLanguage: (v: LanguageChoice) => Promise<void>;
   setCurrency: (v: CurrencyPreference) => Promise<void>;
   setMarket: (v: {
@@ -62,6 +65,7 @@ type Value = {
   setAppearance: (v: AppearancePreference) => Promise<void>;
   setNotificationsEnabled: (v: boolean) => Promise<void>;
   refreshRates: () => Promise<void>;
+  retryPreferences: () => Promise<void>;
   t: (key: string, params?: TranslationParams) => string;
   categoryLabel: (v: string) => string;
   genderLabel: (v: string) => string;
@@ -87,61 +91,94 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
   const [preferences, setState] = useState<AppPreferences>(DEFAULT_PREFERENCES);
   const store = useRef(createPreferenceStore(AsyncStorage));
   const [hydrated, setHydrated] = useState(false);
+  const [preferencesError, setPreferencesError] = useState(false);
   const [snapshot, setSnapshot] = useState<RateSnapshot | null>(null);
-  const [rateStatus, setRateStatus] = useState<RateStatus>("original");
+  const [rateSource, setRateSource] = useState<PreferenceRateSource>("none");
+  const [ratesHydrated, setRatesHydrated] = useState(false);
+  const [rateRefreshing, setRateRefreshing] = useState(false);
+  const rateRefreshInFlight = useRef<Promise<void> | null>(null);
+  const automaticRateAttempt = useRef<string | null>(null);
   const patch = useCallback(
     (change: Partial<AppPreferences>) => store.current.update(change),
     [],
   );
+  const retryPreferences = useCallback(async () => {
+    setPreferencesError(false);
+    try {
+      await store.current.hydrate();
+    } catch {
+      setPreferencesError(true);
+    }
+  }, []);
   useEffect(() => {
+    let cancelled = false;
     const unsubscribe = store.current.subscribe((next, ready) => {
       setState(next);
       setHydrated(ready);
+      if (ready) setPreferencesError(false);
     });
-    void store.current.hydrate().catch(() => undefined);
-    void AsyncStorage.getItem(RATES_STORAGE_KEY).then((rates) =>
-      setSnapshot(parseSnapshot(rates)),
-    );
-    return unsubscribe;
+    void retryPreferences();
+    void (async () => {
+      try {
+        const cached = parseSnapshot(await AsyncStorage.getItem(RATES_STORAGE_KEY));
+        if (!cancelled) {
+          setSnapshot(cached);
+          setRateSource(cached ? "cached" : "none");
+        }
+      } catch {
+        if (!cancelled) {
+          setSnapshot(null);
+          setRateSource("none");
+        }
+      } finally {
+        if (!cancelled) setRatesHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [retryPreferences]);
+  const refreshRates = useCallback(() => {
+    if (rateRefreshInFlight.current) return rateRefreshInFlight.current;
+    setRateRefreshing(true);
+    const request = (async () => {
+      try {
+        const next = await fetchRateSnapshot();
+        setSnapshot(next);
+        setRateSource("live");
+        try {
+          await AsyncStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // Keep the usable in-memory snapshot if the offline cache cannot be updated.
+        }
+      } catch {
+        // The derived status preserves a cached snapshot or reports unavailable.
+      } finally {
+        setRateRefreshing(false);
+        rateRefreshInFlight.current = null;
+      }
+    })();
+    rateRefreshInFlight.current = request;
+    return request;
   }, []);
-  const refreshRates = useCallback(async () => {
-    setRateStatus((current) =>
-      preferences.currency === "original"
-        ? "original"
-        : snapshot
-          ? current
-          : "loading",
-    );
-    try {
-      const next = await fetchRateSnapshot();
-      setSnapshot(next);
-      setRateStatus(preferences.currency === "original" ? "original" : "live");
-      await AsyncStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      setRateStatus(
-        preferences.currency === "original"
-          ? "original"
-          : snapshot
-            ? "cached"
-            : "unavailable",
-      );
-    }
-  }, [preferences.currency, snapshot]);
   useEffect(() => {
-    if (preferences.currency === "original") {
-      setRateStatus("original");
+    if (!hydrated || !ratesHydrated || !rateSnapshotNeedsRefresh(snapshot))
       return;
-    }
-    if (snapshot && rateStatus === "original") setRateStatus("cached");
-    const fetchedAt = snapshot ? Date.parse(snapshot.fetchedAt) : 0;
-    if (
-      hydrated &&
-      (!snapshot ||
-        !Number.isFinite(fetchedAt) ||
-        Date.now() - fetchedAt > RATE_MAX_AGE_MS)
-    )
-      void refreshRates();
-  }, [hydrated, preferences.currency, rateStatus, refreshRates, snapshot]);
+    const attemptKey = snapshot?.fetchedAt || "missing";
+    if (automaticRateAttempt.current === attemptKey) return;
+    automaticRateAttempt.current = attemptKey;
+    void refreshRates();
+  }, [hydrated, ratesHydrated, refreshRates, snapshot]);
+  const rateStatus =
+    !ratesHydrated && preferences.currency !== "original"
+      ? "loading"
+      : preferenceRateStatus(
+          preferences.currency,
+          snapshot,
+          rateSource,
+          rateRefreshing,
+        );
   const setLanguage = useCallback(
     (language: LanguageChoice) => patch({ language }),
     [patch],
@@ -227,12 +264,14 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
       rateStatus,
       rateDate: snapshot?.date || null,
       rateSnapshot: snapshot,
+      preferencesError,
       setLanguage,
       setCurrency,
       setMarket,
       setAppearance,
       setNotificationsEnabled,
       refreshRates,
+      retryPreferences,
       t,
       categoryLabel,
       genderLabel,
@@ -250,12 +289,14 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
       locale,
       rateStatus,
       snapshot,
+      preferencesError,
       setLanguage,
       setCurrency,
       setMarket,
       setAppearance,
       setNotificationsEnabled,
       refreshRates,
+      retryPreferences,
       t,
       categoryLabel,
       genderLabel,

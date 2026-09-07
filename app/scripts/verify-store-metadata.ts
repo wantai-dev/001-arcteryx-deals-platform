@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { FREE_ALERT_LIMIT, FREE_WATCHLIST_LIMIT } from '../lib/watchlist';
 
 type LocaleMetadata = {
   name: string;
@@ -68,6 +69,28 @@ const FORBIDDEN_PUBLIC_TERMS: Array<{ label: string; pattern: RegExp }> = [
   { label: 'Burton', pattern: /\bburton\b/iu },
   { label: 'Patagonia', pattern: /\bpatagonia\b/iu },
 ];
+const REQUIRED_ACCESS_COPY: Record<(typeof REQUIRED_LOCALES)[number], string[]> = {
+  'en-US': [
+    'Low-price signals, summaries, and filters remain available on Free.',
+    'GearDrop Pro unlocks 12 months of price history, unlimited price alerts, and unlimited saved items and models.',
+  ],
+  'zh-Hans': [
+    '史低信号、摘要和筛选继续向免费用户开放。',
+    '值de Pro 解锁 12 个月价格历史、不限量降价提醒，以及不限量收藏商品和型号。',
+  ],
+  'de-DE': [
+    'Tiefpreis-Signale, Übersichten und Filter bleiben im Gratis-Modus verfügbar.',
+    'GearDrop Pro schaltet 12 Monate Preisverlauf, unbegrenzte Preisalarme und unbegrenzt gespeicherte Artikel und Modelle frei.',
+  ],
+  'fr-FR': [
+    'Les signaux de prix bas, résumés et filtres restent disponibles en version gratuite.',
+    'GearDrop Pro débloque 12 mois d’historique des prix, des alertes de prix illimitées et un nombre illimité d’articles et modèles enregistrés.',
+  ],
+  ja: [
+    '安値シグナル、概要、絞り込みは無料版でも利用できます。',
+    'GearDrop Proでは12か月の価格履歴、無制限の価格通知、商品とモデルの無制限保存を利用できます。',
+  ],
+};
 
 function characterCount(value: string) {
   return [...value].length;
@@ -118,6 +141,8 @@ assert.deepEqual(manifest.screenshotTarget, {
   requiresNoAlpha: true,
 });
 assert.deepEqual(Object.keys(manifest.locales).sort(), [...REQUIRED_LOCALES].sort());
+assert.equal(FREE_ALERT_LIMIT, 1, '1.2 metadata requires one free active alert');
+assert.equal(FREE_WATCHLIST_LIMIT, 20, '1.2 metadata requires 20 free saved items/models');
 
 for (const localeKey of REQUIRED_LOCALES) {
   const locale = manifest.locales[localeKey];
@@ -128,6 +153,9 @@ for (const localeKey of REQUIRED_LOCALES) {
   assertCharacterRange(locale.promotionalText, 1, 170, `${localeKey}.promotionalText`);
   assertCharacterRange(locale.description, 1, 4000, `${localeKey}.description`);
   assertCharacterRange(locale.whatsNew, 1, 4000, `${localeKey}.whatsNew`);
+  for (const requiredCopy of REQUIRED_ACCESS_COPY[localeKey]) {
+    assert.ok(locale.description.includes(requiredCopy), `${localeKey}.description must state the final Free/Pro access boundary`);
+  }
   assert.ok(
     !/no longer appear|not in the current|已不在|不在当前|nicht mehr im aktuellen|nicht im aktuellen|absents? du catalogue|現行カタログにない|現行の公式.*にはありません/iu.test(`${locale.description}\n${locale.promotionalText}\n${locale.whatsNew}`),
     `${localeKey} must not claim unmatched deals are absent from the current official catalog`,

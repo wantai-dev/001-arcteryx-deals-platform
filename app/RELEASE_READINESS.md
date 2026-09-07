@@ -18,7 +18,7 @@ This document is the evidence ledger for **1.2.0 / Build 12**. Earlier builds do
 | Privacy/support | Production URLs and disclosed data flow match final binary | Pending fresh HTTP and source/readback check |
 | Screenshots | 5 locales × 6 opaque 1320×2868 PNGs from exact signed candidate | Pending; missing files intentionally fail |
 | App Store Connect | Build VALID, IAP state, metadata and screenshots read back from fresh session | Pending external readback |
-| Submission | Exact candidate attached and submitted | Not authorized in this subtask |
+| Submission | Exact candidate attached and submitted | User authorized release; waiting final acceptance and root-controlled production submission |
 
 ## Notification wording acceptance
 

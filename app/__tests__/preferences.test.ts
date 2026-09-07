@@ -35,6 +35,14 @@ test('translations interpolate values and localize catalog labels', () => {
   assert.equal(localizedCategory('en', 'sun-shirts-rashguards'), 'Sun Shirts & Rashguards');
   assert.equal(localizedCategory('zh-Hans', 'booties'), '软底鞋');
   assert.equal(localizedCategory('de', 'water-protective-bags'), 'Schutztaschen für Wasseraktivitäten');
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, 'other')),
+    ['Other', '其他', 'Sonstiges', 'Autres', 'その他'],
+  );
+  assert.deepEqual(
+    (['en', 'zh-Hans', 'de', 'fr', 'ja'] as const).map((language) => localizedCategory(language, '泳装')),
+    ['Swimwear', '泳装', 'Badebekleidung', 'Maillots de bain', 'スイムウェア'],
+  );
   assert.equal(localizedRegion('zh-Hans', 'fi'), '芬兰');
   assert.equal(localizedRegion('de', 'ie'), 'Irland');
   assert.equal(localizedRegion('fr', 'au'), 'Australie');

@@ -5,12 +5,13 @@ import type { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
 import { buildProPlanEntries, hasProEntitlement, ProPlan, ProPlanId } from '../lib/iap';
 
 type PurchaseState = 'loading' | 'ready' | 'unavailable' | 'error';
-type PurchaseOutcome = 'purchased' | 'restored' | 'cancelled' | 'pending' | 'not_found';
+type PurchaseOutcome = 'purchased' | 'restored' | 'cancelled' | 'pending' | 'not_found' | 'failed';
 type OfferCodeOutcome = 'presented' | 'unavailable';
 type PurchasesSdk = typeof import('react-native-purchases').default;
 
 type ProContextValue = {
   isPro: boolean;
+  managementURL: string | null;
   plans: ProPlan[];
   state: PurchaseState;
   busyPlan: ProPlanId | 'restore' | 'redeem' | null;
@@ -26,6 +27,7 @@ const revenueCatApiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim();
 
 export function ProProvider({ children }: PropsWithChildren) {
   const [isPro, setIsPro] = useState(false);
+  const [managementURL, setManagementURL] = useState<string | null>(null);
   const [plans, setPlans] = useState<ProPlan[]>([]);
   const [state, setState] = useState<PurchaseState>('loading');
   const [busyPlan, setBusyPlan] = useState<ProPlanId | 'restore' | 'redeem' | null>(null);
@@ -35,18 +37,34 @@ export function ProProvider({ children }: PropsWithChildren) {
 
   const applyCustomerInfo = useCallback((customerInfo: CustomerInfo) => {
     setIsPro(hasProEntitlement(customerInfo));
+    setManagementURL(customerInfo.managementURL);
   }, []);
 
   const load = useCallback(async (sdk: PurchasesSdk) => {
-    const [customerInfo, offerings] = await Promise.all([sdk.getCustomerInfo(), sdk.getOfferings()]);
-    applyCustomerInfo(customerInfo);
+    const [customerInfoResult, offeringsResult] = await Promise.allSettled([
+      sdk.getCustomerInfo(),
+      sdk.getOfferings(),
+    ]);
+    if (customerInfoResult.status === 'fulfilled') {
+      applyCustomerInfo(customerInfoResult.value);
+    }
 
-    const offering = offerings.current;
+    if (offeringsResult.status === 'rejected') {
+      packagesRef.current.clear();
+      setPlans([]);
+      setState('error');
+      setError(errorMessage(offeringsResult.reason));
+      return;
+    }
+
+    const offering = offeringsResult.value.current;
     if (!offering) {
       packagesRef.current.clear();
       setPlans([]);
-      setState('unavailable');
-      setError('No current RevenueCat offering is configured.');
+      setState(customerInfoResult.status === 'rejected' ? 'error' : 'unavailable');
+      setError(customerInfoResult.status === 'rejected'
+        ? errorMessage(customerInfoResult.reason)
+        : 'No current RevenueCat offering is configured.');
       return;
     }
 
@@ -58,8 +76,10 @@ export function ProProvider({ children }: PropsWithChildren) {
 
     packagesRef.current = new Map(entries.map((entry) => [entry.plan.id, entry.purchasePackage]));
     setPlans(entries.map((entry) => entry.plan));
-    setState(entries.length ? 'ready' : 'unavailable');
-    setError(entries.length ? null : 'The current offering does not contain GearDrop Pro products.');
+    setState(customerInfoResult.status === 'rejected' ? 'error' : entries.length ? 'ready' : 'unavailable');
+    setError(customerInfoResult.status === 'rejected'
+      ? errorMessage(customerInfoResult.reason)
+      : entries.length ? null : 'The current offering does not contain GearDrop Pro products.');
   }, [applyCustomerInfo]);
 
   useEffect(() => {
@@ -137,7 +157,7 @@ export function ProProvider({ children }: PropsWithChildren) {
 
   const restore = useCallback(async (): Promise<PurchaseOutcome> => {
     const sdk = sdkRef.current;
-    if (!sdk) return 'not_found';
+    if (!sdk) return 'failed';
 
     setBusyPlan('restore');
     setError(null);
@@ -147,7 +167,7 @@ export function ProProvider({ children }: PropsWithChildren) {
       return hasProEntitlement(customerInfo) ? 'restored' : 'not_found';
     } catch (nextError) {
       setError(errorMessage(nextError));
-      return 'not_found';
+      return 'failed';
     } finally {
       setBusyPlan(null);
     }
@@ -171,8 +191,8 @@ export function ProProvider({ children }: PropsWithChildren) {
   }, []);
 
   const value = useMemo(
-    () => ({ isPro, plans, state, busyPlan, error, purchase, restore, redeemOfferCode, refresh }),
-    [isPro, plans, state, busyPlan, error, purchase, restore, redeemOfferCode, refresh],
+    () => ({ isPro, managementURL, plans, state, busyPlan, error, purchase, restore, redeemOfferCode, refresh }),
+    [isPro, managementURL, plans, state, busyPlan, error, purchase, restore, redeemOfferCode, refresh],
   );
   return <ProContext.Provider value={value}>{children}</ProContext.Provider>;
 }

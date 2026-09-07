@@ -22,11 +22,10 @@ const TERMS_URL =
   "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 const PRIVACY_URL = "https://geardrop.100app.dev/privacy.html";
 export const PRO_FEATURES = [
-  { title: "paywall.priceHistory", detail: "paywall.priceHistoryDetail", shipped: true },
-  { title: "paywall.lowSignal", detail: "paywall.lowSignalDetail", shipped: true },
-  { title: "paywall.alerts", detail: "paywall.alertsDetail", shipped: false },
+  { title: "paywall.priceHistory", detail: "paywall.priceHistoryDetail" },
+  { title: "paywall.alerts", detail: "paywall.alertsDetail" },
+  { title: "paywall.watchlist", detail: "paywall.watchlistDetail" },
 ] as const;
-const visibleFeatures = PRO_FEATURES.filter((feature) => feature.shipped || __DEV__);
 export default function PaywallScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -51,17 +50,18 @@ export default function PaywallScreen() {
   }
   async function handleRestore() {
     setNotice(null);
-    setNotice(
-      (await restore()) === "restored"
-        ? t("paywall.restored")
-        : t("paywall.nothingToRestore"),
-    );
+    const outcome = await restore();
+    setNotice(outcome === "restored"
+      ? t("paywall.restored")
+      : outcome === "failed"
+        ? t("paywall.restoreFailed")
+        : t("paywall.nothingToRestore"));
   }
   async function handleRedeemOfferCode() {
     setNotice(null);
     setNotice(await redeemOfferCode() === "presented" ? t("paywall.redeemPresented") : t("paywall.redeemUnavailable"));
   }
-  const benefits = visibleFeatures.map((feature) => [t(feature.title), t(feature.detail)]);
+  const benefits = PRO_FEATURES.map((feature) => [t(feature.title), t(feature.detail)]);
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>

@@ -10,7 +10,9 @@ Run `npm run verify:store-metadata` before and after every metadata edit. The ve
 
 GearDrop 1.2 supports a paired market/currency choice, regional comparison, three-brand Deals and Yearbook browsing, saved item/model targets, five UI languages, and System/Light/Dark appearance. Price checks run on-device when iOS schedules background work. After a force quit, the user must reopen GearDrop before checks can resume. Notifications require permission and have no guaranteed delivery time.
 
-GearDrop Pro prices and products displayed in the app come from Apple StoreKit. Metadata must not state a price, discount, introductory offer, or free-trial eligibility. The free tracking allowance must match the single product constant in the final source before submission.
+Low-price signals, deal summaries, and filters remain available on Free. Free includes 30 days of price history, up to 20 saved items/models, and one active price alert. Pro unlocks 12 months of price history, unlimited saved items/models, and unlimited active price alerts. These limits must match `FREE_WATCHLIST_LIMIT` and `FREE_ALERT_LIMIT` in the final source before submission.
+
+GearDrop Pro prices and products displayed in the app come from Apple StoreKit. Metadata must not state a price, discount, introductory offer, or free-trial eligibility.
 
 ## Screenshot order
 

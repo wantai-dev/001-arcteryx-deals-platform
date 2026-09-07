@@ -23,6 +23,8 @@ type ProductLike = {
   introPrice: {
     price: number;
     period: string;
+    periodUnit?: string;
+    periodNumberOfUnits?: number;
   } | null;
 };
 
@@ -75,7 +77,7 @@ export function buildProPlanEntries<TPackage extends PackageLike>(
 
     const intro = purchasePackage.product.introPrice;
     const trialDays = eligibility[expectedProductId]?.status === INTRO_ELIGIBLE && intro?.price === 0
-      ? parseIsoDays(intro.period)
+      ? trialDurationDays(intro)
       : null;
 
     return [{
@@ -91,7 +93,15 @@ export function buildProPlanEntries<TPackage extends PackageLike>(
   });
 }
 
-function parseIsoDays(period: string) {
-  const match = /^P(\d+)D$/.exec(period);
-  return match ? Number(match[1]) : null;
+function trialDurationDays(intro: NonNullable<ProductLike['introPrice']>) {
+  const units = intro.periodNumberOfUnits;
+  if (Number.isInteger(units) && units && units > 0) {
+    if (intro.periodUnit === 'DAY') return units;
+    if (intro.periodUnit === 'WEEK') return units * 7;
+  }
+
+  const match = /^P(\d+)([DW])$/.exec(intro.period);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  return match[2] === 'W' ? amount * 7 : amount;
 }

@@ -1,10 +1,17 @@
-import type { CurrencyPreference } from "./currency";
+import type { CurrencyPreference, RateSnapshot } from "./currency";
 import type { LanguageChoice } from "./i18n";
 
 export const PREFERENCES_V1_KEY = "geardrop.preferences.v1";
 export const REGION_V1_KEY = "geardrop.region.v1";
 export const PREFERENCES_V2_KEY = "geardrop.preferences.v2";
 export type AppearancePreference = "system" | "light" | "dark";
+export type PreferenceRateSource = "none" | "cached" | "live";
+export type PreferenceRateStatus =
+  | "original"
+  | "loading"
+  | "live"
+  | "cached"
+  | "unavailable";
 export type AppPreferences = {
   language: LanguageChoice;
   currency: CurrencyPreference;
@@ -33,6 +40,7 @@ const CURRENCIES = new Set([
 ]);
 const APPEARANCES = new Set(["system", "light", "dark"]);
 const REGIONS = new Set([
+  "all",
   "us",
   "ca",
   "gb",
@@ -50,6 +58,29 @@ const REGIONS = new Set([
   "se",
   "ch",
 ]);
+
+export const RATE_MAX_AGE_MS = 86400000;
+
+export function rateSnapshotNeedsRefresh(
+  snapshot: RateSnapshot | null,
+  now = Date.now(),
+) {
+  if (!snapshot) return true;
+  const fetchedAt = Date.parse(snapshot.fetchedAt);
+  return !Number.isFinite(fetchedAt) || now - fetchedAt > RATE_MAX_AGE_MS;
+}
+
+export function preferenceRateStatus(
+  currency: CurrencyPreference,
+  snapshot: RateSnapshot | null,
+  source: PreferenceRateSource,
+  refreshing: boolean,
+): PreferenceRateStatus {
+  if (currency === "original") return "original";
+  if (snapshot && source === "live") return "live";
+  if (snapshot) return "cached";
+  return refreshing ? "loading" : "unavailable";
+}
 function objectValue(raw: string | null) {
   if (!raw) return {};
   try {

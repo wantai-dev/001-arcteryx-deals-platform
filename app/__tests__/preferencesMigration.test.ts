@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyPreferencePatches, createPreferenceStore, DEFAULT_PREFERENCES, migratePreferences, PREFERENCES_V1_KEY, PREFERENCES_V2_KEY, REGION_V1_KEY, updatePreferences } from '../lib/preferences';
+import { applyPreferencePatches, createPreferenceStore, DEFAULT_PREFERENCES, migratePreferences, preferenceRateStatus, PREFERENCES_V1_KEY, PREFERENCES_V2_KEY, rateSnapshotNeedsRefresh, REGION_V1_KEY, updatePreferences } from '../lib/preferences';
 
 test('new installs receive the stable market and appearance defaults', () => {
   assert.deepEqual(migratePreferences(null, null, null), DEFAULT_PREFERENCES);
@@ -17,6 +17,27 @@ test('v1 language and currency migrate atomically with the legacy region', () =>
   assert.deepEqual(migratePreferences(null, JSON.stringify({ language: 'de', currency: 'CHF' }), 'ch'), {
     language: 'de', currency: 'CHF', region: 'ch', appearance: 'system', notificationsEnabled: false,
   });
+});
+
+test('the legacy all-regions choice survives migration and normalization', () => {
+  assert.equal(migratePreferences(null, null, 'all').region, 'all');
+  assert.equal(migratePreferences(JSON.stringify({ region: 'ALL' }), null, null).region, 'all');
+});
+
+test('cached and live rate status remains accurate after leaving original currency', () => {
+  const snapshot = {
+    date: '2026-09-07',
+    fetchedAt: '2026-09-07T00:00:00.000Z',
+    rates: { EUR: 1, CNY: 8.3 },
+  };
+  assert.equal(preferenceRateStatus('original', snapshot, 'cached', false), 'original');
+  assert.equal(preferenceRateStatus('CNY', snapshot, 'cached', false), 'cached');
+  assert.equal(preferenceRateStatus('CNY', snapshot, 'live', false), 'live');
+  assert.equal(preferenceRateStatus('CNY', null, 'none', true), 'loading');
+  assert.equal(preferenceRateStatus('CNY', null, 'none', false), 'unavailable');
+  assert.equal(rateSnapshotNeedsRefresh(null, Date.parse('2026-09-07T12:00:00.000Z')), true);
+  assert.equal(rateSnapshotNeedsRefresh(snapshot, Date.parse('2026-09-07T12:00:00.000Z')), false);
+  assert.equal(rateSnapshotNeedsRefresh(snapshot, Date.parse('2026-09-08T00:00:00.001Z')), true);
 });
 
 test('v2 wins over stale legacy keys and preserves CNY and notification choices', () => {

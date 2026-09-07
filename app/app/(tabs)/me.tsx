@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -50,21 +52,24 @@ const LOCAL_CURRENCY: Record<string, CurrencyPreference> = {
   se: "original",
   ch: "CHF",
 };
+const APPLE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
 
 export default function MeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { isPro, state } = usePro();
+  const { isPro, managementURL, state } = usePro();
   const { products, loadedCount } = useProducts();
   const p = usePreferences();
   const [picker, setPicker] = useState<
     "market" | "language" | "appearance" | null
   >(null);
   const regions = useMemo(
-    () =>
-      [...new Set(products.map((x) => x.region))].sort((a, b) =>
+    () => [
+      "all",
+      ...[...new Set(products.map((x) => x.region))].sort((a, b) =>
         p.regionLabel(a).localeCompare(p.regionLabel(b), p.locale),
       ),
+    ],
     [p, products],
   );
   async function toggleNotifications(next: boolean) {
@@ -78,6 +83,10 @@ export default function MeScreen() {
       );
   }
   const appearanceLabel = p.t(`me.appearance.${p.appearance}`);
+  const languageLabel =
+    p.languageChoice === "system"
+      ? p.t("me.languageSystem")
+      : LANGUAGE_LABELS[p.languageChoice];
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -96,8 +105,12 @@ export default function MeScreen() {
             </Text>
           </View>
           <Pressable
+            accessibilityRole="button"
             style={styles.proButton}
-            onPress={() => router.push("/paywall")}
+            onPress={() => {
+              if (!isPro) return router.push("/paywall");
+              void Linking.openURL(managementURL || APPLE_SUBSCRIPTIONS_URL);
+            }}
           >
             <Text style={styles.proButtonText}>
               {isPro ? p.t("me.managePro") : p.t("me.upgrade")}
@@ -105,6 +118,27 @@ export default function MeScreen() {
           </Pressable>
         </View>
         <Text style={styles.section}>{p.t("me.preferences")}</Text>
+        {p.preferencesError ? (
+          <View style={styles.preferencesError}>
+            <View style={styles.flex}>
+              <Text accessibilityRole="alert" style={styles.preferencesErrorTitle}>
+                {p.t("me.preferencesLoadError")}
+              </Text>
+              <Text style={styles.rowSub}>
+                {p.t("me.preferencesLoadErrorBody")}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.preferencesRetry}
+              onPress={() => void p.retryPreferences()}
+            >
+              <Text style={styles.preferencesRetryText}>
+                {p.t("me.retryPreferences")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View style={styles.card}>
           <Row
             styles={styles}
@@ -117,7 +151,7 @@ export default function MeScreen() {
             styles={styles}
             colors={colors}
             label={p.t("me.language")}
-            value={LANGUAGE_LABELS[p.languageChoice]}
+            value={languageLabel}
             onPress={() => setPicker("language")}
           />
           <View style={styles.row}>
@@ -126,6 +160,8 @@ export default function MeScreen() {
               <Text style={styles.rowSub}>{p.t("me.notificationsSub")}</Text>
             </View>
             <Switch
+              accessibilityLabel={p.t("me.notifications")}
+              accessibilityRole="switch"
               value={p.notificationsEnabled}
               onValueChange={(v) => void toggleNotifications(v)}
               trackColor={{ false: colors.hair2 as string, true: colors.buy }}
@@ -164,6 +200,12 @@ export default function MeScreen() {
             onPress={() => router.push("/privacy")}
           />
         </View>
+        <Text style={styles.version}>
+          {p.t("me.version", {
+            version: Constants.expoConfig?.version || "—",
+            build: Constants.expoConfig?.ios?.buildNumber || "—",
+          })}
+        </Text>
       </ScrollView>
       <Picker
         visible={picker === "language"}
@@ -171,8 +213,9 @@ export default function MeScreen() {
         value={p.languageChoice}
         options={LANGUAGE_OPTIONS.map((v) => ({
           value: v,
-          label: LANGUAGE_LABELS[v],
+          label: v === "system" ? p.t("me.languageSystem") : LANGUAGE_LABELS[v],
         }))}
+        closeLabel={p.t("common.cancel")}
         onClose={() => setPicker(null)}
         onSelect={(v) => {
           void p.setLanguage(v as LanguageChoice);
@@ -187,6 +230,7 @@ export default function MeScreen() {
         options={(["system", "light", "dark"] as AppearancePreference[]).map(
           (v) => ({ value: v, label: p.t(`me.appearance.${v}`) }),
         )}
+        closeLabel={p.t("common.cancel")}
         onClose={() => setPicker(null)}
         onSelect={(v) => {
           void p.setAppearance(v as AppearancePreference);
@@ -220,7 +264,12 @@ function Row({
   external?: boolean;
 }) {
   return (
-    <Pressable accessibilityRole="button" style={styles.row} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={[label, value].filter(Boolean).join(", ")}
+      style={styles.row}
+      onPress={onPress}
+    >
       <Text style={styles.rowTitle}>{label}</Text>
       <View style={styles.value}>
         <Text style={styles.valueText}>{value}</Text>
@@ -238,6 +287,7 @@ function Picker({
   title,
   value,
   options,
+  closeLabel,
   onClose,
   onSelect,
   colors,
@@ -246,6 +296,7 @@ function Picker({
   title: string;
   value: string;
   options: { value: string; label: string }[];
+  closeLabel: string;
   onClose: () => void;
   onSelect: (v: string) => void;
   colors: ThemeColors;
@@ -262,13 +313,21 @@ function Picker({
         <View style={s.sheet}>
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>{title}</Text>
-            <Pressable style={s.close} onPress={onClose}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={closeLabel}
+              style={s.close}
+              onPress={onClose}
+            >
               <Ionicons name="close" size={20} color={colors.ink} />
             </Pressable>
           </View>
           {options.map((o) => (
             <Pressable
               key={o.value}
+              accessibilityRole="radio"
+              accessibilityLabel={o.label}
+              accessibilityState={{ selected: o.value === value }}
               style={s.option}
               onPress={() => onSelect(o.value)}
             >
@@ -315,13 +374,25 @@ function MarketPicker({
         <View style={s.sheet}>
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>{p.t("me.market")}</Text>
-            <Pressable style={s.close} onPress={onClose}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={p.t("common.cancel")}
+              style={s.close}
+              onPress={onClose}
+            >
               <Ionicons name="close" size={20} color={colors.ink} />
             </Pressable>
           </View>
           <ScrollView style={s.marketList}>
             {regions.map((r) => (
-              <Pressable key={r} style={s.option} onPress={() => setRegion(r)}>
+              <Pressable
+                key={r}
+                accessibilityRole="radio"
+                accessibilityLabel={`${p.regionLabel(r)}, ${LOCAL_CURRENCY[r] || "—"}`}
+                accessibilityState={{ selected: r === region }}
+                style={s.option}
+                onPress={() => setRegion(r)}
+              >
                     <Text style={s.rowTitle}>{regionFlag(r)}  {p.regionLabel(r)}</Text>
                 {r === region ? (
                   <Ionicons
@@ -338,6 +409,9 @@ function MarketPicker({
             {CURRENCY_OPTIONS.map((c) => (
               <Pressable
                 key={c}
+                accessibilityRole="radio"
+                accessibilityLabel={c === "original" ? p.t("me.localCurrency") : c}
+                accessibilityState={{ selected: c === currency }}
                 style={[s.chip, c === currency && s.chipActive]}
                 onPress={() => setCurrency(c)}
               >
@@ -355,6 +429,8 @@ function MarketPicker({
                 : p.t("me.ratesUnavailable")}
           </Text>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={p.t("common.done")}
             style={s.apply}
             onPress={() => {
               void p.setMarket({ region, currency });
@@ -398,7 +474,6 @@ function makeStyles(c: ThemeColors) {
       marginTop: 8,
       fontSize: 11,
       fontWeight: "800",
-      textTransform: "uppercase",
       letterSpacing: 0.7,
     },
     card: {
@@ -408,6 +483,29 @@ function makeStyles(c: ThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
+    preferencesError: {
+      minHeight: 72,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.disc,
+      backgroundColor: c.card,
+      padding: 14,
+    },
+    preferencesErrorTitle: {
+      color: c.ink,
+      fontSize: 14,
+      fontWeight: "800",
+      marginBottom: 3,
+    },
+    preferencesRetry: {
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    preferencesRetryText: { color: c.disc, fontSize: 13, fontWeight: "900" },
     row: {
       minHeight: 52,
       paddingHorizontal: 16,
@@ -494,5 +592,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.pill,
     },
     applyText: { color: c.onPill, fontSize: 15, fontWeight: "900" },
+    version: { color: c.muted, fontSize: 11, textAlign: "center", marginTop: 4 },
   });
 }

@@ -21,7 +21,7 @@ test_storefront=
 - [ ] Primary interactive controls have at least a 44×44 pt target.
 - [ ] Keyboard does not cover search, target-price, purchase, restore, or support controls.
 - [ ] Dynamic Type and VoiceOver expose readable labels and no clipped primary action.
-- [ ] Default product imagery covers all 11 shipped category classes when remote images fail.
+- [ ] All 11 approved category silhouettes render correctly: Yearbook intentionally uses them as shipped UI, while other screens use them when remote images fail.
 
 ## Market, language, and appearance
 

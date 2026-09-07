@@ -15,7 +15,7 @@ Use iPhone 16 Pro Max portrait at 1320×2868 for Apple’s 6.9-inch screenshot w
 | 3 | `region-comparison` | Two or more real region prices for the exact product family | Prove cross-region intelligence |
 | 4 | `watchlist` | Saved item/model, target price, and the real alert state | Show tracking value without implying instant background delivery |
 | 5 | `pro-price-history` | StoreKit-backed paywall/full-history state with localized price | Explain the paid value without fabricated pricing |
-| 6 | `yearbook-current-deals` | Localized Yearbook UI with Current and Outlet/unlinked controls plus at least one deterministically linked real deal showing source, region, current/original price, discount, and freshness | Prove the three-brand catalog and conservative live-deal overlay |
+| 6 | `yearbook-current-deals` | Localized Yearbook UI with the approved category silhouette, Current and Outlet/unlinked controls, plus at least one deterministically linked real deal showing source, region, current/original price, discount, and freshness | Prove the three-brand catalog and conservative live-deal overlay |
 
 The localized headline for each slot is the same array index in `app/store-metadata/next-version.json`.
 
@@ -24,7 +24,7 @@ The localized headline for each slot is the same array index in `app/store-metad
 - Use only UI captured from the exact next-version signed build.
 - Keep the captured UI legible; a headline may sit above it, but must not cover price signals or primary controls.
 - Do not add device frames, fake notifications, invented savings, fake ratings, merchant logos, or unverified superlatives.
-- Do not expose tester emails, invite codes, account names, debug overlays, placeholder images, or sandbox-only labels.
+- Do not expose tester emails, invite codes, account names, debug overlays, prototype or generic placeholder images, or sandbox-only labels. The approved Yearbook category silhouettes are shipped UI and are required in its capture.
 - The visible StoreKit price must match the screenshot locale/storefront and the current product returned by Apple.
 - Any notification copy must state that iOS chooses the check time. After force-quitting, the user must reopen GearDrop before checks can resume.
 - Keep merchant/product content inside the genuine app capture; keep added overlay copy brand-neutral.

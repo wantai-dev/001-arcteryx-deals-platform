@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-07, Build 14 preparation.
 
-This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366c9e22a17bd273cc839bf49c026`. The source is frozen for signing and the iOS Simulator Release build succeeded, but EAS signing, Apple upload, signed-device acceptance and final screenshots remain open. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is VALID and available to the existing internal TestFlight group, but a physical-device check found that the alert modal labels an official list price as the current price. Build 13 is therefore superseded and none of its candidate-specific acceptance fields complete a Build 14 gate. Build 14 now separates live, catalog, saved and unavailable price references and returns actionable, sanitized purchase outcomes. The website independently runs `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
+This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366c9e22a17bd273cc839bf49c026` (EAS source commit `20d917237fb8141492b323b0ae1356b59808739a`, docs-only after the app source freeze). The source, local gates, EAS signature and Apple processing are complete; signed-device acceptance and final screenshots remain open. Build 13 from source `6d411d7776e08d3a74be176b35de646811048ab0` is superseded. A physical-device check found that its alert modal labels an official list price as the current price; Build 14 now separates live, catalog, saved and unavailable price references and returns actionable, sanitized purchase outcomes. The website independently runs `ae306995aa91cb6526d4af378f0c7b630605275c` through the SEO rollout; App Store 1.2.0 has not been submitted for review.
 
 ## Candidate status
 
@@ -17,9 +17,9 @@ This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366
 | Appearance/localization | Build 13 layout and localization observations exist | Complete the signed Build 14 language/appearance matrix |
 | StoreKit | Three live IAPs were APPROVED during Build 13 acceptance | Verify current products, cancel, sandbox purchase, pending, purchased restore, entitlement and offline behavior on signed Build 14 |
 | Privacy/support | Website currently serves the Build 13 source disclosure | Recheck final Build 14 source against production URL bytes and data flow |
-| Signed artifact | Build 13 EAS artifact was independently verified; Build 14 Simulator Release build succeeded | Queue EAS production Build 14 and independently verify IPA version, profile, architecture and signature |
+| Signed artifact | Build 14 EAS artifact independently verified: App Store profile, arm64, Team `46H3U4N2U3`, deep/strict signature | Keep the signed binary unchanged through device acceptance |
 | Screenshots | Build 13 had no accepted final screenshot set | Capture exact signed Build 14: 5 × 6 opaque 1320×2868 PNGs, pass the gate and read back ASC |
-| App Store Connect | Build 13 is VALID, attached to editable 1.2.0 and in the existing internal group | Upload Build 14, wait for VALID, attach it to 1.2.0 and verify the existing internal group and five-language metadata |
+| App Store Connect | Build 14 `fbda784c-d365-4ba0-b157-3ce7f0a45cfd` is VALID, attached to editable 1.2.0 and in the existing internal group; metadata readback remains five locales/10 resources | Recheck after device/screenshots; submit only when all release gates are complete |
 | Submission | 1.2.0 remains PREPARE_FOR_SUBMISSION; existing 1.0 remains public | User authorized release; submit only after the Build 14 acceptance gates above |
 
 ## Current production and superseded Build 13 evidence
@@ -31,6 +31,13 @@ This ledger records the **1.2.0 / Build 14** candidate at source `6a46261aaa9366
 - Superseded Build 13 IPA: 30,187,639 bytes; SHA-256 `a23fddba5c83d3c4e26466841a0c1992143757200df463fdd3547e14dcb0dd30`.
 - Superseded Apple Build 13: `902aee5d-31bb-44aa-b5b6-54835f3f5abf`, VALID and available to the existing internal group. It must not be selected for submission.
 - Build 13 report, file list and evidence hashes: `.agent/release-evidence/RELEASE-1.2.0-13.md` in the persistent integration worktree. Evidence/artifacts are intentionally ignored by Git and remain historical.
+
+## Build 14 signed and Apple evidence
+
+- EAS build: `ea1e91ab-f0bd-493a-bd08-98fc5d4d75ff`, FINISHED, production / STORE, source commit `20d917237fb8141492b323b0ae1356b59808739a`.
+- IPA: 30,194,486 bytes; SHA-256 `90375b2e8fe27ae973ec0bc401697b93412eb34465c71ab01c18eeb27d77f459`; independent `verify_ipa.py` result is `signature=verified_deep_strict` with Bundle `dev.100app.geardrop`, version `1.2.0 (14)`, arm64, iPhone-only, minimum iOS 16.4, `fetch`/`processing` background modes and `ITSAppUsesNonExemptEncryption=false`.
+- Apple delivery UUID and Build ID: `fbda784c-d365-4ba0-b157-3ce7f0a45cfd`; processing `VALID`, audience `APP_STORE_ELIGIBLE`. It is attached to editable App Store version `e389da5e-3468-42d1-b6d3-e19bb844d12d` and the existing internal group `96d283f8-1b42-4dc6-9d99-d04a9d1c553b`; beta detail readback is `IN_BETA_TESTING` / `READY_FOR_BETA_SUBMISSION`.
+- Evidence files: `.agent/release-evidence/ipa-14-verification.json`, `.agent/release-evidence/altool-upload-14.log`, `.agent/release-evidence/asc-build-14-linked.json`.
 
 ## Remaining device and screenshot conditions
 

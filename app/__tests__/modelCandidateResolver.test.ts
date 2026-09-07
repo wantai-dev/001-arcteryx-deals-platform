@@ -30,8 +30,8 @@ test('runtime resolution includes a newly listed SKU absent from the saved compa
   const style = catalog();
   const entry = makeScopedWatchEntry(style, 'model', '2026-09-01T00:00:00Z', [deal('old')])!;
   const resolved = resolveCurrentModelSkus([entry], [style], [deal('old'), deal('new')]);
-  assert.equal(resolved.get('old'), entry.modelKey);
-  assert.equal(resolved.get('new'), entry.modelKey);
+  assert.equal(resolved.modelBySku.get('old'), entry.modelKey);
+  assert.equal(resolved.modelBySku.get('new'), entry.modelKey);
 });
 
 test('runtime resolution rejects a formerly saved SKU after it gains a different official identity', () => {
@@ -39,19 +39,35 @@ test('runtime resolution rejects a formerly saved SKU after it gains a different
   const other = catalog('X7654321', { name: 'Alpha Jacket', source_url: 'https://arcteryx.com/us/en/shop/mens/alpha-jacket' });
   const entry = makeScopedWatchEntry(watched, 'model', '2026-09-01T00:00:00Z', [deal('changed')])!;
   const changed = deal('changed', { official_product_id: 'X7654321', model: 'Beta Jacket' });
-  assert.equal(resolveCurrentModelSkus([entry], [watched, other], [changed]).has('changed'), false);
+  assert.equal(resolveCurrentModelSkus([entry], [watched, other], [changed]).modelBySku.has('changed'), false);
 });
 
 test('runtime resolution has no 200-SKU ceiling', () => {
   const style = catalog();
   const entry = makeScopedWatchEntry(style, 'model')!;
   const deals = Array.from({ length: 275 }, (_, index) => deal(`sku-${index}`));
-  assert.equal(resolveCurrentModelSkus([entry], [style], deals).size, 275);
+  assert.equal(resolveCurrentModelSkus([entry], [style], deals).modelBySku.size, 275);
 });
 
 test('runtime resolution refuses ambiguous exact-name matches', () => {
   const first = catalog();
   const second = catalog('X7654321');
-  const entry = makeScopedWatchEntry(first, 'model')!;
-  assert.equal(resolveCurrentModelSkus([entry], [first, second], [deal('ambiguous')]).size, 0);
+  const entry = makeScopedWatchEntry(deal('source'), 'model')!;
+  const resolved = resolveCurrentModelSkus([entry], [first, second], [deal('ambiguous')]);
+  assert.equal(resolved.modelBySku.size, 0);
+  assert.equal(resolved.catalogRejectedSkuIds.has('ambiguous'), true);
+});
+
+test('a legacy fallback remains eligible when that brand has no authoritative catalog rows', () => {
+  const legacyDeal = deal('legacy', { model: 'Legacy Jacket', full_name: 'Legacy Jacket' });
+  const entry = makeScopedWatchEntry(legacyDeal, 'model')!;
+  const resolved = resolveCurrentModelSkus([entry], [], [legacyDeal]);
+  assert.equal(resolved.catalogRejectedSkuIds.has('legacy'), false);
+});
+
+test('a legacy model absent from an otherwise populated brand catalog keeps its fallback', () => {
+  const legacyDeal = deal('legacy', { model: 'Legacy Jacket', full_name: 'Legacy Jacket' });
+  const entry = makeScopedWatchEntry(legacyDeal, 'model')!;
+  const resolved = resolveCurrentModelSkus([entry], [catalog()], [legacyDeal]);
+  assert.equal(resolved.catalogRejectedSkuIds.has('legacy'), false);
 });

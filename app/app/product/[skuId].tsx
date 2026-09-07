@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AlertModal } from '../../components/AlertModal';
 import { PriceChart } from '../../components/PriceChart';
@@ -15,24 +15,29 @@ import { usePreferences } from '../../contexts/PreferencesContext';
 import { usePro } from '../../contexts/ProContext';
 import { useWatchlist } from '../../contexts/WatchlistContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { BRAND, productCategory, productName, releaseSeason } from '../../lib/catalog';
+import { BRAND, PLATFORM, platformKey, productCategory, productName, regionFlag, releaseSeason } from '../../lib/catalog';
 import { openBuyUrl, softImpact } from '../../lib/actions';
+import { hasUncomparableRegionalOffer } from '../../lib/cheaperAlternatives';
 import { convertAmount } from '../../lib/currency';
-import { buildPriceAlertRequest } from '../../lib/priceAlerts';
+import { emailAlertCopy, saveAlertAndSyncEmail } from '../../lib/emailAlertSync';
 import { computeSignal, historyToPoints, recentPoints } from '../../lib/signals';
 import { fetchPriceHistory, fetchProductFamilyBySku, insertPriceAlert } from '../../lib/supabase';
 import { radii, typography, type ThemeColors } from '../../lib/theme';
 import type { PriceHistoryRow, Product } from '../../lib/types';
 import type { AlertDraft } from '../../lib/watchlist';
+import { watchListCopy } from '../../lib/watchI18n';
 
 export default function ProductDetailScreen() {
   const { skuId } = useLocalSearchParams<{ skuId: string }>();
-  const { getProduct, cheaperAlternatives } = useProducts();
-  const { categoryLabel, displayedCurrency, formatMoney, formatOriginalMoney, genderLabel, rateSnapshot, regionLabel, t } = usePreferences();
+  const { getProduct, cheaperAlternatives, products } = useProducts();
+  const { categoryLabel, displayedCurrency, formatMoney, formatOriginalMoney, genderLabel, language, rateDate, rateSnapshot, regionLabel, t } = usePreferences();
   const watchlist = useWatchlist();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const emailCopy = emailAlertCopy(language);
+  const watchCopy = watchListCopy(language);
   const { isPro } = usePro();
+  const insets = useSafeAreaInsets();
   const [fallbackFamily, setFallbackFamily] = useState<Product[]>([]);
   const [history, setHistory] = useState<PriceHistoryRow[]>([]);
   const [loadingProduct, setLoadingProduct] = useState(false);
@@ -41,7 +46,7 @@ export default function ProductDetailScreen() {
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const { width } = useWindowDimensions();
   const contextProduct = getProduct(skuId);
-  const product = contextProduct || fallbackFamily.find((row) => row.sku_id === skuId) || fallbackFamily[0];
+  const product = contextProduct || fallbackFamily.find((row) => row.sku_id === skuId);
 
   useEffect(() => {
     if (!skuId || contextProduct) return;
@@ -72,9 +77,10 @@ export default function ProductDetailScreen() {
   }, [product?.sku_id]);
 
   const points = useMemo(() => (product ? historyToPoints(history, product) : []), [history, product]);
-  const chartPoints = useMemo(() => (isPro ? points : recentPoints(points, 30)), [isPro, points]);
+  const chartPoints = useMemo(() => recentPoints(points, isPro ? 365 : 30), [isPro, points]);
   const signal = useMemo(() => (product ? computeSignal(product, history) : null), [history, product]);
   const alternatives = product ? cheaperAlternatives(product) : [];
+  const comparisonUnavailable = product ? hasUncomparableRegionalOffer(products, product, rateSnapshot) : false;
   const saved = product ? watchlist.isSaved(product.sku_id) : false;
   const verdictText = signal?.kind === 'all_time_low' ? t('signal.all_time_low')
     : signal?.kind === 'ninety_day_low' ? t('signal.ninety_day_low')
@@ -96,22 +102,48 @@ export default function ProductDetailScreen() {
   const galleryImages = visibleImages.length ? visibleImages : ['__placeholder__'];
   const season = releaseSeason(currentProduct);
   const galleryWidth = Math.max(width - 30, 1);
-  const currentCategory = categoryLabel(productCategory(currentProduct));
+  const currentCategoryKey = productCategory(currentProduct);
+  const currentCategory = categoryLabel(currentCategoryKey);
+  const currentBrand = BRAND[currentProduct._brand].label;
+  const hasDiscount = currentProduct.original_price > currentProduct.sale_price + 0.01
+    && currentProduct.discount_pct > 0;
+  const preferredCurrency = displayedCurrency(currentProduct.currency);
+  const displayConversion = convertAmount(
+    currentProduct.sale_price, currentProduct.currency, preferredCurrency as never, rateSnapshot,
+  );
+  const showsConvertedPrice = preferredCurrency !== currentProduct.currency && displayConversion.converted;
 
   async function submitAlert(draft: AlertDraft, scope: 'sku' | 'model') {
-    const accepted = await watchlist.saveAlertForSource(currentProduct, scope, draft);
-    if (!accepted) return false;
-    if (draft.email && scope === 'sku') {
-      try {
-        const converted = convertAmount(draft.targetAmount, draft.targetCurrency, currentProduct.currency as never, rateSnapshot);
-        if (draft.targetCurrency !== currentProduct.currency && !converted.converted) throw new Error('Current exchange rates are unavailable for email alerts. The local alert was saved without email.');
-        await insertPriceAlert(buildPriceAlertRequest(currentProduct, draft.email, converted.value));
-      } catch (error) {
-        await watchlist.saveAlertForSource(currentProduct, 'sku', { ...draft, email: undefined });
-        throw error;
+    const entryId = scope === 'sku' ? `sku:${currentProduct.sku_id}` : null;
+    return saveAlertAndSyncEmail(scope === 'model' ? { ...draft, email: undefined } : draft, {
+      skuId: scope === 'sku' ? currentProduct.sku_id : undefined,
+      sourceCurrency: currentProduct.currency,
+      rates: rateSnapshot,
+      saveLocal: (nextDraft) => watchlist.saveAlertForSource(currentProduct, scope, nextDraft),
+      registerEmail: insertPriceAlert,
+      clearUnconfirmedEmail: async (failedDraft) => {
+        if (entryId) await watchlist.clearUnconfirmedEmail(entryId, failedDraft);
+      },
+    });
+  }
+
+  async function toggleSaved() {
+    try {
+      const savedNow = await watchlist.toggle(currentProduct);
+      if (!savedNow) {
+        Alert.alert(t('deals.watchLimitTitle'), t('deals.watchLimitBody', { count: watchlist.freeLimit }));
       }
+    } catch {
+      Alert.alert(watchCopy.remove, watchCopy.removeFailed);
     }
-    return true;
+  }
+
+  function requestToggleSaved() {
+    if (!saved || !watchlist.getEntry(currentProduct.sku_id)?.alert?.email) return void toggleSaved();
+    Alert.alert(t('watch.remove'), emailCopy.independent, [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('watch.remove'), style: 'destructive', onPress: () => { void toggleSaved(); } },
+    ]);
   }
 
   return (
@@ -123,12 +155,7 @@ export default function ProductDetailScreen() {
           </Pressable>
           <Pressable
             style={styles.iconButton}
-            onPress={async () => {
-              const savedNow = await watchlist.toggle(currentProduct);
-              if (!savedNow) {
-                Alert.alert(t('deals.watchLimitTitle'), t('deals.watchLimitBody', { count: watchlist.freeLimit }));
-              }
-            }}
+            onPress={requestToggleSaved}
           >
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={23} color={saved ? colors.danger : colors.ink} />
           </Pressable>
@@ -137,13 +164,13 @@ export default function ProductDetailScreen() {
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
           {galleryImages.map((uri, index) => (
             <View style={[styles.imageFrame, { width: galleryWidth }]} key={uri}>
-              <TopoPlaceholder label={currentCategory} showLabel={false} />
+              <TopoPlaceholder category={currentCategoryKey} brand={currentBrand} showLabel />
               {uri !== '__placeholder__' && !failedImages[uri] ? (
                 <Image source={{ uri }} contentFit="cover" transition={180} style={styles.image} onError={() => setFailedImages((current) => ({ ...current, [uri]: true }))} />
               ) : null}
-              <View style={styles.imageDiscount}>
+              {hasDiscount ? <View style={styles.imageDiscount}>
                 <Text style={styles.imageDiscountText}>-{currentProduct.discount_pct}%</Text>
-              </View>
+              </View> : null}
               {visibleImages.length > 1 ? (
                 <View style={styles.imageDots}>
                   {visibleImages.slice(0, 4).map((dot, dotIndex) => (
@@ -156,24 +183,24 @@ export default function ProductDetailScreen() {
         </ScrollView>
 
         <View style={styles.block}>
-          <Text style={styles.category}>{BRAND[currentProduct._brand].label} · {currentCategory}</Text>
+          <Text style={styles.category}>{currentBrand} · {currentCategory}</Text>
           <Text style={styles.title}>{name}</Text>
           <Text style={styles.meta}>{[currentProduct.color, genderLabel(currentProduct.gender || 'unknown'), regionLabel(currentProduct.region), season].filter(Boolean).join(' · ')}</Text>
         </View>
 
         <View style={styles.priceBlock}>
           <Text style={styles.sale}>{formatMoney(currentProduct.sale_price, currentProduct.currency, currentProduct.symbol)}</Text>
-          {currentProduct.original_price > currentProduct.sale_price ? <Text style={styles.original}>{formatMoney(currentProduct.original_price, currentProduct.currency, currentProduct.symbol)}</Text> : null}
-          <View style={styles.discount}>
+          {hasDiscount ? <Text style={styles.original}>{formatMoney(currentProduct.original_price, currentProduct.currency, currentProduct.symbol)}</Text> : null}
+          {hasDiscount ? <View style={styles.discount}>
             <Text style={styles.discountText}>-{currentProduct.discount_pct}%</Text>
-          </View>
+          </View> : null}
           {isPro && signal?.kind === 'all_time_low' ? (
             <View style={styles.lowBadge}>
               <Text style={styles.lowBadgeText}>{t('signal.all_time_low')}</Text>
             </View>
           ) : null}
         </View>
-        {displayedCurrency(currentProduct.currency) !== currentProduct.currency ? <Text style={styles.originalCurrency}>{formatOriginalMoney(currentProduct.sale_price, currentProduct.currency, currentProduct.symbol)} · {currentProduct.currency}</Text> : null}
+        {showsConvertedPrice ? <Text style={styles.originalCurrency}>{t('product.convertedEstimate', { price: formatOriginalMoney(currentProduct.sale_price, currentProduct.currency, currentProduct.symbol), date: rateDate || '' })}</Text> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHead}>
@@ -197,19 +224,25 @@ export default function ProductDetailScreen() {
           <Text style={styles.regionLead}>{t('product.alsoCheaper')}</Text>
           {alternatives.length ? (
             <View style={styles.alternatives}>
-              {alternatives.map((item) => (
-                <Pressable key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
-                  <Text style={styles.altText}>{regionLabel(item.region)} {formatOriginalMoney(item.sale_price, item.currency, item.symbol)} · {formatMoney(item.sale_price, item.currency, item.symbol)}</Text>
-                </Pressable>
-              ))}
+              {alternatives.map((item) => {
+                const alternativeCurrency = displayedCurrency(item.currency);
+                const alternativeConversion = convertAmount(item.sale_price, item.currency, alternativeCurrency as never, rateSnapshot);
+                const converted = alternativeCurrency !== item.currency && alternativeConversion.converted;
+                return <Pressable key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
+                  <View style={styles.altInfo}><Text style={styles.altMeta}>{regionFlag(item.region)} {regionLabel(item.region)} · {PLATFORM[platformKey(item)]?.label || item.dealer}</Text><Text style={styles.altText}>{formatMoney(item.sale_price, item.currency, item.symbol)}{converted ? ` · ${formatOriginalMoney(item.sale_price, item.currency, item.symbol)}` : ''}</Text></View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                </Pressable>;
+              })}
             </View>
+          ) : comparisonUnavailable ? (
+            <Text style={styles.muted}>{t('product.comparisonUnavailable')}</Text>
           ) : (
             <Text style={styles.muted}>{t('product.noCheaper')}</Text>
           )}
         </View>
 
       </ScrollView>
-        <View style={styles.actions}>
+        <View style={[styles.actions, { paddingBottom: Math.max(10, insets.bottom) }]}>
           <Pressable
             style={[styles.actionButton, styles.alertButton]}
             onPress={async () => {
@@ -221,7 +254,7 @@ export default function ProductDetailScreen() {
             <Text style={styles.alertText}>{t('product.alert')}</Text>
           </Pressable>
           <Pressable style={[styles.actionButton, styles.buyButton]} onPress={() => openBuyUrl(currentProduct.url)}>
-            <Text style={styles.buyText}>{t('product.buy')}</Text>
+            <Text style={styles.buyText} numberOfLines={2}>{t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })}</Text>
             <Ionicons name="open-outline" size={18} color={colors.onPill} />
           </Pressable>
         </View>
@@ -455,15 +488,22 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     fontWeight: '700',
   },
   alternatives: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    width: '100%',
     gap: 8,
   },
   altPill: {
     minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
+  altInfo: { flex: 1, gap: 3 },
+  altMeta: { color: colors.muted, fontSize: 11.5, fontWeight: '700' },
   altText: {
     color: colors.ink,
     fontFamily: typography.mono,

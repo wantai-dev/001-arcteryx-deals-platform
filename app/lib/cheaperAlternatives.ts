@@ -17,6 +17,21 @@ function comparablePrice(product: Product, referenceCurrency: string, snapshot: 
   return (product.sale_price / Number(sourceRate)) * Number(referenceRate);
 }
 
+function isAlternativeCandidate(candidate: Product, product: Product) {
+  return candidate._brand === product._brand
+    && candidate.model === product.model
+    && candidate.sku_id !== product.sku_id
+    && candidate.region !== product.region
+    && validPrice(candidate.sale_price);
+}
+
+export function hasUncomparableRegionalOffer(
+  products: Product[], product: Product, snapshot: RateSnapshot | null,
+) {
+  return products.some((candidate) => isAlternativeCandidate(candidate, product)
+    && comparablePrice(candidate, product.currency, snapshot) === null);
+}
+
 export function findCheaperAlternatives(
   products: Product[],
   product: Product,
@@ -28,12 +43,7 @@ export function findCheaperAlternatives(
 
   const byRegion = new Map<string, { product: Product; price: number }>();
   for (const candidate of products) {
-    if (
-      candidate._brand !== product._brand
-      || candidate.model !== product.model
-      || candidate.sku_id === product.sku_id
-      || candidate.region === product.region
-    ) {
+    if (!isAlternativeCandidate(candidate, product)) {
       continue;
     }
 

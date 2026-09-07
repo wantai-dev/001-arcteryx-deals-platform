@@ -7,6 +7,7 @@ import type { CatalogProduct, Product, WatchEntry } from '../lib/types';
 import {
   activeAlertCount,
   type AlertDraft,
+  clearMatchingUnconfirmedEmail,
   entryIdForModel,
   FREE_ALERT_LIMIT,
   FREE_WATCHLIST_LIMIT,
@@ -31,6 +32,7 @@ type WatchlistContextValue = {
   saveAlert: (entryId: string, draft: AlertDraft) => Promise<boolean>;
   saveAlertForSource: (source: Product | CatalogProduct, scope: 'sku' | 'model', draft: AlertDraft, resolvedOffers?: Product[]) => Promise<boolean>;
   removeAlert: (entryId: string) => Promise<void>;
+  clearUnconfirmedEmail: (entryId: string, draft: AlertDraft) => Promise<void>;
   setAlertTarget: (product: Product, target: number | null) => Promise<void>;
   remove: (skuIdOrEntryId: string) => Promise<void>;
   removeEntry: (entryId: string) => Promise<void>;
@@ -115,6 +117,11 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
     value: undefined,
   })), [mutate]);
 
+  const clearUnconfirmedEmail = useCallback((entryId: string, draft: AlertDraft) => mutate(async (current) => ({
+    entries: clearMatchingUnconfirmedEmail(current, entryId, draft),
+    value: undefined,
+  })), [mutate]);
+
   const setAlertTarget = useCallback(
     async (product: Product, target: number | null) => {
       await mutate(async (current) => {
@@ -171,11 +178,12 @@ export function WatchlistProvider({ children }: PropsWithChildren) {
       saveAlert,
       saveAlertForSource,
       removeAlert,
+      clearUnconfirmedEmail,
       setAlertTarget,
       remove,
       removeEntry,
     }),
-    [entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, removeEntry, saveAlert, saveAlertForSource, setAlertTarget, toggle, toggleModel],
+    [clearUnconfirmedEmail, entries, getEntry, getModelEntry, hydrated, isModelSaved, isSaved, remove, removeAlert, removeEntry, saveAlert, saveAlertForSource, setAlertTarget, toggle, toggleModel],
   );
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;

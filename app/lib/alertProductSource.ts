@@ -64,10 +64,10 @@ export async function fetchPriceCandidates(entries: WatchEntry[]): Promise<Price
     if (row.sku_id) deduped.set(row.sku_id, row);
   }
   const products = visibleProducts([...deduped.values()]);
-  const resolvedModelBySku = resolveCurrentModelSkus(
+  const modelResolution = resolveCurrentModelSkus(
     entries, catalog.filter((item) => watchedBrands.includes(item.brand_key)), products,
   );
-  return productsToPriceCandidates(products, resolvedModelBySku);
+  return productsToPriceCandidates(products, modelResolution);
 }
 
 export async function readCachedRateSnapshot(): Promise<CurrencyRateSnapshot | null> {

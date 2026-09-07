@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { findCheaperAlternatives } from '../lib/cheaperAlternatives';
+import { findCheaperAlternatives, hasUncomparableRegionalOffer } from '../lib/cheaperAlternatives';
 import type { RateSnapshot } from '../lib/currency';
 import { product } from './helpers';
 
@@ -60,7 +60,13 @@ test('missing, non-finite, or non-positive exchange rates never produce a cross-
   ];
   for (const snapshot of invalidSnapshots) {
     assert.deepEqual(findCheaperAlternatives([dieneCanada, foreign], dieneCanada, snapshot), []);
+    assert.equal(hasUncomparableRegionalOffer([dieneCanada, foreign], dieneCanada, snapshot), true);
   }
+});
+
+test('same-currency peers do not make the comparison status unavailable without FX', () => {
+  const peer = product({ sku_id: 'peer', model: 'Diene Shirt LS', region: 'us', currency: 'CAD', sale_price: 200 });
+  assert.equal(hasUncomparableRegionalOffer([dieneCanada, peer], dieneCanada, null), false);
 });
 
 test('same-currency offers remain comparable without rates and ties sort deterministically', () => {

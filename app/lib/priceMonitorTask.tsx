@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as BackgroundTask from 'expo-background-task';
+import { getLocales } from 'expo-localization';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { useEffect } from 'react';
@@ -14,10 +15,11 @@ import { watchlistStore } from './watchlistRuntimeStore';
 import { watchCopy } from './watchI18n';
 import type { AppLanguage } from './i18n';
 import { migratePreferences, PREFERENCES_V1_KEY, PREFERENCES_V2_KEY, REGION_V1_KEY } from './preferences';
+import { resolveLanguage } from './i18n';
+import { createQueuedSingleFlight } from './queuedSingleFlight';
 
 export const PRICE_MONITOR_TASK = 'geardrop-local-price-monitor-v1';
 type MonitorOutcome = { checked: number; notified: number; skipped?: 'web' | 'disabled' | 'permission' };
-let activeRun: Promise<MonitorOutcome> | null = null;
 
 async function runtimePreferences() {
   try {
@@ -29,7 +31,7 @@ async function runtimePreferences() {
     const value = migratePreferences(v2Raw, v1Raw, regionRaw);
     return {
       enabled: value.notificationsEnabled,
-      language: value.language && value.language !== 'system' ? value.language : 'en' as AppLanguage,
+      language: resolveLanguage(value.language, getLocales()[0]?.languageCode),
     };
   } catch {
     return { enabled: false, language: 'en' as AppLanguage };
@@ -72,10 +74,9 @@ async function executePriceMonitor(languageOverride?: AppLanguage): Promise<Moni
   return { checked: candidates.length, notified: evaluated.events.length - failed.size };
 }
 
-export function runPriceMonitor(language?: AppLanguage) {
-  if (!activeRun) activeRun = executePriceMonitor(language).finally(() => { activeRun = null; });
-  return activeRun;
-}
+const queuedMonitor = createQueuedSingleFlight((language?: AppLanguage) => executePriceMonitor(language));
+
+export function runPriceMonitor(language?: AppLanguage) { return queuedMonitor(language); }
 
 if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(PRICE_MONITOR_TASK)) {
   TaskManager.defineTask(PRICE_MONITOR_TASK, async () => {

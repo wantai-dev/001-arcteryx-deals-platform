@@ -1,13 +1,18 @@
-import { modelKeyForCatalogProduct, modelKeyForProduct } from './modelWatch';
+import { modelIdentity, modelKeyForCatalogProduct, modelKeyForProduct } from './modelWatch';
 import type { CatalogProduct, Product, WatchEntry } from './types';
 import { indexYearbookDeals } from './yearbook';
+
+export type CurrentModelSkuResolution = {
+  modelBySku: Map<string, string>;
+  catalogRejectedSkuIds: Set<string>;
+};
 
 /** Rebuild model membership from the current authoritative catalog and deal rows. */
 export function resolveCurrentModelSkus(
   entries: WatchEntry[], catalog: CatalogProduct[], deals: Product[],
-): Map<string, string> {
+): CurrentModelSkuResolution {
   const modelEntries = entries.filter((entry) => entry.scope === 'model' && entry.modelKey);
-  if (!modelEntries.length) return new Map();
+  if (!modelEntries.length) return { modelBySku: new Map(), catalogRejectedSkuIds: new Set() };
   const dealIndex = indexYearbookDeals(catalog, deals);
   const catalogsByModelKey = new Map<string, CatalogProduct[]>();
   for (const item of catalog) {
@@ -35,5 +40,21 @@ export function resolveCurrentModelSkus(
       claims.set(deal.sku_id, values);
     }
   }
-  return new Map([...claims].flatMap(([skuId, keys]) => keys.size === 1 ? [[skuId, [...keys][0]!] as const] : []));
+  const modelBySku = new Map([...claims].flatMap(([skuId, keys]) => keys.size === 1 ? [[skuId, [...keys][0]!] as const] : []));
+  const watchedFallbackKeys = new Set(modelEntries
+    .map((entry) => entry.modelKey!)
+    .filter((key) => key.includes(':fallback:')));
+  const catalogIdentities = catalog.map((item) => modelIdentity(item)).filter(Boolean);
+  const catalogRejectedSkuIds = new Set(dealIndex.unmatched
+    .filter((deal) => {
+      const key = modelKeyForProduct(deal);
+      const identity = modelIdentity(deal);
+      if (!key || !identity || !watchedFallbackKeys.has(key)) return false;
+      return catalogIdentities.some((catalogIdentity) => catalogIdentity
+        && catalogIdentity.brand === identity.brand
+        && catalogIdentity.normalizedName === identity.normalizedName
+        && catalogIdentity.gender === identity.gender);
+    })
+    .map((deal) => deal.sku_id));
+  return { modelBySku, catalogRejectedSkuIds };
 }

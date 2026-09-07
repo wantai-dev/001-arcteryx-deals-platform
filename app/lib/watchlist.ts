@@ -241,6 +241,22 @@ export function saveEntryAlert(
   return { accepted: true, entries: next };
 }
 
+export function clearMatchingUnconfirmedEmail(
+  entries: WatchEntry[], entryId: string, draft: AlertDraft,
+) {
+  const normalizedEmail = draft.email?.trim().toLowerCase();
+  return entries.map((entry) => {
+    const alert = entry.id === entryId ? entry.alert : undefined;
+    if (!alert || !normalizedEmail
+      || alert.mode !== draft.mode
+      || alert.targetAmount !== draft.targetAmount
+      || alert.targetCurrency !== draft.targetCurrency.toUpperCase()
+      || alert.localEnabled !== draft.localEnabled
+      || alert.email !== normalizedEmail) return entry;
+    return { ...entry, alert: { ...alert, email: undefined } };
+  });
+}
+
 export function saveSourceAlert(
   entries: WatchEntry[], source: ModelWatchSource, scope: 'sku' | 'model', draft: AlertDraft,
   isPro: boolean, resolvedOffers: Product[] = [], nowIso = new Date().toISOString(),

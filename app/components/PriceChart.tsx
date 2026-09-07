@@ -112,13 +112,16 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
   },
   legend: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.hair,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   legendText: {
+    flexShrink: 1,
     color: colors.muted,
     fontSize: 11.5,
     fontWeight: '700',

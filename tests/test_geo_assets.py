@@ -77,12 +77,69 @@ class GeoAssetTests(unittest.TestCase):
         )
 
     def test_generated_knowledge_pages_match_the_source(self):
-        content = json.loads((ROOT / "geo" / "site-content.json").read_text(encoding="utf-8"))
+        content = self.content_module.load_content()
         outputs = self.content_module.build_outputs(content)
         self.assertGreaterEqual(len(outputs), 20)
         for path, expected in outputs.items():
             self.assertTrue(path.exists(), path)
             self.assertEqual(path.read_text(encoding="utf-8"), expected, path)
+
+    def test_intent_pages_are_bilingual_indexable_and_discoverable(self):
+        pairs = (
+            (
+                "guides/outdoor-deal-aggregators.html",
+                "en/guides/outdoor-deal-aggregators.html",
+            ),
+            (
+                "guides/retailer-price-history.html",
+                "en/guides/retailer-price-history.html",
+            ),
+            (
+                "guides/compare-outdoor-gear-prices-across-countries.html",
+                "en/guides/compare-outdoor-gear-prices-across-countries.html",
+            ),
+            (
+                "guides/patagonia-sale-alerts.html",
+                "en/guides/patagonia-sale-alerts.html",
+            ),
+        )
+        base_url = "https://geardrop.100app.dev"
+        sitemap = (ROOT / "sitemap-static.xml").read_text(encoding="utf-8")
+        llms = (ROOT / "llms.txt").read_text(encoding="utf-8")
+        llms_full = (ROOT / "llms-full.txt").read_text(encoding="utf-8")
+
+        for zh_path, en_path in pairs:
+            zh_url = f"{base_url}/{zh_path}"
+            en_url = f"{base_url}/{en_path}"
+            for page_path, canonical in ((zh_path, zh_url), (en_path, en_url)):
+                source = (ROOT / page_path).read_text(encoding="utf-8")
+                self.assertIn('<meta name="robots" content="index,follow', source)
+                self.assertIn(f'<link rel="canonical" href="{canonical}">', source)
+                self.assertIn(f'hreflang="zh-CN" href="{zh_url}"', source)
+                self.assertIn(f'hreflang="en-US" href="{en_url}"', source)
+                self.assertIn(f'hreflang="x-default" href="{zh_url}"', source)
+                match = re.search(
+                    r'<script type="application/ld\+json">\s*(.*?)\s*</script>',
+                    source,
+                    re.DOTALL,
+                )
+                self.assertIsNotNone(match, page_path)
+                graph = json.loads(match.group(1))["@graph"]
+                types = {item["@type"] for item in graph}
+                self.assertTrue({"Article", "BreadcrumbList"} <= types, page_path)
+                article = next(item for item in graph if item["@type"] == "Article")
+                self.assertEqual(len(article["mainEntity"]), 3, page_path)
+
+            self.assertIn(zh_url, sitemap)
+            self.assertIn(en_url, sitemap)
+            self.assertIn(zh_url, llms)
+            self.assertIn(en_url, llms)
+            self.assertIn(zh_url, llms_full)
+            self.assertIn(en_url, llms_full)
+
+        about = (ROOT / "about.html").read_text(encoding="utf-8")
+        for zh_path, _ in pairs:
+            self.assertIn(f'href="/{zh_path}"', about)
 
     def test_local_geo_readiness_contract_passes(self):
         rows = [
@@ -230,6 +287,32 @@ class GeoAssetTests(unittest.TestCase):
         self.assertEqual(second.count('<article class="deal-card">'), 1)
         self.assertIn('https://geardrop.100app.dev/brands/arcteryx/page/2.html', sitemap)
         self.assertIn('"@type": "ItemList"', first)
+        self.assertIn('href="/guides/outdoor-deal-aggregators.html"', first)
+        self.assertIn('href="/guides/retailer-price-history.html"', first)
+        self.assertNotIn('href="/guides/retailer-price-history.html"', second)
+
+    def test_patagonia_hubs_prioritize_the_matching_alert_guide(self):
+        hub = next(
+            item
+            for item in self.catalog_module.hub_definitions()
+            if item["kind"] == "brand" and item["value"] == "patagonia"
+        )
+        zh = self.catalog_module.render_deal_hub(
+            hub, [indexable_row("p-1", brand="patagonia")], 1, "zh-CN"
+        )
+        en = self.catalog_module.render_deal_hub(
+            hub, [indexable_row("p-1", brand="patagonia")], 1, "en-US"
+        )
+        zh_guides = zh.split("<h2>问题指南</h2>", 1)[1]
+        en_guides = en.split("<h2>Answer guides</h2>", 1)[1]
+        self.assertLess(
+            zh_guides.index('/guides/patagonia-sale-alerts.html'),
+            zh_guides.index('/guides/outdoor-deal-aggregators.html'),
+        )
+        self.assertLess(
+            en_guides.index('/en/guides/patagonia-sale-alerts.html'),
+            en_guides.index('/en/guides/outdoor-deal-aggregators.html'),
+        )
 
     def test_deal_hubs_collapse_regional_duplicates_and_report_offer_coverage(self):
         us = indexable_row("same-us", region="us")
@@ -397,6 +480,10 @@ class GeoAssetTests(unittest.TestCase):
             "/methodology.html",
             "/faq.html",
             "/guides/outdoor-deal-guide.html",
+            "/guides/outdoor-deal-aggregators.html",
+            "/guides/retailer-price-history.html",
+            "/guides/compare-outdoor-gear-prices-across-countries.html",
+            "/guides/patagonia-sale-alerts.html",
             "/brands/arcteryx.html",
             "/brands/burton.html",
             "/brands/patagonia.html",

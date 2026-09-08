@@ -11,10 +11,10 @@ on:
         type: boolean
         default: false
       dealers:
-        description: "Optional comma-separated revalidation subset: evo,mec,rei"
+        description: "Comma-separated revalidation subset on GitHub-hosted egress: evo,mec"
         required: false
         type: string
-        default: ""
+        default: "evo,mec"
       sku_ids:
         description: "Optional comma-separated exact SKU allowlist (maximum 100)"
         required: false
@@ -33,7 +33,7 @@ env:
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   GITHUB_TOKEN: ${{ github.token }}
   REI_BROWSER_ROTATE_ROWS: "5"
-  REVALIDATE_DEALERS: ${{ inputs.dealers }}
+  REVALIDATE_DEALERS: ${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}
   REVALIDATE_SKU_IDS: ${{ inputs.sku_ids }}
   REVALIDATE_MAX_ROWS_PER_DEALER: ${{ github.event_name == 'schedule' && '50' || '' }}
 
@@ -46,6 +46,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Reject unsupported dealer egress
+        env:
+          REQUESTED_DEALERS: ${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}
+        run: |
+          test -n "$REQUESTED_DEALERS"
+          IFS=',' read -ra requested_dealers <<< "$REQUESTED_DEALERS"
+          for dealer in "${requested_dealers[@]}"; do
+            case "$dealer" in
+              evo|mec) ;;
+              rei)
+                echo "::error::REI PDP access is unavailable from GitHub-hosted egress. Use the lease-protected direct-server server_run_revalidate.sh path."
+                exit 1
+                ;;
+              *)
+                echo "::error::Unsupported dealer for this workflow: $dealer"
+                exit 1
+                ;;
+            esac
+          done
 
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +89,7 @@ jobs:
 
       - name: Repair derived dealer discounts
         run: |
-          python tools/repair_dealer_discounts.py --dealer mec --dealer evo --dealer rei
+          python tools/repair_dealer_discounts.py --dealer mec --dealer evo
 
       - id: revalidate
         name: Revalidate known dealer URLs

@@ -79,7 +79,28 @@ class WorkflowGuardTests(unittest.TestCase):
             "${{ github.event_name == 'schedule' && '50' || '' }}",
             workflow,
         )
+        self.assertIn(
+            "REVALIDATE_DEALERS: "
+            "${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}",
+            workflow,
+        )
         self.assertIn("REVALIDATE_SKU_IDS: ${{ inputs.sku_ids }}", workflow)
+
+    def test_revalidation_refuses_rei_before_any_production_write(self):
+        workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(
+            encoding="utf-8"
+        )
+        guard = workflow.index("name: Reject unsupported dealer egress")
+        repair = workflow.index("name: Repair derived dealer discounts")
+        revalidate = workflow.index("name: Revalidate known dealer URLs")
+        self.assertLess(guard, repair)
+        self.assertLess(guard, revalidate)
+        self.assertIn("REI PDP access is unavailable from GitHub-hosted egress", workflow)
+        self.assertIn('default: "evo,mec"', workflow)
+        self.assertNotIn(
+            "repair_dealer_discounts.py --dealer mec --dealer evo --dealer rei",
+            workflow,
+        )
 
     def test_revalidation_preserves_failure_without_fresh_runner_retries(self):
         workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(

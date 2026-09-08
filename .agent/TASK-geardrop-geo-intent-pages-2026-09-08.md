@@ -1,24 +1,25 @@
-# TASK: GearDrop 非品牌意图答案页（更新：2026-09-08）
+# TASK: GearDrop 非品牌意图答案页（更新：2026-09-09）
 
 ## Why（一句话）
 
 让 GearDrop 对“户外折扣聚合、跨商家价格历史、跨地区比价、Patagonia 降价提醒”四类非品牌问题提供可抓取、可引用且不夸大能力的中英答案，从而提升搜索与 AI 候选集覆盖。
 
-## 当前状态：实现与验收完成，Draft PR #38 待审阅；生产未发布
+## 当前状态：PR #38 已合并并发布；生产验收通过
 
 ## 已确认事实
 
-- 当前隔离工作树基于 `origin/main@aca19eb`，分支为 `codex/geardrop-geo-intent-pages-20260908`；来源：本轮 `git fetch origin`、`git worktree add` 输出。
+- 实现工作位于隔离工作树和分支 `codex/geardrop-geo-intent-pages-20260908`，没有改动原主工作区的未提交文件；来源：本轮 `git worktree` 与 `git status` 输出。
 - 公共知识页以 `geo/site-content.json` 为内容正本，由 `tools/build_geo_content.py::build_outputs` 生成 HTML、`llms.txt`、`llms-full.txt`、`sitemap-static.xml`、`sitemap.xml` 和 `robots.txt`；来源：本轮亲读 `tools/build_geo_content.py:556-573`。
 - 生成页已统一输出 index/follow、self-canonical、zh-CN/en-US/x-default hreflang、Organization/WebSite/SoftwareApplication/页面/Breadcrumb JSON-LD；来源：本轮亲读 `tools/build_geo_content.py:146-222,315-414`。
 - 动态品牌与品类聚合页由 `tools/generate_geo_catalog.py::render_deal_hub` 生成，并会覆盖代码仓库中的品牌模板；来源：本轮亲读 `tools/generate_geo_catalog.py:894-1008` 与 `build_outputs:1167-1201`。
 - 当前 iPhone App 源码与元数据明确包含价格历史、收藏和价格提醒；免费/Pro 边界、后台时机和实时性都有保守说明；来源：本轮 `rg` 命中 `app/lib/historyData.ts`、`app/lib/priceAlerts.ts`、`app/store-metadata/next-version.json`。
 - 2026-09-08 基线中，ChatGPT 非品牌自然提及为美国 1/10、中国 0/10；缺口集中在本任务四类意图；来源：主工作区 `.agent/TASK-indexing-visibility-followup-2026-09-08.md` 与最终报告。
 
-## 假设
+## 假设与边界
 
-- “开始优化”本阶段先落实站内内容、结构化数据、内链与 discovery 文件，并准备可审阅分支；生产发布作为独立最终动作，在本地和浏览器验收通过后再执行。
 - 四组答案页各生成 zh-CN 与 en-US 一页，共 8 个新 canonical URL；不写实时商品数量，不声称 GearDrop 获得品牌授权、搜索收录或 AI 推荐。
+- IndexNow 的 HTTP 200 只表示提交被接口接受，不能证明搜索引擎已收录、获得排名或产生 AI 自然提及。
+- 本轮不测 AI 可见度；后续固定问题复测中的 ChatGPT 只能通过 OCI 专用测试环境运行，排除 Perplexity，不能使用用户个人 ChatGPT 账号。
 
 ## 验收标准
 
@@ -40,14 +41,21 @@
 - 定向 `test_geo_assets.py` 为 `Ran 23 tests ... OK`；全量 Python 为 `Ran 270 tests ... OK`。
 - 本地 Chrome 浏览器验收覆盖 8 页 × 桌面/手机共 16 个组合：HTTP 状态仅 200、最大横向溢出 0、console/page error 0、每页 1 个可解析 JSON-LD 块且 Article 含 3 个 Question；从这些页面发现的 25 个站内链接在叠加动态快照后全部返回 200。证据在本工作树 `.agent/browser-qa/`，不纳入代码提交。
 - 目检发现旧 `.link-list a` 触控规则使卡片标题与说明横排，已在 `assets/geo.css` 修为纵向排列并重新验收。
-- 实现提交为 `f869da0510590eeacd9fcde470090be075e19983`，已推送到 `wantai-dev` 私有仓库分支 `codex/geardrop-geo-intent-pages-20260908`；Draft PR 为 `https://github.com/wantai-dev/001-arcteryx-deals-platform/pull/38`，创建后回读为 `OPEN / draft / mergeStateStatus=CLEAN`。
-- 已从实现提交构建代码发布包：`static_files=51 / compressed_files=37`；发布包内 8 个新页面逐一存在，均含 `index,follow` 和 JSON-LD。生产未发布，未声称收录、排名或 AI 可见度已改善。
+- 实现提交为 `f869da0510590eeacd9fcde470090be075e19983`；PR #38 已转为 ready 并 squash 合并，生产代码提交为 `97c79f35530e0c3a787e3c02e84c6c0f8597eb96`，合并时间为 `2026-09-08T15:56:18Z`。
+- 正式直连生产服务器发布成功：代码发布包为 `static_files=51 / compressed_files=37`，`/srv/geardrop/current/REVISION` 与当前 release 均指向 `97c79f35530e0c3a787e3c02e84c6c0f8597eb96`；产品服务 active。
+- 发布前发现既有 `geardrop-data-sync.service` 因一个历史 release 目录为 root 所有，在保留清理阶段报 `EACCES`。已把该历史目录所有权恢复为 `ec2-user:ec2-user`，重新运行同步后 `Result=success / ExecMainStatus=0`，旧目录按保留策略清除，数据 release 数恢复为 12。
+- 代码发布后的数据同步成功；生产公开状态为代码 `97c79f35530e0c3a787e3c02e84c6c0f8597eb96`、数据 `b725cc4a45046bf5b985`、产物 `4d7cea55c1701b80e8ea`，活跃商品数 `6446`。中英文 Patagonia 动态品牌页均优先出现新提醒专题链接。
+- 生产服务器运行 readiness 原文为 `summary passed=358 failed=0 total=358`、`observed_ai_visibility=not_measured`、`failed_checks=[]`。
+- 生产 Chrome 验收覆盖 8 页 × 桌面/手机共 16 个组合：16/16 HTTP 200，25/25 个发现的站内链接为 200，console/page error 0，横向溢出 0，每页 Article 含 3 个 Question。证据位于 `.agent/browser-qa/production/`，不纳入提交。
+- 对首页、CSS、两份 llms、静态 sitemap 和 8 个新页面做生产与提交文件逐字节核对，结果 `hash_matches=13/13`；sitemap 包含 8/8 个新 URL，首页包含 4/4 个中文意图链接，生产 Patagonia 动态页优先提醒专题。
+- 已从生产服务器提交 8 个新 canonical URL，并按工具约定附带首页，共 9 个 URL；IndexNow 回执为 `http_statuses=[200]`。未声称 Google/Bing 已收录、排名或 AI 可见度已改善。
+- 回滚证据已核对：上一代码 release `aca19eb` 与上一数据 release `d7ee638964d76737164e` 均存在；部署/数据定时器 active，`healthz=ok`，没有 failed GearDrop systemd unit，部署锁与数据锁均空闲。
 
 ## 下一步（按序）
 
-1. 用户审阅 Draft PR #38，并决定是否进入生产发布。
-2. 如获发布指令，先同步最新 `origin/main`、复验并合并 PR，再通过正式 OCI 发布入口部署同一提交。
-3. 发布后运行公网 readiness、8 页桌面/手机抽样与 sitemap 读回，并提交 IndexNow 发现通知；这些回执不能改写成已收录或 AI 可见度增长。
+1. 观察 Google Search Console、Bing Webmaster Tools 的发现、抓取与收录变化，不把提交回执视为收录。
+2. 在第 7 天与第 14 天使用同一组问题复测非品牌 AI 可见度；ChatGPT 仅在 OCI 专用测试环境执行，持续排除 Perplexity，并记录问题、地区、日期与引用 URL。
+3. 根据真实曝光、查询词与引用结果决定下一批专题；当前不需要再次生产发布。
 
 ## 死路
 

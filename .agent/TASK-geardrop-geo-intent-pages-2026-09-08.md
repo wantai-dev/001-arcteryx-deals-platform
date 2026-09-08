@@ -4,7 +4,7 @@
 
 让 GearDrop 对“户外折扣聚合、跨商家价格历史、跨地区比价、Patagonia 降价提醒”四类非品牌问题提供可抓取、可引用且不夸大能力的中英答案，从而提升搜索与 AI 候选集覆盖。
 
-## 当前状态：本地实现与验收完成，待提交审阅分支
+## 当前状态：实现与验收完成，Draft PR #38 待审阅；生产未发布
 
 ## 已确认事实
 
@@ -40,12 +40,14 @@
 - 定向 `test_geo_assets.py` 为 `Ran 23 tests ... OK`；全量 Python 为 `Ran 270 tests ... OK`。
 - 本地 Chrome 浏览器验收覆盖 8 页 × 桌面/手机共 16 个组合：HTTP 状态仅 200、最大横向溢出 0、console/page error 0、每页 1 个可解析 JSON-LD 块且 Article 含 3 个 Question；从这些页面发现的 25 个站内链接在叠加动态快照后全部返回 200。证据在本工作树 `.agent/browser-qa/`，不纳入代码提交。
 - 目检发现旧 `.link-list a` 触控规则使卡片标题与说明横排，已在 `assets/geo.css` 修为纵向排列并重新验收。
+- 实现提交为 `f869da0510590eeacd9fcde470090be075e19983`，已推送到 `wantai-dev` 私有仓库分支 `codex/geardrop-geo-intent-pages-20260908`；Draft PR 为 `https://github.com/wantai-dev/001-arcteryx-deals-platform/pull/38`，创建后回读为 `OPEN / draft / mergeStateStatus=CLEAN`。
+- 已从实现提交构建代码发布包：`static_files=51 / compressed_files=37`；发布包内 8 个新页面逐一存在，均含 `index,follow` 和 JSON-LD。生产未发布，未声称收录、排名或 AI 可见度已改善。
 
 ## 下一步（按序）
 
-1. 复核最终 diff，提交并推送审阅分支。
-2. 从提交构建代码发布包，核对 8 个页面均进入公开 allowlist 产物。
-3. 形成可部署的具体结果；生产发布后再运行公网 readiness、抽样浏览器与 sitemap 读回。
+1. 用户审阅 Draft PR #38，并决定是否进入生产发布。
+2. 如获发布指令，先同步最新 `origin/main`、复验并合并 PR，再通过正式 OCI 发布入口部署同一提交。
+3. 发布后运行公网 readiness、8 页桌面/手机抽样与 sitemap 读回，并提交 IndexNow 发现通知；这些回执不能改写成已收录或 AI 可见度增长。
 
 ## 死路
 

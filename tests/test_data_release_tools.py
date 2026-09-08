@@ -14,6 +14,15 @@ class DataReleaseToolTests(unittest.TestCase):
         script = (root / "ops" / "data" / "sync-data-release.sh").read_text()
         self.assertIn('chmod -R u=rwX,go=rX "$RELEASE"', script)
 
+    def test_data_sync_publishes_receipt_before_housekeeping(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "ops" / "data" / "sync-data-release.sh").read_text()
+        status_write = script.index('mv -f "$STATUS_STAGING" "$DATA_ROOT/status.json"')
+        status_readback = script.index('if [ "$STATUS_REVISION" != "$DATA_REVISION" ]')
+        prune = script.index('prune-data-releases.mjs')
+        self.assertLess(status_write, status_readback)
+        self.assertLess(status_readback, prune)
+
     def test_catalog_and_dealer_snapshots_fail_closed(self):
         self.assertEqual(validate_snapshot("catalog", [{"sku_id": "sku-1"}]), 1)
         self.assertEqual(

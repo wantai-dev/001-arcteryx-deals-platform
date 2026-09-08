@@ -96,8 +96,6 @@ NEXT_LINK="$DATA_ROOT/current.next.$$"
 ln -s "releases/$ARTIFACT_REVISION" "$NEXT_LINK"
 mv -Tf "$NEXT_LINK" "$DATA_ROOT/current"
 
-/usr/bin/node "$SOURCE/ops/data/prune-data-releases.mjs" "$DATA_ROOT" "$KEEP_RELEASES"
-
 STATUS_STAGING=$(mktemp "$DATA_ROOT/.status.XXXXXX")
 rm -f "$STATUS_STAGING"
 /usr/bin/node "$SOURCE/ops/data/write-data-status.mjs" \
@@ -119,5 +117,10 @@ if [ "$STATUS_REVISION" != "$DATA_REVISION" ]; then
   echo "Data status readback mismatch: $STATUS_REVISION != $DATA_REVISION" >&2
   exit 1
 fi
+
+# Pruning is housekeeping, not part of the publication transaction. Keep it
+# after the public pointer and receipt are atomically updated so a pruning
+# failure cannot leave data-status.json behind a newer public manifest.
+/usr/bin/node "$SOURCE/ops/data/prune-data-releases.mjs" "$DATA_ROOT" "$KEEP_RELEASES"
 
 echo "data_current=$DATA_REVISION artifact_current=$ARTIFACT_REVISION code_revision=$CODE_REVISION"

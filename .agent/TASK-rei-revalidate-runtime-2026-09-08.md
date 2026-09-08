@@ -10,11 +10,12 @@ formal production synchronization path.
 
 ## Current status
 
-- State: production repaired, fixed sample replay passed, and unsupported GitHub REI
-  egress is being removed from the scheduled/manual workflow contract.
+- State: complete. Production is repaired, the fixed sample replay passed, unsupported
+  GitHub REI egress is excluded, and automation-5 uses the formal server route.
 - Baseline: `origin/main` at `2ccdeb4b0b068354086c728ead45ad047794ea23`.
 - Branch: `codex/auto-fix-data-health-20260908-rei-runtime`.
 - First repair commit: `9edd8af8593f8a4e93d41ebaed8944409da9f129`.
+- Routing repair commit: `26ed3b3d0d77ceec9b292cc15c0caee21ee72691`.
 - Repair budget: round 2 of 2 for this epoch and failure signature.
 
 ## Verified facts
@@ -59,10 +60,10 @@ formal production synchronization path.
 
 ## Next steps
 
-1. Land the workflow guard that schedules only EVO/MEC and rejects REI before writes.
-2. Synchronize automation-5 so exact REI recovery uses the lease-protected direct-server
-   wrapper and retains the four daily full-audit windows.
-3. Persist final gate evidence in automation memory.
+1. At the next Asia/Taipei 03:00 planned window, run the normal complete quality and
+   fresh 70/10/10/10 audit. No extra probe or write is pending for this epoch.
+2. Do not use GitHub-hosted REI egress unless a future, separately evidenced runtime
+   change restores it; the formal direct-server wrapper remains the production route.
 
 ## Dead ends / prohibited paths
 

@@ -25,6 +25,7 @@ from dealers.revalidate import (
     select_oldest_rows_per_dealer,
     underperforming_dealers,
     update_row,
+    warm_rei_page,
 )
 from dealers.supabase_sync import should_preserve_previous_discount
 
@@ -417,6 +418,110 @@ class DealerRevalidationTests(unittest.TestCase):
                 page.content.assert_not_called()
                 sleep.assert_not_called()
                 self.assertNotIn("sale_price", result)
+
+    def test_rei_revalidation_warms_first_party_home_before_pdp(self):
+        row = {"sku_id": "rei:1", "url": "https://www.rei.com/product/1/a"}
+        page = MagicMock()
+        page.goto.return_value = SimpleNamespace(status=200, headers={})
+        browser = MagicMock()
+        browser.new_page.return_value = page
+        fetch = MagicMock(return_value={
+            "sale_price": 80.0,
+            "original_price": 100.0,
+            "discount_pct": 20,
+        })
+
+        @contextmanager
+        def browser_factory():
+            yield browser
+
+        results = fetch_rei_rows_with_browser_retries(
+            [row], attempts=1, delay=0,
+            browser_context_factory=browser_factory,
+            fetch_fn=fetch, sleep_fn=lambda _seconds: None,
+        )
+
+        page.goto.assert_called_once_with(
+            "https://www.rei.com/",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        fetch.assert_called_once_with(page, row["url"])
+        self.assertEqual(results[0][1]["sale_price"], 80.0)
+
+    def test_rei_warmup_denial_stops_before_any_pdp(self):
+        rows = [
+            {"sku_id": "rei:1", "url": "https://www.rei.com/product/1/a"},
+            {"sku_id": "rei:2", "url": "https://www.rei.com/product/2/b"},
+        ]
+        page = MagicMock()
+        page.goto.return_value = SimpleNamespace(
+            status=403,
+            headers={"retry-after": "3600"},
+        )
+        browser = MagicMock()
+        browser.new_page.return_value = page
+        fetch = MagicMock()
+
+        @contextmanager
+        def browser_factory():
+            yield browser
+
+        results = fetch_rei_rows_with_browser_retries(
+            rows, attempts=3, delay=0,
+            browser_context_factory=browser_factory,
+            fetch_fn=fetch, sleep_fn=lambda _seconds: None,
+        )
+
+        fetch.assert_not_called()
+        self.assertEqual(results[0][1]["_err"], "http_403")
+        self.assertEqual(results[1][1]["_err"], "source_access_deferred")
+        self.assertEqual(results[1][1]["_cause"], "http_403")
+        self.assertEqual(results[1][1]["_retry_after"], "3600")
+
+    def test_rei_later_warmup_denial_preserves_prior_chunk_success(self):
+        rows = [
+            {"sku_id": "rei:1", "url": "https://www.rei.com/product/1/a"},
+            {"sku_id": "rei:2", "url": "https://www.rei.com/product/2/b"},
+        ]
+        pages = []
+        responses = iter([
+            SimpleNamespace(status=200, headers={}),
+            SimpleNamespace(status=403, headers={}),
+        ])
+
+        @contextmanager
+        def browser_factory():
+            page = MagicMock()
+            page.goto.return_value = next(responses)
+            browser = MagicMock()
+            browser.new_page.return_value = page
+            pages.append(page)
+            yield browser
+
+        fetch = MagicMock(return_value={
+            "sale_price": 80.0,
+            "original_price": 100.0,
+            "discount_pct": 20,
+        })
+        results = fetch_rei_rows_with_browser_retries(
+            rows, attempts=1, chunk_size=1, delay=0,
+            browser_context_factory=browser_factory,
+            fetch_fn=fetch, sleep_fn=lambda _seconds: None,
+        )
+
+        self.assertEqual(len(pages), 2)
+        fetch.assert_called_once_with(pages[0], rows[0]["url"])
+        self.assertEqual(results[0][1]["sale_price"], 80.0)
+        self.assertEqual(results[1][1]["_err"], "http_403")
+
+    def test_rei_warmup_reports_navigation_failure(self):
+        page = MagicMock()
+        page.goto.side_effect = RuntimeError("network reset")
+
+        result = warm_rei_page(page, sleep_fn=lambda _seconds: None)
+
+        self.assertIn("warmup RuntimeError", result["_err"])
 
     def test_rei_rate_limit_preserves_success_and_defers_later_chunks(self):
         rows = [{"sku_id": f"rei:{i}", "url": f"https://www.rei.com/product/{i}/item"} for i in range(4)]

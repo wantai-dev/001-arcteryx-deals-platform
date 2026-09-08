@@ -47,6 +47,14 @@ class ServerRunLeaseTests(unittest.TestCase):
                     (PROJECT / filename).read_text(),
                 )
 
+    def test_primary_revalidation_rotates_a_bounded_dealer_cohort(self):
+        script = (PROJECT / "server_run_revalidate.sh").read_text()
+        self.assertIn(
+            'REVALIDATE_MAX_ROWS_PER_DEALER="${REVALIDATE_MAX_ROWS_PER_DEALER:-50}"',
+            script,
+        )
+        self.assertIn("export REVALIDATE_MAX_ROWS_PER_DEALER", script)
+
 
 if __name__ == "__main__":
     unittest.main()

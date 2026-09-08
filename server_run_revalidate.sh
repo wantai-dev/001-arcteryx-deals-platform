@@ -22,6 +22,7 @@ export SUPABASE_KEY
 export FEISHU_APP_ID="${FEISHU_APP_ID:-}"
 export FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}"
 export FEISHU_CHAT_ID="${FEISHU_CHAT_ID:-}"
+export REVALIDATE_MAX_ROWS_PER_DEALER="${REVALIDATE_MAX_ROWS_PER_DEALER:-50}"
 
 cd "$PROJ_DIR"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
@@ -49,6 +50,7 @@ finish_lease() {
 trap finish_lease EXIT
 
 log "===== REVALIDATE START ====="
+log "bounded cohort: maximum $REVALIDATE_MAX_ROWS_PER_DEALER rows per dealer unless an exact SKU allowlist is supplied"
 git fetch origin main 2>&1 | tee -a "$LOG"
 git reset --hard origin/main 2>&1 | tee -a "$LOG"
 

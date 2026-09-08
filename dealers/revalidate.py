@@ -518,16 +518,9 @@ def fetch_rei_pdp(page, url: str) -> dict | None:
     """Read legacy/current buy-box prices, stopping on access restrictions."""
     try:
         response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        status = getattr(response, "status", None)
-        if status in (401, 403, 429):
-            headers = getattr(response, "headers", {}) or {}
-            return {
-                "_err": f"http_{status}",
-                "_http_status": status,
-                "_retry_after": str(headers.get("retry-after", ""))[:100],
-            }
-        if isinstance(status, int) and status >= 500:
-            return {"_err": f"http_{status}"}
+        response_error = _rei_response_error(response)
+        if response_error:
+            return response_error
         time.sleep(2)
     except Exception as e:
         return {"_err": _format_error("goto", e)}
@@ -774,6 +767,44 @@ def _rei_access_restricted(result: dict | None) -> bool:
     }
 
 
+def _rei_response_error(response) -> dict | None:
+    """Classify an REI navigation response without reading a challenge body."""
+    status = getattr(response, "status", None)
+    if status in (401, 403, 429):
+        headers = getattr(response, "headers", {}) or {}
+        return {
+            "_err": f"http_{status}",
+            "_http_status": status,
+            "_retry_after": str(headers.get("retry-after", ""))[:100],
+        }
+    if isinstance(status, int) and status >= 500:
+        return {"_err": f"http_{status}"}
+    return None
+
+
+def warm_rei_page(page, *, sleep_fn=None) -> dict | None:
+    """Establish REI's first-party browser session before opening a PDP.
+
+    The price-audit path already follows this sequence. Keep the warm-up bounded
+    to one official homepage navigation and surface access denial immediately so
+    callers can stop without touching any PDPs.
+    """
+    sleep_fn = sleep_fn or time.sleep
+    try:
+        response = page.goto(
+            "https://www.rei.com/",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+    except Exception as exc:
+        return {"_err": _format_error("warmup", exc)}
+    response_error = _rei_response_error(response)
+    if response_error:
+        return response_error
+    sleep_fn(2)
+    return None
+
+
 def _rei_browser_is_poisoned(result: dict | None) -> bool:
     """An unstable document may require a fresh browser for network recovery."""
     error = str((result or {}).get("_err") or "")
@@ -820,6 +851,40 @@ def fetch_rei_rows_with_browser_retries(
             try:
                 with browser_context_factory() as browser:
                     page = browser.new_page()
+                    warm_result = warm_rei_page(page, sleep_fn=sleep_fn)
+                    if warm_result:
+                        if _rei_access_restricted(warm_result):
+                            print(
+                                f"  [rei] source restricted during warm-up "
+                                f"({warm_result['_err']}); remaining requests stopped; "
+                                f"Retry-After="
+                                f"{warm_result.get('_retry_after') or 'unspecified'}",
+                                flush=True,
+                            )
+                            restricted_sku_id = chunk[0]["sku_id"] if chunk else None
+                            return [
+                                (
+                                    item,
+                                    final_results.get(item["sku_id"], {
+                                        "_err": (
+                                            warm_result["_err"]
+                                            if item["sku_id"] == restricted_sku_id
+                                            else "source_access_deferred"
+                                        ),
+                                        "_cause": warm_result["_err"],
+                                        "_retry_after": warm_result.get(
+                                            "_retry_after", ""
+                                        ),
+                                    }),
+                                )
+                                for item in rows
+                            ]
+                        for row in chunk:
+                            sku_id = row["sku_id"]
+                            retry_rows.append(row)
+                            retry_ids.add(sku_id)
+                            last_results[sku_id] = warm_result
+                        continue
                     for index, row in enumerate(chunk):
                         sku_id = row["sku_id"]
                         result = fetch_fn(page, row["url"])

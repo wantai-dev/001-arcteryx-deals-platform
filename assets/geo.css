@@ -481,6 +481,11 @@ h1 {
 }
 .site-nav a,
 .footer-links a { padding: 0 4px; }
+.link-list a {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+}
 
 @media (max-width: 760px) {
     .header-inner { width: min(100% - 28px, 1120px); min-height: 64px; }

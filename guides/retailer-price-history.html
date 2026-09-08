@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#17372F">
+    <title>跨商家价格历史怎么比较｜GearDrop 数据指南</title>
+    <meta name="description" content="解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。">
+    <meta name="author" content="GearDrop">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://geardrop.100app.dev/guides/retailer-price-history.html">
+    <link rel="alternate" hreflang="zh-CN" href="https://geardrop.100app.dev/guides/retailer-price-history.html">
+    <link rel="alternate" hreflang="en-US" href="https://geardrop.100app.dev/en/guides/retailer-price-history.html">
+    <link rel="alternate" hreflang="x-default" href="https://geardrop.100app.dev/guides/retailer-price-history.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GearDrop">
+    <meta property="og:title" content="跨商家价格历史怎么比较｜GearDrop 数据指南">
+    <meta property="og:description" content="解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。">
+    <meta property="og:url" content="https://geardrop.100app.dev/guides/retailer-price-history.html">
+    <meta property="og:locale" content="zh_CN">
+    <meta property="og:image" content="https://geardrop.100app.dev/assets/brand/geardrop-og.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="跨商家价格历史怎么比较｜GearDrop 数据指南">
+    <meta name="twitter:description" content="解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。">
+    <meta name="twitter:image" content="https://geardrop.100app.dev/assets/brand/geardrop-og.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/assets/geo.css">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://geardrop.100app.dev/#organization",
+      "name": "GearDrop",
+      "alternateName": "GearDrop Outdoor Deals",
+      "url": "https://geardrop.100app.dev/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://geardrop.100app.dev/assets/brand/icon-512.png"
+      },
+      "description": "独立的户外品牌折扣发现与价格追踪服务，聚合 Arc'teryx、Burton、Patagonia 的官方奥莱及经销商公开信息。",
+      "disambiguatingDescription": "Independent outdoor deal discovery and price-tracking service at geardrop.100app.dev; not a retailer, rental marketplace, giveaway game, or an official site of the tracked brands.",
+      "publishingPrinciples": "https://geardrop.100app.dev/methodology.html",
+      "sameAs": [
+        "https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://geardrop.100app.dev/#website",
+      "url": "https://geardrop.100app.dev/",
+      "name": "GearDrop",
+      "alternateName": "GearDrop Outdoor Deals",
+      "description": "独立的户外品牌折扣发现与价格追踪服务，聚合 Arc'teryx、Burton、Patagonia 的官方奥莱及经销商公开信息。",
+      "inLanguage": [
+        "zh-CN",
+        "en-US"
+      ],
+      "publisher": {
+        "@id": "https://geardrop.100app.dev/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://geardrop.100app.dev/#ios-app",
+      "name": "GearDrop: Outdoor Deals",
+      "operatingSystem": "iOS",
+      "applicationCategory": "ShoppingApplication",
+      "url": "https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332",
+      "downloadUrl": "https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332",
+      "publisher": {
+        "@id": "https://geardrop.100app.dev/#organization"
+      }
+    },
+    {
+      "@type": "Article",
+      "@id": "https://geardrop.100app.dev/guides/retailer-price-history.html#webpage",
+      "url": "https://geardrop.100app.dev/guides/retailer-price-history.html",
+      "name": "跨商家价格历史怎么比较｜GearDrop 数据指南",
+      "description": "解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。",
+      "inLanguage": "zh-CN",
+      "isPartOf": {
+        "@id": "https://geardrop.100app.dev/#website"
+      },
+      "publisher": {
+        "@id": "https://geardrop.100app.dev/#organization"
+      },
+      "breadcrumb": {
+        "@id": "https://geardrop.100app.dev/guides/retailer-price-history.html#breadcrumb"
+      },
+      "dateModified": "2026-09-08",
+      "headline": "怎样查看并比较不同商家的价格历史？",
+      "datePublished": "2026-09-08",
+      "author": {
+        "@id": "https://geardrop.100app.dev/#organization"
+      },
+      "mainEntityOfPage": {
+        "@id": "https://geardrop.100app.dev/guides/retailer-price-history.html#webpage"
+      },
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "不同商家同名商品可以直接合并价格历史吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不可以。先确认款号、版本、性别、颜色和地区；无法可靠对应时，应保留为独立记录。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "历史最低价代表现在一定值得买吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不代表。它只描述现有观察窗口，还要检查库存尺码、销售条件、总成本和退货政策。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "为什么某件商品没有价格历史？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "可能是刚开始追踪、历史点不足、来源失效或商品身份无法稳定匹配；缺少历史不等于没有折扣。"
+          }
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://geardrop.100app.dev/guides/retailer-price-history.html#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "GearDrop",
+          "item": "https://geardrop.100app.dev/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "怎样查看并比较不同商家的价格历史？",
+          "item": "https://geardrop.100app.dev/guides/retailer-price-history.html"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand-link" href="/" aria-label="GearDrop 首页">
+                <img class="brand-logo" src="/assets/brand/geardrop-logo.png" alt="GearDrop" width="355" height="76">
+            </a>
+            <nav class="site-nav" aria-label="主要导航">
+                <a href="/">折扣目录</a>
+                <a href="/about.html">关于</a>
+                <a href="/methodology.html">数据方法</a>
+                <a href="/faq.html">常见问题</a>
+                <a href="/guides/outdoor-deal-guide.html">选购指南</a>
+                <a href="/en/">English</a>
+            </nav>
+        </div>
+    </header>
+    <main class="page-shell" id="main-content">
+        <nav class="breadcrumb" aria-label="面包屑">
+            <a href="/">GearDrop</a><span aria-hidden="true">/</span><span>怎样查看并比较不同商家的价格历史？</span>
+        </nav>
+        <header class="hero">
+            <div class="eyebrow">价格历史</div>
+            <h1>怎样查看并比较不同商家的价格历史？</h1>
+            <p class="lead">价格历史首先描述某条可识别商品记录随时间的变化。跨商家比较只有在款号、版本、地区和币种口径明确时才有意义。</p>
+            <div class="updated">内容更新: 2026-09-08</div>
+        </header>
+        <section class="answer-box" aria-label="直接回答">
+            <strong>直接回答</strong>
+            <p>GearDrop 会在数据可用时展示已追踪商品的价格历史，iPhone App 提供收藏、历史和降价提醒。比较不同商家前，应先确认款号或 SKU、性别、颜色和版本一致，再分别保留每个商家的原币价格与观察时间；不要把相似名称自动合并成一条历史。</p>
+        </section>
+        <div class="content-grid">
+<section class="content-section full" aria-labelledby="faq-heading">
+<h2 id="faq-heading">问题与回答</h2>
+<div class="faq-list">
+<details class="faq-item" open>
+<summary>不同商家同名商品可以直接合并价格历史吗？</summary>
+<div class="faq-answer"><p>不可以。先确认款号、版本、性别、颜色和地区；无法可靠对应时，应保留为独立记录。</p></div>
+</details>
+<details class="faq-item">
+<summary>历史最低价代表现在一定值得买吗？</summary>
+<div class="faq-answer"><p>不代表。它只描述现有观察窗口，还要检查库存尺码、销售条件、总成本和退货政策。</p></div>
+</details>
+<details class="faq-item">
+<summary>为什么某件商品没有价格历史？</summary>
+<div class="faq-answer"><p>可能是刚开始追踪、历史点不足、来源失效或商品身份无法稳定匹配；缺少历史不等于没有折扣。</p></div>
+</details>
+</div>
+</section>
+<section class="content-section">
+<h2>先分清三种价格信号</h2>
+<dl class="fact-list">
+<dt>当前价</dt><dd>最近一次成功观察到的销售价格，不是结算保证</dd>
+<dt>价格历史</dt><dd>同一可识别商品记录在多个时间点的观察值</dd>
+<dt>历史低点</dt><dd>现有观察窗口中的最低记录，不代表全市场或永久最低</dd>
+</dl>
+<div class="note">观察窗口越短、数据点越少，历史低点的解释范围越窄。</div>
+</section>
+<section class="content-section">
+<h2>跨商家比较步骤</h2>
+<ol>
+<li><strong>确认商品身份</strong><br>优先使用官方款号或 SKU；再核对年份、性别、颜色、尺码和商品图片。</li>
+<li><strong>保留各自原币</strong><br>先分别读取每个商家的原币当前价和历史，不要先把不同币种混成一个数字。</li>
+<li><strong>记录时间与来源</strong><br>比较时同时保留销售平台、原始 URL 和每个数据点的观察时间。</li>
+<li><strong>再计算到手成本</strong><br>换汇后加入税费、运费、关税、会员条件和可能的退货成本。</li>
+</ol>
+</section>
+<section class="content-section full">
+<h2>数据不足时怎么做</h2>
+<p>如果页面只有一个价格点、来源已失效或商品身份无法可靠对应，应把结论写成“暂无足够历史”，不要推断价格正在下降或已经达到真正史低。</p>
+<p>GearDrop 的网页目录用于发现与核验当前记录；iPhone App 在数据可用时展示近期历史。免费与 Pro 的历史窗口以 App 内当前权益说明为准。</p>
+<div class="link-list">
+<a class="link-card" href="/methodology.html">
+    <strong>阅读数据方法 →</strong>
+    <span>查看价格、汇率、新鲜度与身份规则</span>
+</a>
+<a class="link-card" href="/guides/compare-outdoor-gear-prices-across-countries.html">
+    <strong>比较跨地区价格 →</strong>
+    <span>将原币历史转换为可执行的到手成本比较</span>
+</a>
+<a class="link-card" href="https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332">
+    <strong>打开 GearDrop iPhone App →</strong>
+    <span>查看收藏、价格历史和提醒入口</span>
+</a>
+</div>
+</section>
+        </div>
+
+        <section class="cta-band" aria-labelledby="cta-heading">
+            <div>
+                <h2 id="cta-heading">从可核验的当前记录开始</h2>
+                <p>选择商品后保留销售来源和观察时间，再判断历史变化。</p>
+            </div>
+            <a class="button" href="/">浏览当前折扣 →</a>
+        </section>
+    </main>
+    <footer class="site-footer">
+        <nav class="footer-links" aria-label="页脚导航">
+            <a href="/about.html">关于 GearDrop</a>
+            <a href="/methodology.html">数据方法</a>
+            <a href="/faq.html">常见问题</a>
+            <a href="https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332" rel="noopener">App Store</a>
+            <a href="/support.html">Support</a>
+            <a href="/privacy.html">Privacy</a>
+        </nav>
+        <div>GearDrop 是独立折扣追踪服务，不销售商品，也不代表所列品牌或销售平台。</div>
+    </footer>
+</body>
+</html>

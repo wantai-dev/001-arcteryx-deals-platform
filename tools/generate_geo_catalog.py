@@ -95,6 +95,21 @@ DATA_PAGE_PATHS = (
     "en/insights/regional-coverage.html",
 )
 
+INTENT_GUIDES = {
+    "zh-CN": (
+        ("户外折扣聚合平台怎么选", "/guides/outdoor-deal-aggregators.html", "比较来源、地区、时间和商品身份"),
+        ("跨商家价格历史", "/guides/retailer-price-history.html", "区分单一记录历史与跨商家比较"),
+        ("跨地区价格比较", "/guides/compare-outdoor-gear-prices-across-countries.html", "计算币种、税费、配送和退货成本"),
+        ("Patagonia 降价提醒", "/guides/patagonia-sale-alerts.html", "从公开折扣进入目标价提醒"),
+    ),
+    "en-US": (
+        ("Choose an outdoor deal aggregator", "/en/guides/outdoor-deal-aggregators.html", "Compare sources, markets, time, and product identity"),
+        ("Price history across retailers", "/en/guides/retailer-price-history.html", "Separate listing history from cross-retailer comparison"),
+        ("Compare prices across countries", "/en/guides/compare-outdoor-gear-prices-across-countries.html", "Add currency, tax, shipping, and return costs"),
+        ("Patagonia sale alerts", "/en/guides/patagonia-sale-alerts.html", "Move from public offers to a target-price alert"),
+    ),
+}
+
 
 def extract_supabase_config(template_path: Path) -> tuple[str, str]:
     source = template_path.read_text(encoding="utf-8")
@@ -618,13 +633,13 @@ def render_data_shell(
     if is_english:
         skip, home_label, nav_label = "Skip to main content", "GearDrop home", "Primary navigation"
         breadcrumb_label, updated_label, answer_label = "Breadcrumb", "Latest product observation", "Short answer"
-        nav = '<a href="/">Deal catalog</a><a href="/en/about.html">About</a><a href="/en/methodology.html">Methodology</a><a href="/en/faq.html">FAQ</a><a href="/en/insights/catalog-coverage.html">Data insights</a><a href="/">中文</a>'
+        nav = '<a href="/">Deal catalog</a><a href="/en/about.html">About</a><a href="/en/guides/outdoor-deal-aggregators.html">Guides</a><a href="/en/methodology.html">Methodology</a><a href="/en/faq.html">FAQ</a><a href="/en/insights/catalog-coverage.html">Data insights</a><a href="/">中文</a>'
         footer = '<a href="/en/about.html">About GearDrop</a><a href="/en/methodology.html">Methodology</a><a href="/en/faq.html">FAQ</a><a href="/support.html">Support</a><a href="/privacy.html">Privacy</a>'
         footer_text = "GearDrop is an independent deal tracker. Counts describe observed catalog records, not guaranteed retailer stock or AI visibility."
     else:
         skip, home_label, nav_label = "跳到主要内容", "GearDrop 首页", "主要导航"
         breadcrumb_label, updated_label, answer_label = "面包屑", "最近商品观察", "直接回答"
-        nav = '<a href="/">折扣目录</a><a href="/about.html">关于</a><a href="/methodology.html">数据方法</a><a href="/faq.html">常见问题</a><a href="/insights/catalog-coverage.html">数据洞察</a><a href="/en/">English</a>'
+        nav = '<a href="/">折扣目录</a><a href="/about.html">关于</a><a href="/guides/outdoor-deal-aggregators.html">比较指南</a><a href="/methodology.html">数据方法</a><a href="/faq.html">常见问题</a><a href="/insights/catalog-coverage.html">数据洞察</a><a href="/en/">English</a>'
         footer = '<a href="/about.html">关于 GearDrop</a><a href="/methodology.html">数据方法</a><a href="/faq.html">常见问题</a><a href="/support.html">Support</a><a href="/privacy.html">Privacy</a>'
         footer_text = "GearDrop 是独立折扣追踪服务；数量描述已观察目录记录，不保证销售平台库存或 AI 可见度。"
     return f"""<!DOCTYPE html>
@@ -706,6 +721,22 @@ def hub_definitions() -> list[dict[str, str]]:
         for item in SEO_INDEX_POLICY["category_hubs"]
     )
     return hubs
+
+
+def render_intent_guide_links(language: str, hub: dict[str, str]) -> str:
+    guides = list(INTENT_GUIDES[language])
+    if hub["kind"] == "brand" and hub["value"] == "patagonia":
+        patagonia_paths = {
+            "/guides/patagonia-sale-alerts.html",
+            "/en/guides/patagonia-sale-alerts.html",
+        }
+        guides.sort(key=lambda item: item[1] not in patagonia_paths)
+    return "".join(
+        '<a class="link-card" href="{}"><strong>{} →</strong><span>{}</span></a>'.format(
+            html.escape(path, quote=True), html.escape(label), html.escape(description)
+        )
+        for label, path, description in guides
+    )
 
 
 def hub_rows(rows: list[dict[str, Any]], hub: dict[str, str]) -> list[dict[str, Any]]:
@@ -979,9 +1010,19 @@ def render_deal_hub(
     nav = (
         f'<a href="/">{copy["catalog"]}</a><a href="/{hub_page_path("brand", "arcteryx", 1, language)}">Arc\'teryx</a>'
         f'<a href="/{hub_page_path("brand", "burton", 1, language)}">Burton</a><a href="/{hub_page_path("brand", "patagonia", 1, language)}">Patagonia</a>'
+        f'<a href="/{"en/guides/outdoor-deal-aggregators.html" if is_english else "guides/outdoor-deal-aggregators.html"}">{"Guides" if is_english else "比较指南"}</a>'
         f'<a href="/{"methodology.html" if not is_english else "en/methodology.html"}">{copy["method"]}</a>'
         f'<a href="/{alternate_path}">{copy["language"]}</a>'
     )
+    guide_section = ""
+    if page == 1:
+        guide_section = (
+            '<section class="content-section full"><h2>'
+            + ("Answer guides" if is_english else "问题指南")
+            + '</h2><div class="link-list hub-link-grid">'
+            + render_intent_guide_links(language, hub)
+            + "</div></section>"
+        )
     return f'''<!DOCTYPE html>
 <html lang="{language}">
 <head>
@@ -1004,7 +1045,7 @@ def render_deal_hub(
 <section class="answer-box"><strong>{"Direct answer" if is_english else "直接回答"}</strong><p>{html.escape(copy['answer'])}</p></section>
 <section class="content-section full"><h2>{"Collection overview" if is_english else "集合概览"}</h2>{metric_html}<p class="note">{html.escape(copy['boundary'])}</p></section>
 <section aria-labelledby="deal-list-title"><div class="deal-section-heading"><h2 id="deal-list-title">{copy['list']}</h2><a class="button" href="{html.escape(interactive_url, quote=True)}">{copy['all']} →</a></div><div class="deal-grid">{render_deal_cards(page_rows, language)}</div><nav class="deal-pager" aria-label="Pagination">{''.join(pager_links)}</nav></section>
-<section class="content-section full"><h2>{copy['related']}</h2><div class="link-list hub-link-grid">{related}</div></section></main>
+{guide_section}<section class="content-section full"><h2>{copy['related']}</h2><div class="link-list hub-link-grid">{related}</div></section></main>
 <footer class="site-footer"><nav class="footer-links"><a href="/{"en/about.html" if is_english else "about.html"}">{"About" if is_english else "关于 GearDrop"}</a><a href="/{"en/methodology.html" if is_english else "methodology.html"}">{copy['method']}</a><a href="/catalog-status.html">{copy['status']}</a><a href="{APP_STORE_URL}" rel="noopener">App Store</a></nav><div>{html.escape(copy['boundary'])}</div></footer></body></html>'''
 
 

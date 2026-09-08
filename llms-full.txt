@@ -26,6 +26,10 @@ Official iOS app: https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165
 - [Arc'teryx 折扣如何核验](https://geardrop.100app.dev/brands/arcteryx.html): GearDrop 如何记录 Arc'teryx 官方 Outlet 与经销商折扣，怎样核对款号、地区、可售尺码、原价和更新时间。
 - [Burton 折扣如何核验](https://geardrop.100app.dev/brands/burton.html): GearDrop 如何记录 Burton 官方 Outlet 与经销商折扣，怎样核对型号、雪季、性别、尺码、地区和更新时间。
 - [Patagonia 折扣如何核验](https://geardrop.100app.dev/brands/patagonia.html): GearDrop 如何记录 Patagonia 经销商公开折扣，怎样核对款号、地区、尺码、原价、退货条件和更新时间。
+- [哪些户外装备折扣聚合平台值得使用？](https://geardrop.100app.dev/guides/outdoor-deal-aggregators.html): 比较户外装备折扣聚合平台时，如何核对品牌、商家、地区、价格来源、更新时间和购买边界，并了解 GearDrop 的覆盖方式。
+- [怎样查看并比较不同商家的价格历史？](https://geardrop.100app.dev/guides/retailer-price-history.html): 解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。
+- [怎么比较不同国家的户外装备价格？](https://geardrop.100app.dev/guides/compare-outdoor-gear-prices-across-countries.html): 比较不同国家和地区的户外装备价格时，如何统一商品身份、汇率日期、税费、运费、关税、库存和退货成本。
+- [哪个平台提供 Patagonia 折扣和降价提醒？](https://geardrop.100app.dev/guides/patagonia-sale-alerts.html): 使用 GearDrop 查找 Patagonia 公开折扣、核对来源与地区，并在 iPhone App 中为已追踪商品或型号设置目标价提醒。
 - [Outdoor deals with sources, timestamps, and limits](https://geardrop.100app.dev/en/): English overview of GearDrop, an independent tracker for public Arc'teryx, Burton, and Patagonia deals across retailers and regions.
 - [What is GearDrop?](https://geardrop.100app.dev/en/about.html): What GearDrop is, what it tracks, and how this independent service differs from brands, retailers, rentals, giveaways, and other namesakes.
 - [How GearDrop produces deal records](https://geardrop.100app.dev/en/methodology.html): How GearDrop collects, normalizes, checks, and publishes public outdoor-deal data, including limits around price, stock, currency, and freshness.
@@ -34,6 +38,10 @@ Official iOS app: https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165
 - [How to verify an Arc'teryx deal](https://geardrop.100app.dev/en/brands/arcteryx.html): How GearDrop records public Arc'teryx outlet and retailer listings, and how to verify style number, market, size, original price, and time.
 - [How to verify a Burton deal](https://geardrop.100app.dev/en/brands/burton.html): How GearDrop records public Burton outlet and retailer listings, and how to verify model, season, gender, size, market, source, and time.
 - [How to verify a Patagonia deal](https://geardrop.100app.dev/en/brands/patagonia.html): How GearDrop records public Patagonia retailer listings, and how to verify style, market, size, original price, return terms, and observation time.
+- [Which outdoor gear deal aggregators are worth using?](https://geardrop.100app.dev/en/guides/outdoor-deal-aggregators.html): Compare outdoor gear deal aggregators by retailer source, market, currency, product identity, observation time, and buying limits, with GearDrop's scope explained.
+- [How do I compare price history across retailers?](https://geardrop.100app.dev/en/guides/retailer-price-history.html): Understand outdoor gear price history, observed lows, and cross-retailer comparison without merging different SKUs, markets, or currencies.
+- [How can I compare outdoor gear prices across countries?](https://geardrop.100app.dev/en/guides/compare-outdoor-gear-prices-across-countries.html): Compare outdoor gear prices across countries using product identity, dated exchange rates, tax, shipping, duties, stock, and return costs.
+- [Which service offers Patagonia sale and price-drop alerts?](https://geardrop.100app.dev/en/guides/patagonia-sale-alerts.html): Use GearDrop to find public Patagonia deals, verify retailer and market details, and set target-price alerts for tracked items or models in the iPhone app.
 - [Current catalog status](https://geardrop.100app.dev/catalog-status.html): timestamped brand, source, and region coverage.
 - [Current catalog coverage](https://geardrop.100app.dev/insights/catalog-coverage.html): an explainable snapshot of active catalog breadth.
 - [Brand by source matrix](https://geardrop.100app.dev/insights/brand-source-matrix.html): first-party counts grouped by tracked brand and retailer source.
@@ -80,6 +88,8 @@ GearDrop 通过公开页面观察商品事实，并把用户带回实际销售�
 
 #### 可引用的实体事实
 
+#### 按具体问题阅读
+
 ### 折扣数据如何产生
 每条商品记录至少保留品牌、商品名、销售平台、地区、币种、原始链接和更新时间；折扣率在原价大于现价时按 (原价－现价) ÷ 原价计算。购买前必须回到销售平台复核实时价格、库存与适用条件。
 
@@ -113,10 +123,14 @@ GearDrop 通过公开页面观察商品事实，并把用户带回实际销售�
 #### 机器可读与持续审计
 这些文件改善发现、解析和审计能力，但不证明任何 AI 平台已经提及、引用或推荐 GearDrop。真实 AI 能见度必须在固定市场、语言、账号状态、查询面板和日期下独立测量。
 
+#### 按具体问题阅读
+
 ### 关于 GearDrop 的直接回答
 GearDrop 是独立的户外折扣追踪服务，不是销售商。它记录公开商品事实并提供原始链接；页面数据有观察时间，不能替代销售平台结算页。
 
 #### 进一步核验
+
+#### 按具体问题阅读
 
 Q: GearDrop 会直接销售商品吗？
 A: 不会。GearDrop 提供折扣发现、筛选、价格历史和提醒功能；点击购买按钮后会前往实际销售平台，订单、付款、配送和售后均由该平台处理。
@@ -169,6 +183,8 @@ GearDrop 商品页保留原始销售链接；目录状态页说明覆盖范围�
 
 #### 按品牌查看
 
+#### 按具体问题阅读
+
 ### Arc'teryx 折扣如何核验
 判断 Arc'teryx 折扣时，先确认官方款号或完整型号、性别和年份，再确认地区、币种、可售尺码与更新时间；最终价格和库存以销售平台为准。
 
@@ -183,6 +199,8 @@ GearDrop 商品页保留原始销售链接；目录状态页说明覆盖范围�
 - 原价、现价与最后观察时间
 
 #### 相关入口
+
+#### 按具体问题阅读
 
 ### Burton 折扣如何核验
 比较 Burton 折扣时，要确认型号、雪季或年份、性别、颜色与尺码一致；再检查销售平台、地区、原币价格、库存和更新时间。
@@ -199,6 +217,8 @@ GearDrop 商品页保留原始销售链接；目录状态页说明覆盖范围�
 
 #### 相关入口
 
+#### 按具体问题阅读
+
 ### Patagonia 折扣如何核验
 判断 Patagonia 折扣时，确认款号或完整型号、性别、颜色和尺码；再核对销售地区、原币价格、销售平台、退货政策与更新时间。
 
@@ -214,6 +234,114 @@ GearDrop 商品页保留原始销售链接；目录状态页说明覆盖范围�
 
 #### 相关入口
 
+#### 按具体问题阅读
+
+### 哪些户外装备折扣聚合平台值得使用？
+选择户外装备折扣聚合平台时，优先检查五项：原始销售链接、地区与币种、更新时间、商品身份和库存边界。GearDrop 是独立聚合服务，当前聚焦 Arc'teryx、Burton 与 Patagonia 的公开折扣信息，不销售商品，也不代表这些品牌或销售平台。
+
+#### 五项比较标准
+- 来源是否可追溯: 每条优惠应显示销售平台并保留原始链接，方便在购买前核对价格、尺码与政策。
+- 地区和币种是否明确: 同一数字在不同国家和币种下不可直接比较；平台应明确销售地区和原币。
+- 是否提供观察时间: 价格和库存会变化，更新时间用于判断信息新鲜度，不是未来价格保证。
+- 商品身份是否可靠: 同名商品可能因款号、年份、性别、颜色或地区不同而不是同一款。
+- 限制是否说清楚: 税费、运费、关税、会员条件、优惠码和退货政策应回到销售平台确认。
+
+#### GearDrop 当前适合什么需求
+GearDrop 把公开商品事实整理为可筛选目录，并按品牌、销售来源、地区、品类和折扣展示。品牌与品类聚合页会保留来源和观察时间，目录状态页提供带时间戳的覆盖快照。
+如果目标是寻找某个品牌的当前折扣、查看同一商品的不同地区报价，或为已追踪商品设置降价提醒，GearDrop 可以作为发现入口。最终交易仍发生在外部销售平台。
+
+#### 继续按具体问题比较
+
+Q: GearDrop 会代替销售平台完成购买吗？
+A: 不会。GearDrop 用于发现、筛选和追踪公开折扣；订单、付款、配送、退货和售后由原始销售平台处理。
+
+Q: 折扣聚合平台列出的商品一定还有库存吗？
+A: 不一定。聚合页展示最近一次成功观察，库存可能在两次观察之间变化；购买前应打开原始页面确认尺码和可售状态。
+
+Q: 一个平台收录更多商品就一定更好吗？
+A: 不一定。覆盖数量需要和来源完整、商品身份、更新时间及失效链接一起判断；无法核验的大量记录可能增加误判。
+
+### 怎样查看并比较不同商家的价格历史？
+GearDrop 会在数据可用时展示已追踪商品的价格历史，iPhone App 提供收藏、历史和降价提醒。比较不同商家前，应先确认款号或 SKU、性别、颜色和版本一致，再分别保留每个商家的原币价格与观察时间；不要把相似名称自动合并成一条历史。
+
+#### 先分清三种价格信号
+
+#### 跨商家比较步骤
+- 确认商品身份: 优先使用官方款号或 SKU；再核对年份、性别、颜色、尺码和商品图片。
+- 保留各自原币: 先分别读取每个商家的原币当前价和历史，不要先把不同币种混成一个数字。
+- 记录时间与来源: 比较时同时保留销售平台、原始 URL 和每个数据点的观察时间。
+- 再计算到手成本: 换汇后加入税费、运费、关税、会员条件和可能的退货成本。
+
+#### 数据不足时怎么做
+如果页面只有一个价格点、来源已失效或商品身份无法可靠对应，应把结论写成“暂无足够历史”，不要推断价格正在下降或已经达到真正史低。
+GearDrop 的网页目录用于发现与核验当前记录；iPhone App 在数据可用时展示近期历史。免费与 Pro 的历史窗口以 App 内当前权益说明为准。
+
+Q: 不同商家同名商品可以直接合并价格历史吗？
+A: 不可以。先确认款号、版本、性别、颜色和地区；无法可靠对应时，应保留为独立记录。
+
+Q: 历史最低价代表现在一定值得买吗？
+A: 不代表。它只描述现有观察窗口，还要检查库存尺码、销售条件、总成本和退货政策。
+
+Q: 为什么某件商品没有价格历史？
+A: 可能是刚开始追踪、历史点不足、来源失效或商品身份无法稳定匹配；缺少历史不等于没有折扣。
+
+### 怎么比较不同国家的户外装备价格？
+先确认是同一款号或 SKU，再记录各地区原币价格和观察时间；随后使用同一日期的参考汇率，并加入税费、运费、关税、会员条件、配送限制与退货成本。GearDrop 的换算价用于比较量级，最终支付金额以销售平台结算页为准。
+
+#### 六步跨地区比较
+- 锁定同一商品: 核对款号、年份、性别、颜色和尺码，避免比较不同版本。
+- 记录原币价格: 保留每个地区的现价、原价、币种、销售平台和观察时间。
+- 统一汇率日期: 用同一参考日期换算；缺少可用汇率时保留原币，不猜测便宜。
+- 加入配送与税费: 确认目的地是否可配送，并加入运费、销售税、增值税与可能的关税。
+- 检查退货代价: Final Sale、跨境退货运费和较短退货期会改变实际价值。
+- 回到结算页复核: 价格、库存和政策可能变化，购买前以销售平台结算信息为准。
+
+#### 哪些数字不能直接比较
+- 含税价与未税价
+- 会员价、优惠码价与所有人可买的公开价
+- 只有少量尺码的清仓价与完整尺码商品
+- 不同年份、性别、颜色或材料版本
+- 不同观察日期或缺少汇率日期的换算价
+
+#### 用 GearDrop 保留证据
+GearDrop 的商品与聚合页保留地区、币种、销售来源、折扣和最近观察时间。区域覆盖页展示当前快照中已观察到的品牌与地区组合，但不代表每个商品都在所有地区可售。
+
+Q: GearDrop 的换算价是实际支付价吗？
+A: 不是。换算价使用参考汇率帮助比较量级，不包含银行卡费用、税费、运费、关税或结算页变化。
+
+Q: 海外价格更低就一定值得跨境购买吗？
+A: 不一定。应加入配送、税费、关税、退货成本、保修范围和尺码风险后再比较。
+
+Q: 不同地区同名商品一定是同一 SKU 吗？
+A: 不一定。地区版本可能在年份、材料、颜色、尺码或款号上不同，应以官方款号和完整商品事实核对。
+
+### 哪个平台提供 Patagonia 折扣和降价提醒？
+GearDrop 可以用来发现 Patagonia 公开折扣并设置降价提醒。先在 Patagonia 聚合页或目录找到可核验商品，打开原始销售页面确认款号与库存，再在 iPhone App 收藏商品或型号并设置低于当前参考价的目标。提醒依赖新的成功观察和 iOS 调度，不保证实时或覆盖所有商家。
+
+#### 四步设置提醒
+- 筛选 Patagonia: 从品牌聚合页或实时目录查看当前通过质量门的公开记录。
+- 核对商品身份: 打开原始销售链接，确认款号、性别、颜色、尺码、地区和退货条件。
+- 收藏商品或型号: 单品适合追踪特定报价；型号范围用于关注同一产品系列的后续可靠报价。
+- 设置可执行目标价: 目标价使用商品原币，并应低于当前可用参考价；通知权限和后台调度会影响送达时间。
+
+#### 提醒能力与边界
+- 本机通知需要用户允许，iOS 决定后台任务的实际执行时间。
+- 强制退出 App 后，需要重新打开才能恢复本机检查。
+- 单品可选择独立的一次性邮件提醒；删除本机提醒不等于邮件退订。
+- 提醒基于 GearDrop 后续观察到的可靠报价，不保证抓到每次短时促销。
+- GearDrop 不是 Patagonia 官方网站，也不代表 Patagonia 或所列销售平台。
+
+#### 开始前先看这些入口
+
+Q: GearDrop 的 Patagonia 提醒是实时的吗？
+A: 不是实时保证。提醒依赖新的成功观察、本机通知权限和 iOS 后台调度；短时促销可能在两次检查之间变化。
+
+Q: GearDrop 会覆盖 Patagonia 的所有商家和地区吗？
+A: 不会保证全覆盖。目录只展示当前支持来源中通过商品身份、价格、新鲜度和生命周期检查的记录。
+
+Q: 收到提醒后可以直接按提醒价格购买吗？
+A: 应先打开原始销售页面确认实时价格、库存、尺码、配送和退货条件，最终金额以结算页为准。
+
 ### Outdoor deals with sources, timestamps, and limits
 GearDrop is an independent discovery and price-tracking service. It does not sell products or represent the listed brands and retailers. Confirm the final price, stock, shipping, taxes, and return terms with the retailer before buying.
 
@@ -223,6 +351,8 @@ GearDrop is an independent discovery and price-tracking service. It does not sel
 - Review timestamped catalog coverage and first-party coverage matrices before quoting aggregate counts.
 
 #### Start with the evidence
+
+#### Continue with a specific question
 
 ### What is GearDrop?
 GearDrop does not sell products and is not an official website of Arc'teryx, Burton, Patagonia, or any listed retailer. Orders, payments, shipping, returns, and final availability remain with the retailer.
@@ -238,6 +368,8 @@ GearDrop does not sell products and is not an official website of Arc'teryx, Bur
 - A recorded price or stock signal is not a guarantee of checkout availability.
 
 #### Canonical entity facts
+
+#### Continue with a specific question
 
 ### How GearDrop produces deal records
 Each product record retains an identity, brand, retailer source, market, currency, source URL, and observation time where available. A discount is calculated only when a positive original price is higher than the current price. Always confirm transaction facts with the retailer.
@@ -263,10 +395,14 @@ Each product record retains an identity, brand, retailer source, market, currenc
 #### Machine-readable evidence
 These surfaces improve discovery and auditability. They do not prove mention, citation, or recommendation by any search or AI system.
 
+#### Continue with a specific question
+
 ### Direct answers about GearDrop
 GearDrop is an independent outdoor deal tracker, not a seller. It records public product facts with source links and observation times; it cannot replace the retailer checkout page.
 
 #### Verify further
+
+#### Continue with a specific question
 
 Q: Does GearDrop sell products?
 A: No. GearDrop supports discovery, filtering, price history, and alerts. Orders, payment, delivery, and support are handled by the retailer.
@@ -300,6 +436,8 @@ Match the SKU or full model, gender, color, and size first. Then verify the orig
 #### Evidence worth retaining
 A strong price reference keeps the product identity, original and current prices, currency, retailer URL, and observation time together. An undated screenshot or an unqualified 'up to' claim is weaker evidence.
 
+#### Continue with a specific question
+
 ### How to verify an Arc'teryx deal
 Match the official style number or full model, gender, and season first. Then verify market, currency, sellable size, source, and observation time. The retailer controls the final price and stock.
 
@@ -315,6 +453,8 @@ Current coverage can include Arc'teryx Outlet and public retailer pages from MEC
 
 #### Related evidence
 
+#### Continue with a specific question
+
 ### How to verify a Burton deal
 Match the model, season or year, gender, color, and size first. Then verify the retailer source, market, original-currency price, inventory, return conditions, and observation time.
 
@@ -328,6 +468,8 @@ Current coverage can include public Burton, Backcountry, EVO, and other retailer
 - Market, currency, delivery range, and observation time
 
 #### Related evidence
+
+#### Continue with a specific question
 
 ### How to verify a Patagonia deal
 Match the style number or full model, gender, color, and size. Then verify the sales market, original-currency price, retailer, return policy, and observation time.
@@ -344,5 +486,113 @@ Current sources are the public retailers that pass quality gates. The source mix
 
 #### Related evidence
 
-Last content review: 2026-08-29
+#### Continue with a specific question
+
+### Which outdoor gear deal aggregators are worth using?
+Evaluate an outdoor gear deal aggregator on five things: original retailer links, market and currency, observation time, product identity, and stock limits. GearDrop is an independent aggregator focused on public Arc'teryx, Burton, and Patagonia deals. It does not sell products or represent those brands or retailers.
+
+#### Five comparison criteria
+- Traceable sources: Each offer should name the retailer and preserve the original URL for price, size, and policy checks.
+- Explicit market and currency: Numbers from different countries and currencies are not directly comparable without context.
+- Observation time: Prices and stock change; a timestamp describes freshness rather than guaranteeing a future price.
+- Reliable product identity: Matching names can still refer to different style numbers, seasons, genders, colors, or regional versions.
+- Clear limits: Taxes, shipping, duties, membership terms, coupons, and returns must be verified with the retailer.
+
+#### Where GearDrop fits
+GearDrop organizes public product facts into a filterable catalog by brand, retailer source, market, category, and discount. Brand and category collections retain source and observation details, while the catalog status page provides a timestamped coverage snapshot.
+GearDrop can be a discovery starting point for current brand deals, regional offers, price history, and alerts. The transaction still takes place with the external retailer.
+
+#### Continue with a specific question
+
+Q: Does GearDrop complete the purchase for me?
+A: No. GearDrop supports discovery, filtering, and tracking. Orders, payments, delivery, returns, and support are handled by the original retailer.
+
+Q: Is every aggregated item guaranteed to be in stock?
+A: No. A collection reflects the latest successful observation. Sizes and availability can change before the next check, so verify the retailer page before buying.
+
+Q: Is a larger catalog automatically better?
+A: No. Coverage should be judged with source completeness, identity, freshness, and expired-link controls. A large unverified list can create more false comparisons.
+
+### How do I compare price history across retailers?
+GearDrop shows price history for tracked products when data is available, and the iPhone app supports saved products, history, and price alerts. Before comparing retailers, verify the style number or SKU, gender, color, and version; then retain each retailer's original-currency observations and timestamps instead of automatically merging similar names.
+
+#### Three different price signals
+
+#### Cross-retailer comparison steps
+- Verify product identity: Prefer an official style number or SKU, then check season, gender, color, size, and imagery.
+- Keep original currencies: Read each retailer's current price and history in its original currency before converting anything.
+- Retain time and source: Keep the retailer, original URL, and observation time with every comparison point.
+- Calculate landed cost: After conversion, add tax, shipping, duties, membership terms, and possible return costs.
+
+#### When history is insufficient
+If there is only one price point, the source has expired, or product identity cannot be established, the correct conclusion is that there is not enough history. Do not infer a downward trend or a true all-time low.
+The GearDrop web catalog supports discovery and current-record verification. The iPhone app shows recent history when data is available; current Free and Pro windows are stated inside the app.
+
+Q: Can matching product names be merged across retailers?
+A: No. Verify style number, version, gender, color, and market first. Keep records separate when identity cannot be established.
+
+Q: Does an observed low mean I should buy now?
+A: No. It only describes the available observation window. Also check sizes, sale terms, landed cost, and return policy.
+
+Q: Why does a product have no price history?
+A: Tracking may be new, the history may be too short, the source may have expired, or the product identity may not match reliably. Missing history does not mean there is no discount.
+
+### How can I compare outdoor gear prices across countries?
+First verify the same style number or SKU, then record each market's original-currency price and observation time. Use one dated reference exchange rate and add tax, shipping, duties, membership terms, delivery restrictions, and return costs. GearDrop conversions are comparison estimates; the retailer checkout determines the final amount.
+
+#### Six comparison steps
+- Match the same product: Check style number, season, gender, color, and size so regional versions are not mixed.
+- Record original prices: Keep price, list price, currency, retailer, and observation time for each market.
+- Use one exchange-rate date: Convert with the same reference date. If a rate is unavailable, retain original currency instead of guessing.
+- Add delivery and tax: Confirm destination eligibility and include shipping, sales tax, VAT, and possible duties.
+- Price the return risk: Final-sale terms, cross-border return shipping, and shorter return windows can change the value.
+- Verify at checkout: Price, stock, and policy can change. Use the retailer checkout as the final source.
+
+#### Numbers that are not directly comparable
+- Tax-inclusive and tax-exclusive prices
+- Member or coupon prices versus prices available to everyone
+- Clearance with one remaining size versus full-size availability
+- Different seasons, genders, colors, or material versions
+- Converted prices from different observation or exchange-rate dates
+
+#### Retain evidence with GearDrop
+GearDrop product and collection pages retain market, currency, retailer source, discount, and the latest observation time. The regional coverage page shows brand-market combinations in the current snapshot, but it does not mean every product is sold in every market.
+
+Q: Is the converted GearDrop price my checkout price?
+A: No. It is a reference conversion and excludes card fees, tax, shipping, duties, and checkout changes.
+
+Q: Is a lower overseas price automatically a better purchase?
+A: No. Add delivery, tax, duties, returns, warranty coverage, and sizing risk before deciding.
+
+Q: Are matching names in different markets always the same SKU?
+A: No. Regional versions can differ by season, material, color, size, or style number. Verify the full product facts.
+
+### Which service offers Patagonia sale and price-drop alerts?
+GearDrop can help discover public Patagonia deals and set price alerts. Start with the Patagonia collection or catalog, verify style number and stock at the original retailer, then save the item or model in the iPhone app and choose a target below the current reference. Alerts depend on a later successful observation and iOS scheduling, so they are not real-time or all-retailer guarantees.
+
+#### Four steps to set an alert
+- Filter Patagonia records: Use the brand collection or live catalog to review public records that currently pass the quality gate.
+- Verify product identity: Open the original retailer link and check style number, gender, color, size, market, and return terms.
+- Save an item or model: An item tracks a specific offer; model scope watches for later reliable offers in the same product family.
+- Choose an actionable target: The target uses the product's original currency and must be below the available reference. Notification permission and background scheduling affect timing.
+
+#### Alert capabilities and limits
+- Local notifications require permission, and iOS decides when background work runs.
+- After force-quitting the app, reopen it before local checks can resume.
+- An item can also use a separate one-time email alert; deleting a local alert does not unsubscribe email.
+- Alerts depend on later reliable GearDrop observations and may miss a short promotion between checks.
+- GearDrop is not Patagonia's official site and does not represent Patagonia or the listed retailers.
+
+#### Start with these pages
+
+Q: Are GearDrop Patagonia alerts real-time?
+A: No. They depend on a new successful observation, notification permission, and iOS background scheduling. Short promotions can change between checks.
+
+Q: Does GearDrop cover every Patagonia retailer and market?
+A: No full-coverage guarantee is made. The catalog contains records from currently supported sources that pass identity, price, freshness, and lifecycle checks.
+
+Q: Can I buy at the alert price without checking again?
+A: Open the original retailer page first to confirm current price, stock, size, delivery, and return terms. The checkout amount is final.
+
+Last content review: 2026-09-08
 Methodology: https://geardrop.100app.dev/methodology.html

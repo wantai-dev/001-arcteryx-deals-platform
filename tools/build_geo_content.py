@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Build GearDrop's public, answer-ready GEO knowledge pages.
 
-The source of truth lives in geo/site-content.json. Generated HTML and discovery
-files are committed so crawlers can read them without JavaScript or a build
-runtime. Use --check in CI to fail when generated files drift from the source.
+The core source of truth lives in geo/site-content.json, with additive topic
+modules under geo/. Generated HTML and discovery files are committed so crawlers
+can read them without JavaScript or a build runtime. Use --check in CI to fail
+when generated files drift from the sources.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import html
 import json
 import sys
@@ -18,6 +20,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT_PATH = ROOT / "geo" / "site-content.json"
+CONTENT_MODULE_PATHS = (ROOT / "geo" / "intent-pages.json",)
 APP_STORE_URL = "https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165332"
 
 LOCALE_UI = {
@@ -52,6 +55,44 @@ LOCALE_UI = {
         "app": "App Store",
     },
 }
+
+
+def load_content(
+    content_path: Path = CONTENT_PATH,
+    module_paths: tuple[Path, ...] = CONTENT_MODULE_PATHS,
+) -> dict[str, Any]:
+    """Load the core knowledge model and merge additive content modules."""
+    content = json.loads(content_path.read_text(encoding="utf-8"))
+    for module_path in module_paths:
+        module = json.loads(module_path.read_text(encoding="utf-8"))
+        for collection in ("pages", "english_pages"):
+            content.setdefault(collection, []).extend(
+                copy.deepcopy(module.get(collection, []))
+            )
+        for injection in module.get("append_sections", []):
+            target_paths = set(injection["paths"])
+            matched = set()
+            for page in content.get("pages", []) + content.get("english_pages", []):
+                if page["path"] in target_paths:
+                    page.setdefault("sections", []).append(
+                        copy.deepcopy(injection["section"])
+                    )
+                    matched.add(page["path"])
+            missing = target_paths - matched
+            if missing:
+                raise ValueError(
+                    f"Content module {module_path.name} targets unknown pages: "
+                    + ", ".join(sorted(missing))
+                )
+
+    paths = [
+        page["path"]
+        for page in content.get("pages", []) + content.get("english_pages", [])
+    ]
+    duplicates = sorted({path for path in paths if paths.count(path) > 1})
+    if duplicates:
+        raise ValueError("Duplicate generated page paths: " + ", ".join(duplicates))
+    return content
 
 
 def esc(value: Any) -> str:
@@ -599,7 +640,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if outputs differ")
     args = parser.parse_args()
-    content = json.loads(CONTENT_PATH.read_text(encoding="utf-8"))
+    content = load_content()
     return write_or_check(build_outputs(content), args.check)
 
 

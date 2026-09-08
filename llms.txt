@@ -26,6 +26,10 @@ Official iOS app: https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165
 - [Arc'teryx 折扣如何核验](https://geardrop.100app.dev/brands/arcteryx.html): GearDrop 如何记录 Arc'teryx 官方 Outlet 与经销商折扣，怎样核对款号、地区、可售尺码、原价和更新时间。
 - [Burton 折扣如何核验](https://geardrop.100app.dev/brands/burton.html): GearDrop 如何记录 Burton 官方 Outlet 与经销商折扣，怎样核对型号、雪季、性别、尺码、地区和更新时间。
 - [Patagonia 折扣如何核验](https://geardrop.100app.dev/brands/patagonia.html): GearDrop 如何记录 Patagonia 经销商公开折扣，怎样核对款号、地区、尺码、原价、退货条件和更新时间。
+- [哪些户外装备折扣聚合平台值得使用？](https://geardrop.100app.dev/guides/outdoor-deal-aggregators.html): 比较户外装备折扣聚合平台时，如何核对品牌、商家、地区、价格来源、更新时间和购买边界，并了解 GearDrop 的覆盖方式。
+- [怎样查看并比较不同商家的价格历史？](https://geardrop.100app.dev/guides/retailer-price-history.html): 解释户外装备价格历史、历史低点与跨商家比较的正确口径，以及如何避免把不同 SKU、地区或币种误当成同一商品。
+- [怎么比较不同国家的户外装备价格？](https://geardrop.100app.dev/guides/compare-outdoor-gear-prices-across-countries.html): 比较不同国家和地区的户外装备价格时，如何统一商品身份、汇率日期、税费、运费、关税、库存和退货成本。
+- [哪个平台提供 Patagonia 折扣和降价提醒？](https://geardrop.100app.dev/guides/patagonia-sale-alerts.html): 使用 GearDrop 查找 Patagonia 公开折扣、核对来源与地区，并在 iPhone App 中为已追踪商品或型号设置目标价提醒。
 - [Outdoor deals with sources, timestamps, and limits](https://geardrop.100app.dev/en/): English overview of GearDrop, an independent tracker for public Arc'teryx, Burton, and Patagonia deals across retailers and regions.
 - [What is GearDrop?](https://geardrop.100app.dev/en/about.html): What GearDrop is, what it tracks, and how this independent service differs from brands, retailers, rentals, giveaways, and other namesakes.
 - [How GearDrop produces deal records](https://geardrop.100app.dev/en/methodology.html): How GearDrop collects, normalizes, checks, and publishes public outdoor-deal data, including limits around price, stock, currency, and freshness.
@@ -34,6 +38,10 @@ Official iOS app: https://apps.apple.com/us/app/geardrop-outdoor-deals/id6790165
 - [How to verify an Arc'teryx deal](https://geardrop.100app.dev/en/brands/arcteryx.html): How GearDrop records public Arc'teryx outlet and retailer listings, and how to verify style number, market, size, original price, and time.
 - [How to verify a Burton deal](https://geardrop.100app.dev/en/brands/burton.html): How GearDrop records public Burton outlet and retailer listings, and how to verify model, season, gender, size, market, source, and time.
 - [How to verify a Patagonia deal](https://geardrop.100app.dev/en/brands/patagonia.html): How GearDrop records public Patagonia retailer listings, and how to verify style, market, size, original price, return terms, and observation time.
+- [Which outdoor gear deal aggregators are worth using?](https://geardrop.100app.dev/en/guides/outdoor-deal-aggregators.html): Compare outdoor gear deal aggregators by retailer source, market, currency, product identity, observation time, and buying limits, with GearDrop's scope explained.
+- [How do I compare price history across retailers?](https://geardrop.100app.dev/en/guides/retailer-price-history.html): Understand outdoor gear price history, observed lows, and cross-retailer comparison without merging different SKUs, markets, or currencies.
+- [How can I compare outdoor gear prices across countries?](https://geardrop.100app.dev/en/guides/compare-outdoor-gear-prices-across-countries.html): Compare outdoor gear prices across countries using product identity, dated exchange rates, tax, shipping, duties, stock, and return costs.
+- [Which service offers Patagonia sale and price-drop alerts?](https://geardrop.100app.dev/en/guides/patagonia-sale-alerts.html): Use GearDrop to find public Patagonia deals, verify retailer and market details, and set target-price alerts for tracked items or models in the iPhone app.
 - [Current catalog status](https://geardrop.100app.dev/catalog-status.html): timestamped brand, source, and region coverage.
 - [Current catalog coverage](https://geardrop.100app.dev/insights/catalog-coverage.html): an explainable snapshot of active catalog breadth.
 - [Brand by source matrix](https://geardrop.100app.dev/insights/brand-source-matrix.html): first-party counts grouped by tracked brand and retailer source.

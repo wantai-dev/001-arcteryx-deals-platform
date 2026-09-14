@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "dev.100app.geardrop",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -87,6 +87,7 @@
     ],
     "extra": {
       "router": {},
+      "appFilingNumber": "沪ICP备2026041676号-2A",
       "eas": {
         "projectId": "ead43b0e-5dbf-44a2-838e-f65db29abb30"
       }

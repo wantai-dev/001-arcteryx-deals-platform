@@ -41,6 +41,9 @@ type AppConfig = {
       };
     };
     plugins?: Array<string | [string, Record<string, unknown>]>;
+    extra?: {
+      appFilingNumber?: string;
+    };
   };
 };
 
@@ -126,7 +129,8 @@ assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleName, '值de');
 assert.equal(expo.locales?.['zh-Hans']?.android?.app_name, '值de');
 assert.equal(expo.ios?.bundleIdentifier, 'dev.100app.geardrop');
 assert.equal(expo.ios?.supportsTablet, false, 'release candidate must remain iPhone-only until iPad UI and screenshots are verified');
-assert.equal(expo.ios?.buildNumber, '15');
+assert.equal(expo.ios?.buildNumber, '16');
+assert.equal(expo.extra?.appFilingNumber, '沪ICP备2026041676号-2A');
 assert.equal(expo.ios?.config?.usesNonExemptEncryption, false);
 assertNoTrademark(expo.name, 'expo.name');
 assertNoTrademark(expo.slug, 'expo.slug');
@@ -311,6 +315,7 @@ assert.ok(!paywallSource.includes('setPro(true)'), 'Paywall must not grant Pro l
 assert.ok(!meSource.includes('onValueChange={setPro}'), 'Me screen must not expose a local Pro toggle');
 assert.ok(meSource.includes('openSupportUrl'), 'Me screen must expose the public support form');
 assert.ok(meSource.includes('Constants.expoConfig?.version') && meSource.includes('Constants.expoConfig?.ios?.buildNumber'), 'Me must show the installed version and build');
+assert.ok(meSource.includes('Constants.expoConfig?.extra?.appFilingNumber') && meSource.includes('me.icpFiling'), 'Me must show the App ICP filing number');
 for (const hardcodedPrice of ['$3.99', '$23.99', '$49.99']) {
   assert.ok(!paywallSource.includes(hardcodedPrice), `Paywall must not hardcode ${hardcodedPrice}`);
 }

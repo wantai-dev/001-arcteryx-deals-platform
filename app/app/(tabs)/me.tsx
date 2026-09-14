@@ -194,6 +194,14 @@ export default function MeScreen() {
             label={p.t("me.privacy")}
             onPress={() => router.push("/privacy")}
           />
+          <View style={styles.row}>
+            <View style={styles.flex}>
+              <Text style={styles.rowTitle}>{p.t("me.icpFiling")}</Text>
+            </View>
+            <Text style={styles.valueText}>
+              {Constants.expoConfig?.extra?.appFilingNumber || "—"}
+            </Text>
+          </View>
         </View>
         <Text style={styles.version}>
           {p.t("me.version", {

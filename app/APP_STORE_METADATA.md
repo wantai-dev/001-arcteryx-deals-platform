@@ -2,7 +2,7 @@
 
 ## Release boundary
 
-The canonical five-language package is `store-metadata/next-version.json`, prepared for **1.2.0 / Build 14**. It is a release candidate until the exact version/build is frozen and read back from App Store Connect. Apply it only to the verified editable 1.2.0 version; preserve the public release.
+The canonical five-language package is `store-metadata/next-version.json`, prepared for **1.2.1 / Build 15**. It is a release candidate until the exact version/build is frozen and read back from App Store Connect. Apply it only to the verified editable 1.2.1 version; preserve the public release.
 
 Run `npm run verify:store-metadata` before and after every metadata edit. The verifier enforces Apple field limits, the 100-byte keyword limit, five exact locales, six unique screenshot headlines, required legal links, brand-neutral public copy, no hard-coded StoreKit prices, and no promises of instant alerts or trial eligibility.
 
@@ -29,7 +29,7 @@ All 30 screenshots must be fresh opaque 1320×2868 PNG captures from the exact s
 
 GearDrop is a native React Native / Expo app. It displays outdoor product and price-history data, saves preferences and watched products on-device, and supports three outdoor brands.
 
-Version 1.2 lets a user select a market and display currency, compare regional prices, save an item or model, and set a target price. Price checks use iOS Background Tasks and local notifications. iOS decides when background work runs; delivery is not immediate or guaranteed at an exact time. If the user force-quits GearDrop, they must reopen it before checks can resume.
+Version 1.2.1 refreshes the GearDrop / 值de app icon and brand lockups while preserving the 1.2 shopping workflow. A user can select a market and display currency, compare regional prices, save an item or model, and set a target price. Price checks use iOS Background Tasks and local notifications. iOS decides when background work runs; delivery is not immediate or guaranteed at an exact time. If the user force-quits GearDrop, they must reopen it before checks can resume.
 
 Pro access comes only from the RevenueCat `Pro` entitlement. The paywall reads the available products and localized prices from Apple StoreKit and provides purchase and Restore Purchases actions. The listing makes no claim that a user is eligible for a free trial.
 
@@ -46,7 +46,7 @@ Replace this draft with exact signed-build navigation steps and current App Stor
 
 ## Apply sequence
 
-1. Freeze the exact 1.2.0 / Build 14 source and signed artifact.
+1. Freeze the exact 1.2.1 / Build 15 source and signed artifact.
 2. Run the full local release gate and physical-device checklist.
 3. Complete StoreKit purchase/restore and notification scheduling checks.
 4. Capture and validate all 30 localized screenshots.

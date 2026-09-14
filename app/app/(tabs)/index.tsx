@@ -210,13 +210,7 @@ export default function DealsScreen() {
           <View style={styles.header}>
             <View style={styles.top}>
               <View style={styles.logoPlate}>
-                {prefs.language === "zh-Hans" ? (
-                  <Text style={styles.zhLogo}>
-                    值<Text style={styles.zhLogoAccent}>de</Text>
-                  </Text>
-                ) : (
-                  <BrandLogo style={styles.logo} />
-                )}
+                <BrandLogo style={styles.logo} />
               </View>
               <MarketPill
                 region={region}
@@ -374,24 +368,8 @@ const makeStyles = (colors: ThemeColors) =>
       height: 40,
       alignItems: "flex-start",
       justifyContent: "center",
-      borderRadius: 8,
-      backgroundColor: "#F4F1E9",
-      paddingHorizontal: 7,
     },
-    logo: { width: 108, height: 34 },
-    zhLogo: {
-      color: "#202326",
-      fontSize: 25,
-      fontWeight: "900",
-      letterSpacing: -1,
-    },
-    zhLogoAccent: {
-      color: "#B73535",
-      fontFamily: "monospace",
-      fontSize: 16,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
+    logo: { width: 116, height: 34 },
     summary: {
       color: colors.ink2,
       fontSize: 11.5,

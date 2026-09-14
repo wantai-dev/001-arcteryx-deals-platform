@@ -32,6 +32,14 @@ type AppConfig = {
         usesNonExemptEncryption?: boolean;
       };
     };
+    android?: {
+      adaptiveIcon?: {
+        backgroundColor?: string;
+        foregroundImage?: string;
+        backgroundImage?: string;
+        monochromeImage?: string;
+      };
+    };
     plugins?: Array<string | [string, Record<string, unknown>]>;
   };
 };
@@ -110,7 +118,7 @@ const expo = appConfig.expo;
 
 assert.equal(expo.name, 'GearDrop');
 assert.equal(expo.slug, 'geardrop');
-assert.equal(expo.version, '1.2.0');
+assert.equal(expo.version, '1.2.1');
 assert.equal(expo.scheme, 'geardrop');
 assert.equal(expo.userInterfaceStyle, 'automatic');
 assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleDisplayName, '值de');
@@ -118,7 +126,7 @@ assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleName, '值de');
 assert.equal(expo.locales?.['zh-Hans']?.android?.app_name, '值de');
 assert.equal(expo.ios?.bundleIdentifier, 'dev.100app.geardrop');
 assert.equal(expo.ios?.supportsTablet, false, 'release candidate must remain iPhone-only until iPad UI and screenshots are verified');
-assert.equal(expo.ios?.buildNumber, '14');
+assert.equal(expo.ios?.buildNumber, '15');
 assert.equal(expo.ios?.config?.usesNonExemptEncryption, false);
 assertNoTrademark(expo.name, 'expo.name');
 assertNoTrademark(expo.slug, 'expo.slug');
@@ -133,6 +141,7 @@ for (const assetPath of [
   './assets/android-icon-background.png',
   './assets/android-icon-monochrome.png',
   './assets/brand/geardrop-logo.png',
+  './assets/brand/zhide-logo.png',
   './assets/brand/geardrop-mark.png',
 ]) {
   assert.ok(existsSync(join(root, assetPath)), `missing asset ${assetPath}`);
@@ -146,10 +155,14 @@ const splashPlugin = (expo.plugins || []).find(
   (plugin): plugin is [string, Record<string, unknown>] => Array.isArray(plugin) && plugin[0] === 'expo-splash-screen',
 );
 assert.ok(splashPlugin, 'missing configured Expo splash plugin');
-assert.equal(splashPlugin[1].backgroundColor, '#F7F5EF');
+assert.equal(splashPlugin[1].backgroundColor, '#F4F2ED');
 assert.equal(splashPlugin[1].image, './assets/splash-icon.png');
 assert.equal(splashPlugin[1].imageWidth, 280);
 assert.equal(splashPlugin[1].resizeMode, 'contain');
+assert.equal(expo.android?.adaptiveIcon?.backgroundColor, '#111211');
+assert.equal(expo.android?.adaptiveIcon?.foregroundImage, './assets/android-icon-foreground.png');
+assert.equal(expo.android?.adaptiveIcon?.backgroundImage, './assets/android-icon-background.png');
+assert.equal(expo.android?.adaptiveIcon?.monochromeImage, './assets/android-icon-monochrome.png');
 
 for (const dependency of ['expo', 'expo-router', 'expo-splash-screen', '@supabase/supabase-js', '@react-native-async-storage/async-storage', 'expo-notifications', 'expo-image', 'expo-localization', 'react-native-svg', 'react-native-purchases']) {
   assert.ok(packageJson.dependencies[dependency], `missing dependency ${dependency}`);
@@ -166,7 +179,7 @@ assert.equal(
 );
 
 assert.equal(packageJson.main, 'expo-router/entry');
-assert.equal(packageJson.version, '1.2.0');
+assert.equal(packageJson.version, '1.2.1');
 assert.ok(packageJson.scripts.typecheck, 'missing typecheck script');
 assert.ok(packageJson.scripts.doctor, 'missing doctor script');
 assert.ok(packageJson.scripts.test, 'missing test script');
@@ -224,6 +237,8 @@ assert.ok(
 assert.ok(dealsSource.includes('<MarketPill') && dealsSource.includes('<MarketSheet'), 'Deals market selector must use the title-bar pill and paired market sheet');
 assert.ok(dealsSource.includes('await setMarket({ region: nextRegion, currency: nextCurrency })'), 'Deals market sheet must persist region and currency atomically');
 assert.ok(dealsSource.includes('<BrandLogo'), 'Deals header must render the GearDrop logo');
+assert.ok(brandLogoSource.includes('zhide-logo.png'), 'BrandLogo must include the registered Simplified Chinese lockup');
+assert.ok(brandLogoSource.includes("language === 'zh-Hans'"), 'BrandLogo must switch lockups with the active language');
 assert.ok(privacySource.includes('<BrandLogo'), 'Privacy screen must render the GearDrop logo');
 assert.ok(!dealsSource.includes('heroSection'), 'Deals must not keep the old single-row hero stream');
 assert.ok(filterChipsSource.includes('<ControlRow'), 'Deals filters must use the shared ControlRow');
@@ -337,6 +352,6 @@ assert.ok(liveDataVerifierSource.includes('YEARBOOK_BRAND_MIN_ROWS'), 'live data
 assert.ok(!liveDataVerifierSource.includes('products.length >= 5000'), 'live data verification must not use a volatile aggregate catalog floor');
 
 console.log(
-  'config_ok name=GearDrop version=1.2.0 bundle=dev.100app.geardrop buildNumber=' + expo.ios?.buildNumber + ' usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
+  'config_ok name=GearDrop version=1.2.1 bundle=dev.100app.geardrop buildNumber=' + expo.ios?.buildNumber + ' usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
     [...pluginNames].join(','),
 );

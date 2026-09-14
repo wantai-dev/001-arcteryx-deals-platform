@@ -3,7 +3,7 @@
     "name": "GearDrop",
     "slug": "geardrop",
     "owner": "noir-madlax",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "scheme": "geardrop",
     "locales": {
       "zh-Hans": {
@@ -22,14 +22,14 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "dev.100app.geardrop",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#17372F",
+        "backgroundColor": "#111211",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -44,7 +44,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F5EF",
+          "backgroundColor": "#F4F2ED",
           "image": "./assets/splash-icon.png",
           "imageWidth": 280,
           "resizeMode": "contain"

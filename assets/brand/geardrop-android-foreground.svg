@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">GearDrop Android adaptive icon foreground</title>
+  <g transform="translate(92 69) scale(.65)" fill="#F4F2ED">
+    <path d="M167 158C171 82 315 82 320 158" fill="none" stroke="#F4F2ED" stroke-width="38" stroke-linecap="round"/>
+    <path d="M92 147H392Q413 147 417 170L449 407Q455 445 415 455H82Q43 448 49 409L81 170Q84 147 92 147ZM132 275L369 187 286 424 244 313Z" fill-rule="evenodd" clip-rule="evenodd"/>
+  </g>
+</svg>

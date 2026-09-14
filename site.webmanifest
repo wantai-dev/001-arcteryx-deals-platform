@@ -4,8 +4,8 @@
   "description": "Outdoor gear deals, price history, watchlists, and price alerts.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F7F5EF",
-  "theme_color": "#17372F",
+  "background_color": "#F4F2ED",
+  "theme_color": "#111211",
   "icons": [
     {
       "src": "/assets/brand/icon-192.png",

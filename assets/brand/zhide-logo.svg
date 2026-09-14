@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="340" viewBox="0 0 840 340" role="img" aria-labelledby="title">
+  <title id="title">值de</title>
+  <g transform="translate(10 -7) scale(.64)" fill="#111211">
+    <path d="M167 158C171 82 315 82 320 158" fill="none" stroke="#111211" stroke-width="38" stroke-linecap="round"/>
+    <path d="M92 147H392Q413 147 417 170L449 407Q455 445 415 455H82Q43 448 49 409L81 170Q84 147 92 147ZM132 275L369 187 286 424 244 313Z" fill-rule="evenodd" clip-rule="evenodd"/>
+  </g>
+  <text x="330" y="245" fill="#111211" font-family="PingFang SC, Noto Sans CJK SC, sans-serif" font-size="220" font-weight="600">值</text>
+  <text x="555" y="245" fill="#111211" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="180" font-weight="500" letter-spacing="-6">de</text>
+</svg>

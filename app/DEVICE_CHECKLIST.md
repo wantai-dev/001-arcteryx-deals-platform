@@ -1,6 +1,6 @@
 # GearDrop 1.2 Device Checklist
 
-Record every result against the exact signed 1.2.0 / Build 14 candidate. Build 13 observations are historical and do not complete a Build 14 row.
+Record every result against the exact signed 1.2.1 / Build 15 candidate. Build 14 observations are historical and do not complete a Build 15 row.
 
 ## Device and build
 

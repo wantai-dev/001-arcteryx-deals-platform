@@ -45,6 +45,16 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$MANIFEST"
 
 git -C "$REPO_ROOT" archive "$COMMIT" -- "${PUBLIC_PATHS[@]}" \
+  ':(exclude,glob)**/.env*' \
+  ':(exclude,glob)**/.git*' \
+  ':(exclude,glob)**/*.key' \
+  ':(exclude,glob)**/*.md' \
+  ':(exclude,glob)**/*.pem' \
+  ':(exclude,glob)**/*.py' \
+  ':(exclude,glob)**/*.sql' \
+  ':(exclude,glob)**/*.toml' \
+  ':(exclude,glob)**/package-lock.json' \
+  ':(exclude,glob)**/package.json' \
   | tar -xf - -C "$STAGING/static"
 git -C "$REPO_ROOT" archive "$COMMIT" -- api/catalog.mjs api/product.mjs api/seo-index.mjs seo-index-policy.json ops/web/product-server.mjs \
   | tar -xf - -C "$STAGING"

@@ -69,7 +69,8 @@ log "hydrate current production dealer seed"
 mkdir -p dealers/_partial
 rm -f dealers/_partial/*.json
 log "scrape → dealers.mec"
-timeout 1800 "$PYTHON" -u -m dealers.mec 2>&1 | tee -a "$LOG"
+# 171 PDPs through scrapling take ~37 min; keep the same budget as the GitHub fallback.
+timeout 3600 "$PYTHON" -u -m dealers.mec 2>&1 | tee -a "$LOG"
 
 # A successful process with an empty/partial challenge response must not publish.
 "$PYTHON" tools/check_mec_partial.py

@@ -47,6 +47,12 @@ class ServerRunLeaseTests(unittest.TestCase):
                     (PROJECT / filename).read_text(),
                 )
 
+    def test_mec_scrape_budget_matches_the_github_fallback(self):
+        primary = (PROJECT / "server_run_mec.sh").read_text()
+        fallback = (PROJECT / ".github/workflows/refresh-mec.yml").read_text()
+        self.assertIn('timeout 3600 "$PYTHON" -u -m dealers.mec', primary)
+        self.assertIn("timeout 3600 python -u -m dealers.mec", fallback)
+
     def test_oci_mec_does_not_share_the_outlet_repo_lock(self):
         cron = (PROJECT / "ops/cron/oci-outlet.cron").read_text()
         outlet = next(line for line in cron.splitlines() if "server_run_update.sh" in line)

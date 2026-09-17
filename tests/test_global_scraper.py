@@ -2,7 +2,13 @@ import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-from global_scraper import REGIONS, fetch_json, next_stable_bottom_rounds
+from global_scraper import (
+    REGIONS,
+    fetch_json,
+    next_stable_bottom_rounds,
+    outlet_link_gender,
+    unisex_scope_result,
+)
 
 
 class OutletRegionConfigTests(unittest.TestCase):
@@ -46,6 +52,42 @@ class GlobalScraperScrollTests(unittest.TestCase):
             current_rounds=3,
         )
         self.assertEqual(reset, 0)
+
+
+class OutletListingLinkTests(unittest.TestCase):
+    def test_classifies_gendered_and_unisex_product_links(self):
+        self.assertEqual(
+            outlet_link_gender("https://outlet.arcteryx.com/us/en/shop/mens/beta-ar-jacket-9906"),
+            "men",
+        )
+        self.assertEqual(
+            outlet_link_gender("https://outlet.arcteryx.com/gb/en/shop/womens/konseal-shoe-9970"),
+            "women",
+        )
+        self.assertEqual(
+            outlet_link_gender("https://outlet.arcteryx.com/us/en/shop/ribbed-toque-9930?colour=Black"),
+            "unisex",
+        )
+
+    def test_rejects_category_links(self):
+        for url in (
+            "https://outlet.arcteryx.com/shop/mens",
+            "https://outlet.arcteryx.com/shop/mens/",
+            "https://outlet.arcteryx.com/shop/womens",
+            "https://outlet.arcteryx.com/shop/womens/",
+            "https://outlet.arcteryx.com/us/en/c/mens",
+        ):
+            with self.subTest(url=url):
+                self.assertIsNone(outlet_link_gender(url))
+
+    def test_unisex_scope_requires_every_gender_page_to_complete(self):
+        urls = {"https://outlet.arcteryx.com/gb/en/shop/mallow-toque"}
+        complete = unisex_scope_result("gb", urls, [True, True], 2)
+        self.assertEqual(complete["status"], "success")
+        self.assertEqual(complete["gender"], "unisex")
+        self.assertEqual(complete["urls"], sorted(urls))
+        self.assertEqual(unisex_scope_result("gb", urls, [True, False], 2)["status"], "failed")
+        self.assertEqual(unisex_scope_result("gb", urls, [True], 2)["status"], "failed")
 
 
 class OfficialJsonRetryTests(unittest.TestCase):

@@ -60,6 +60,9 @@ REGIONS = [
 ]
 
 GENDERS = ["mens", "womens"]
+UNISEX_SCOPE = "unisex"
+# 性别列表页同时列出无性别路径的中性商品（帽子、袜子、手套、背包），形如 /shop/<slug>。
+OUTLET_PRODUCT_LINK_RE = re.compile(r"/shop/(?:(mens|womens)/)?([^/?#]+)/?$")
 
 # 每次滚动后等待时间（秒）
 SCROLL_PAUSE = 1.0
@@ -89,6 +92,25 @@ def slug_from_url(url: str) -> str:
 def region_from_url(url: str) -> str | None:
     m = re.match(r"https?://outlet\.arcteryx\.com/([a-z]{2})/", url or "")
     return m.group(1) if m else None
+
+def outlet_link_gender(url: str) -> str | None:
+    """Return men/women/unisex for an Outlet product link, or None for category links."""
+    match = OUTLET_PRODUCT_LINK_RE.search((url or "").split("?", 1)[0])
+    if not match or len(match.group(2)) <= 5 or match.group(2) == "womens":
+        return None
+    return {"mens": "men", "womens": "women"}.get(match.group(1), UNISEX_SCOPE)
+
+def unisex_scope_result(region_code: str, urls: set[str], pages_complete: list[bool], expected_pages: int) -> dict:
+    """Unisex rows are only reconciled when every gender listing page was read completely."""
+    complete = len(pages_complete) == expected_pages and all(pages_complete)
+    return {
+        "region": region_code,
+        "gender": UNISEX_SCOPE,
+        "status": "success" if complete else "failed",
+        "reason": None if complete else "incomplete_gender_pages",
+        "product_count": len(urls),
+        "urls": sorted(urls),
+    }
 
 def parse_price(text: str) -> float:
     """从含货币符号的字符串中提取数字，日元去逗号"""
@@ -425,17 +447,15 @@ async def scroll_to_load_all(page) -> int:
         except Exception:
             pass
 
-        # 数商品数 — Arc'teryx outlet links are /shop/mens/ or /shop/womens/ (no region prefix)
+        # 数商品数 — Arc'teryx outlet links are /shop/mens/, /shop/womens/ or unisex /shop/{slug} (no region prefix)
         state = await page.evaluate("""() => {
-            const links = document.querySelectorAll(
-                'a[href*="/shop/mens/"], a[href*="/shop/womens/"]'
-            );
+            const links = document.querySelectorAll('a[href*="/shop/"]');
             const seen = new Set();
             links.forEach(a => {
                 const url = a.href.split('?')[0];
                 // Only count actual product pages (slug has a number or is long enough)
-                const slug = url.split('/').pop();
-                if (slug && slug.length > 5) seen.add(url);
+                const match = url.match(/\\/shop\\/(?:(mens|womens)\\/)?([^\\/?#]+)\\/?$/);
+                if (match && match[2].length > 5 && match[2] !== 'womens') seen.add(url);
             });
             return {
                 count: seen.size,
@@ -489,15 +509,19 @@ async def extract_tiles(page, region: dict, gender: str) -> list:
         const results = [];
         const seen = new Set();
 
-        // Arc'teryx outlet listing page links are /shop/mens/{slug} (no region prefix)
-        const genderPath = gender === 'mens' ? '/shop/mens/' : '/shop/womens/';
-        const links = [...document.querySelectorAll('a[href*="' + genderPath + '"]')];
+        // Arc'teryx outlet listing page links are /shop/mens/{slug} (no region prefix);
+        // unisex products are listed on both gender pages as /shop/{slug}.
+        const genderSegment = gender === 'mens' ? 'mens' : 'womens';
+        const links = [...document.querySelectorAll('a[href*="/shop/"]')];
 
         links.forEach(a => {
             let rawUrl = (a.href || '').split('?')[0];
             if (!rawUrl) return;
-            const slug = rawUrl.split('/').pop();
-            if (!slug || slug.length < 4) return;
+            const match = rawUrl.match(/\/shop\/(?:(mens|womens)\/)?([^\/?#]+)\/?$/);
+            if (!match || match[2] === 'womens') return;
+            if (match[1] && match[1] !== genderSegment) return;
+            const slug = match[2];
+            if (slug.length < 4) return;
             // Normalize: add region/lang prefix if missing
             // Raw link: https://outlet.arcteryx.com/shop/mens/{slug}
             // Needed:   https://outlet.arcteryx.com/{code}/{lang}/shop/mens/{slug}
@@ -597,7 +621,7 @@ async def extract_tiles(page, region: dict, gender: str) -> list:
             if (imgTag) imageUrl = imgTag.src || '';
 
             // 推断性别
-            const genderVal = url.includes('/mens/') ? 'men' : 'women';
+            const genderVal = match[1] === 'mens' ? 'men' : match[1] === 'womens' ? 'women' : 'unisex';
 
             // 推断 model（去掉 Men's/Women's 后缀）
             const cleanName = name.replace(/\s*(?:Men's|Women's|Mens|Womens)\s*$/i, '').trim();
@@ -667,6 +691,8 @@ async def scrape_region(browser, region: dict, genders: list, dry_run: bool) -> 
     page.set_default_timeout(10_000)
     all_products = []
     scope_results = []
+    unisex_by_url: dict[str, dict] = {}
+    pages_complete: list[bool] = []
 
     try:
         for gender in genders:
@@ -731,9 +757,13 @@ async def scrape_region(browser, region: dict, genders: list, dry_run: bool) -> 
                     # 即使价格为0也保留（sku_scraper 会重新抓详情）
                     valid.append(t)
 
-            urls = sorted({p.get("url") for p in valid if p.get("url")})
+            page_urls = {p.get("url") for p in valid if p.get("url")}
+            unisex = [p for p in valid if outlet_link_gender(p.get("url", "")) == UNISEX_SCOPE]
+            gendered = [p for p in valid if outlet_link_gender(p.get("url", "")) != UNISEX_SCOPE]
+            urls = sorted({p.get("url") for p in gendered if p.get("url")})
             minimum = max(10, round(total * 0.8))
-            complete = total >= 10 and len(urls) >= minimum
+            complete = total >= 10 and len(page_urls) >= minimum
+            pages_complete.append(complete)
             scope_results.append({
                 "region": region["code"],
                 "gender": gender,
@@ -744,14 +774,20 @@ async def scrape_region(browser, region: dict, genders: list, dry_run: bool) -> 
                 "urls": urls,
             })
             if complete:
-                print(f"    ✓ 提取 {len(valid)} 个有效商品（{gender}，完整）", flush=True)
-                all_products.extend(valid)
+                print(f"    ✓ 提取 {len(valid)} 个有效商品（{gender}，完整，含中性 {len(unisex)}）", flush=True)
+                all_products.extend(gendered)
+                for p in unisex:
+                    unisex_by_url.setdefault(p["url"], p)
             else:
-                print(f"    ⚠ 仅提取 {len(urls)}/{total} 个商品（{gender}），本范围不参与对账", flush=True)
+                print(f"    ⚠ 仅提取 {len(page_urls)}/{total} 个商品（{gender}），本范围不参与对账", flush=True)
 
             if dry_run:
                 break  # dry-run 只抓第一个 gender
 
+        all_products.extend(unisex_by_url.values())
+        scope_results.append(
+            unisex_scope_result(region["code"], set(unisex_by_url), pages_complete, len(genders))
+        )
         return all_products, False, scope_results
 
     finally:

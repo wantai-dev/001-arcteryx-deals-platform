@@ -33,7 +33,8 @@ env:
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   GITHUB_TOKEN: ${{ github.token }}
   REI_BROWSER_ROTATE_ROWS: "5"
-  REVALIDATE_DEALERS: ${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}
+  # Scheduled MEC rotation runs on the Lightsail primary; MEC blocks GitHub-hosted egress.
+  REVALIDATE_DEALERS: ${{ github.event_name == 'schedule' && 'evo' || inputs.dealers }}
   REVALIDATE_SKU_IDS: ${{ inputs.sku_ids }}
   REVALIDATE_MAX_ROWS_PER_DEALER: ${{ github.event_name == 'schedule' && '50' || '' }}
 
@@ -49,7 +50,7 @@ jobs:
 
       - name: Reject unsupported dealer egress
         env:
-          REQUESTED_DEALERS: ${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}
+          REQUESTED_DEALERS: ${{ github.event_name == 'schedule' && 'evo' || inputs.dealers }}
         run: |
           test -n "$REQUESTED_DEALERS"
           IFS=',' read -ra requested_dealers <<< "$REQUESTED_DEALERS"

@@ -14,7 +14,7 @@ import requests
 
 def product_identity(url: str) -> tuple[str, str]:
     parts = [part for part in urlparse(url).path.lower().split("/") if part]
-    region = parts[0] if len(parts) >= 5 and len(parts[0]) == 2 else ""
+    region = parts[0] if len(parts) >= 4 and len(parts[0]) == 2 else ""
     slug = parts[-1] if parts else ""
     return region, slug
 

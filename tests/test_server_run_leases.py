@@ -47,6 +47,15 @@ class ServerRunLeaseTests(unittest.TestCase):
                     (PROJECT / filename).read_text(),
                 )
 
+    def test_oci_mec_does_not_share_the_outlet_repo_lock(self):
+        cron = (PROJECT / "ops/cron/oci-outlet.cron").read_text()
+        outlet = next(line for line in cron.splitlines() if "server_run_update.sh" in line)
+        mec = next(line for line in cron.splitlines() if "server_run_mec.sh" in line)
+        self.assertIn("/tmp/arcteryx-repo.lock", outlet)
+        self.assertNotIn("/tmp/arcteryx-repo.lock", mec)
+        self.assertIn("cd /home/opc/arcteryx-mec && PROJ_DIR=/home/opc/arcteryx-mec", mec)
+        self.assertIn(">> /home/opc/arcteryx-mec/mec.log", mec)
+
     def test_primary_revalidation_rotates_a_bounded_dealer_cohort(self):
         script = (PROJECT / "server_run_revalidate.sh").read_text()
         self.assertIn(

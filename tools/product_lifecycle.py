@@ -111,7 +111,8 @@ def validate_scope_counts(manifest: dict, existing_rows: list[dict]) -> list[str
         if scope.get("status") != "success":
             continue
         current_count = len(scope.get("urls") or set())
-        if current_count < MIN_SCOPE_PRODUCTS:
+        # Unisex scopes are derived from completed gender pages and may legitimately be small.
+        if current_count < MIN_SCOPE_PRODUCTS and key[1] != "unisex":
             errors.append(f"{key[0]}/{key[1]} only returned {current_count} products")
             continue
         previous = existing_urls.get(key, set())

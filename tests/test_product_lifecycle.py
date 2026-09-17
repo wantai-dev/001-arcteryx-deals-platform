@@ -109,6 +109,25 @@ class ProductLifecycleTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("dropped from 100 to 60", errors[0])
 
+    def test_unisex_product_uses_region_unisex_scope(self):
+        url = "https://outlet.arcteryx.com/gb/en/shop/mallow-toque"
+        manifest = {
+            "generated_at": "2026-09-18T00:00:00+00:00",
+            "scopes": {
+                ("gb", "unisex"): {"region": "gb", "gender": "unisex", "status": "success", "urls": {url}},
+            },
+        }
+        row = {"url": url, "region": "gb", "gender": "unisex", "last_updated": "new"}
+        self.assertEqual(
+            next_lifecycle(None, row, manifest),
+            {"status": "active", "missing_runs": 0, "last_seen_at": "new"},
+        )
+        self.assertEqual(validate_scope_counts(manifest, []), [])
+
+    def test_small_gender_scope_is_still_rejected(self):
+        errors = validate_scope_counts(self.manifest(["https://example.test/1"]), [])
+        self.assertEqual(errors, ["us/women only returned 1 products"])
+
     def test_static_fallback_rejects_row_absent_from_successful_scope(self):
         now = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
         row = {
@@ -149,6 +168,7 @@ class ProductLifecycleTests(unittest.TestCase):
 
     def test_product_identity_uses_region_and_slug(self):
         self.assertEqual(product_identity("https://outlet.arcteryx.com/us/en/shop/womens/alpha-pant"), ("us", "alpha-pant"))
+        self.assertEqual(product_identity("https://outlet.arcteryx.com/gb/en/shop/mallow-toque"), ("gb", "mallow-toque"))
 
     @patch("tools.check_product_urls.requests.get")
     def test_url_checker_marks_404_unavailable(self, get):

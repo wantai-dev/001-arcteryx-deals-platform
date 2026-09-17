@@ -81,9 +81,10 @@ class WorkflowGuardTests(unittest.TestCase):
         )
         self.assertIn(
             "REVALIDATE_DEALERS: "
-            "${{ github.event_name == 'schedule' && 'evo,mec' || inputs.dealers }}",
+            "${{ github.event_name == 'schedule' && 'evo' || inputs.dealers }}",
             workflow,
         )
+        self.assertNotIn("github.event_name == 'schedule' && 'evo,mec'", workflow)
         self.assertIn("REVALIDATE_SKU_IDS: ${{ inputs.sku_ids }}", workflow)
 
     def test_revalidation_refuses_rei_before_any_production_write(self):

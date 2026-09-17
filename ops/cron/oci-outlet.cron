@@ -9,4 +9,5 @@ CRAWLER_NODE=oci-free-a1
 0 0,3,6,9,12,15,18,21 * * * cd /home/opc/arcteryx && /usr/bin/flock -n /tmp/arcteryx-repo.lock /home/opc/arcteryx/server_run_update.sh >> /home/opc/arcteryx/cron_update.log 2>&1
 
 # MEC is reachable from OCI but Cloudflare-blocked from Lightsail. Run one hour later.
-0 1,4,7,10,13,16,19,22 * * * cd /home/opc/arcteryx && /usr/bin/flock -n /tmp/arcteryx-repo.lock /home/opc/arcteryx/server_run_mec.sh >> /home/opc/arcteryx/mec.log 2>&1
+# Outlet runs hold the repo lock for 1-2 hours, so MEC uses its own checkout and lock.
+0 1,4,7,10,13,16,19,22 * * * cd /home/opc/arcteryx-mec && PROJ_DIR=/home/opc/arcteryx-mec /usr/bin/flock -n /tmp/arcteryx-mec.lock /home/opc/arcteryx-mec/server_run_mec.sh >> /home/opc/arcteryx-mec/mec.log 2>&1

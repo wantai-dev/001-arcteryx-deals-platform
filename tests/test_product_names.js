@@ -53,7 +53,7 @@ test('rejects SSENSE rows whose brand path is not Arc\'teryx', () => {
 });
 
 test('registry includes every newly audited production family', () => {
-  for (const family of ['Argand', 'Axios', 'Cusec', 'Diene', 'Dromos', 'Isogon', 'Metron', 'Micon', 'Quintic', 'Rhoam', 'Sunna', 'Venta', 'Verro', "Arc'Word", 'AR-385a', 'AR-395a']) {
+  for (const family of ['Argand', 'Axios', 'Bucket', 'Chunky', 'Colour', 'Cusec', 'Diantric', 'Diene', 'Dromos', 'Isogon', 'Metron', 'Micon', 'Oloss', 'Performance', 'Quintic', 'Rescue', 'Rhoam', 'Sunna', 'Synthetic', 'Venta', 'Verro', "Arc'Word", 'AR-385a', 'AR-395a']) {
     assert.ok(MODEL_FAMILIES.includes(family), family);
     assert.equal(extractModelFamily(`${family} Test Product`), family);
   }

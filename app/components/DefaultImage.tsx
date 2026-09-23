@@ -7,7 +7,7 @@ import {
   defaultImageKind,
   type DefaultImageKind,
 } from "../lib/defaultImage";
-import type { ThemeColors } from "../lib/theme";
+import { text, type ThemeColors } from "../lib/theme";
 
 export { defaultImageKind };
 export type { DefaultImageKind };
@@ -93,9 +93,8 @@ const makeStyles = (colors: ThemeColors) =>
       left: 9,
       bottom: 8,
       maxWidth: "76%",
+      ...text.caption2Emphasized,
       color: "#34383C",
-      fontSize: 9.5,
-      fontWeight: "900",
       letterSpacing: 1.2,
       textTransform: "uppercase",
     },

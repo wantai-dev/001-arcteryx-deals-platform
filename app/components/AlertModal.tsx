@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+
+import { Sheet } from './Sheet';
 
 import { usePreferences } from '../contexts/PreferencesContext';
 import { usePro } from '../contexts/ProContext';
@@ -19,7 +21,8 @@ import {
   validAlertTargetCurrency,
   type AlertPriceReference,
 } from '../lib/alertPriceReference';
-import { radii, typography, type ThemeColors } from '../lib/theme';
+import { radii, text, typography, type ThemeColors } from '../lib/theme';
+import { scaleLength } from '../lib/typeScale';
 import type { AlertDraft } from '../lib/watchlist';
 import { watchSnapshot } from '../lib/watchlist';
 import { alertSheetCopy } from '../lib/watchI18n';
@@ -36,6 +39,7 @@ export function AlertModal({ visible, source, priceReference, entry, lockedScope
   const watchlist = useWatchlist();
   const { colors: palette } = useTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { fontScale } = useWindowDimensions();
   const copy = alertSheetCopy(preferences.language);
   const emailCopy = emailAlertCopy(preferences.language);
   const snapshot = 'price' in source && 'name' in source ? source : watchSnapshot(source);
@@ -143,10 +147,10 @@ export function AlertModal({ visible, source, priceReference, entry, lockedScope
     } finally { setBusy(false); }
   }
 
-  return <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={styles.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        <View style={styles.handle} /><Text style={styles.title}>{copy.title}</Text><View style={styles.productRow}><View style={styles.thumb}><TopoPlaceholder category={snapshot.category} brand={placeholderBrand} compact showLabel={false} />{snapshot.imageUrl ? <Image source={{ uri: snapshot.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}</View><Text style={styles.product} numberOfLines={2}>{snapshot.name}</Text></View>
+  return <Sheet visible={visible} onClose={onClose} detents={[0.9]} closeAccessibilityLabel={copy.cancel} style={styles.sheet}>
+    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={styles.fill}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <Text style={styles.title}>{copy.title}</Text><View style={styles.productRow}><View style={styles.thumb}><TopoPlaceholder category={snapshot.category} brand={placeholderBrand} compact showLabel={false} />{snapshot.imageUrl ? <Image source={{ uri: snapshot.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}</View><Text style={styles.product} numberOfLines={2}>{snapshot.name}</Text></View>
         <Text style={styles.current}>{referenceLabel}{priceReference.kind !== 'unavailable' ? ` ${preferences.formatMoney(priceReference.amount, priceReference.currency, priceReference.symbol)}` : ''}</Text>
         {referenceNote ? <Text style={styles.referenceNote}>{referenceNote}</Text> : null}
         {priceReference.kind !== 'unavailable' && comparableReferenceAmount === null ? <Text style={styles.referenceNote}>{copy.futureThreshold}</Text> : null}
@@ -160,18 +164,18 @@ export function AlertModal({ visible, source, priceReference, entry, lockedScope
           <Preset label={copy.historyLow} selected={mode === 'historicalLow'} disabled={comparableReferenceAmount === null || !low} onPress={() => chooseMode('historicalLow')} styles={styles} />
           <Preset label={copy.custom} selected={mode === 'custom'} onPress={() => chooseMode('custom')} styles={styles} />
         </View>
-        {mode === 'custom' ? <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" style={styles.input} accessibilityLabel={copy.custom} /> : <Text style={styles.targetPreview}>{preferences.formatOriginalMoney(amount, targetCurrency)}</Text>}
-        <View style={styles.switchRow}><View style={styles.flex}><Text style={styles.rowTitle}>{copy.local}</Text><Text style={styles.help}>{copy.background}</Text></View><Switch accessibilityRole="switch" accessibilityLabel={copy.local} value={localEnabled} onValueChange={setLocalEnabled} /></View>
+        {mode === 'custom' ? <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" style={[styles.input, { minHeight: scaleLength(48, fontScale) }]} accessibilityLabel={copy.custom} /> : <Text style={styles.targetPreview}>{preferences.formatOriginalMoney(amount, targetCurrency)}</Text>}
+        <View style={[styles.switchRow, { minHeight: scaleLength(58, fontScale) }]}><View style={styles.flex}><Text style={styles.rowTitle}>{copy.local}</Text><Text style={styles.help}>{copy.background}</Text></View><Switch accessibilityRole="switch" accessibilityLabel={copy.local} value={localEnabled} onValueChange={setLocalEnabled} /></View>
         {supportsEmail ? <Pressable accessibilityRole="button" accessibilityLabel={copy.emailOptional} accessibilityState={{ expanded: emailOpen }} style={styles.emailToggle} onPress={() => setEmailOpen((value) => !value)}><Text style={styles.rowTitle}>{copy.emailOptional}</Text><Text style={styles.chevron}>{emailOpen ? '−' : '+'}</Text></Pressable> : null}
         {supportsEmail && emailOpen ? <><TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={styles.input} /><Text style={styles.emailHelp}>{emailCopy.independent}</Text></> : null}
         <Text style={styles.quota}>{copy.quota(watchlist.activeAlertCount, watchlist.freeAlertLimit, isPro)}</Text>
         {quotaFull ? <ProGate title={copy.limitReached} subtitle={copy.proUnlimited} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {existingAlert && onDelete ? <Pressable accessibilityRole="button" accessibilityLabel={existingAlert.email ? emailCopy.deleteLocal : copy.deleteAlert} style={[styles.deleteButton, busy && styles.disabled]} disabled={busy} onPress={async () => { setBusy(true); setError(null); try { await onDelete(scope); onClose(); } catch { setError(copy.deleteFailed); } finally { setBusy(false); } }}>{busy ? <ActivityIndicator color={palette.danger} /> : <Text style={styles.deleteText}>{existingAlert.email ? emailCopy.deleteLocal : copy.deleteAlert}</Text>}</Pressable> : null}
-        <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={copy.cancel} style={[styles.button, styles.secondary]} onPress={onClose} disabled={busy}><Text style={styles.secondaryText}>{copy.cancel}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={copy.save} style={[styles.button, styles.primary, (quotaFull || !validAlertTargetCurrency(targetCurrency)) && styles.disabled]} onPress={submit} disabled={busy || quotaFull || !validAlertTargetCurrency(targetCurrency)}>{busy ? <ActivityIndicator color={palette.onPill} /> : <Text style={styles.primaryText}>{copy.save}</Text>}</Pressable></View>
+        <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={copy.cancel} style={[styles.button, { minHeight: scaleLength(52, fontScale) }, styles.secondary]} onPress={onClose} disabled={busy}><Text style={styles.secondaryText}>{copy.cancel}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={copy.save} style={[styles.button, { minHeight: scaleLength(52, fontScale) }, styles.primary, (quotaFull || !validAlertTargetCurrency(targetCurrency)) && styles.disabled]} onPress={submit} disabled={busy || quotaFull || !validAlertTargetCurrency(targetCurrency)}>{busy ? <ActivityIndicator color={palette.onPill} /> : <Text style={styles.primaryText}>{copy.save}</Text>}</Pressable></View>
       </ScrollView></View>
     </KeyboardAvoidingView>
-  </Modal>;
+  </Sheet>;
 }
 
 function Preset({ label, selected, disabled, onPress, styles }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void; styles: ReturnType<typeof createStyles> }) {
@@ -179,12 +183,12 @@ function Preset({ label, selected, disabled, onPress, styles }: { label: string;
 }
 
 function createStyles(c: ThemeColors) { return StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.38)' }, sheet: { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: c.card }, content: { gap: 12, padding: 20, paddingBottom: 34 }, handle: { width: 38, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: c.hair2 },
-  title: { color: c.ink, fontSize: 22, fontWeight: '900' }, product: { flex: 1, color: c.ink, fontSize: 15, fontWeight: '800' }, current: { color: c.muted, fontSize: 13, fontWeight: '700' }, referenceNote: { color: c.muted, fontSize: 11.5, lineHeight: 17 }, lockedScope: { color: c.ink2, fontSize: 12, fontWeight: '900' }, label: { color: c.ink2, fontSize: 12, fontWeight: '800' }, presets: { flexDirection: 'row', gap: 8 },
+  sheet: { backgroundColor: c.card }, fill: { flex: 1 }, content: { gap: 12, padding: 20, paddingTop: 6, paddingBottom: 20 },
+  title: { ...text.title2, color: c.ink }, product: { ...text.subheadEmphasized, flex: 1, color: c.ink }, current: { ...text.footnote, color: c.muted }, referenceNote: { ...text.caption1, color: c.muted, lineHeight: 17 }, lockedScope: { ...text.caption1Emphasized, color: c.ink2 }, label: { ...text.footnoteEmphasized, color: c.ink2 }, presets: { flexDirection: 'row', gap: 8 },
   productRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12 }, thumb: { width: 52, height: 64, overflow: 'hidden', borderRadius: 9, backgroundColor: c.photo },
-  preset: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, paddingHorizontal: 6 }, presetSelected: { backgroundColor: c.pill, borderColor: c.pill }, presetText: { color: c.ink2, fontSize: 12, fontWeight: '800', textAlign: 'center' }, presetTextSelected: { color: c.onPill },
-  input: { minHeight: 48, borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, color: c.ink, backgroundColor: c.screen, paddingHorizontal: 12, fontSize: 16 }, targetPreview: { color: c.disc, fontFamily: typography.mono, fontSize: 24, fontWeight: '900' },
-  switchRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hair }, flex: { flex: 1 }, rowTitle: { color: c.ink, fontSize: 14, fontWeight: '800' }, help: { color: c.muted, marginTop: 3, fontSize: 12, lineHeight: 17 }, emailToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, emailHelp: { color: c.muted, fontSize: 11.5, lineHeight: 17 }, chevron: { color: c.ink, fontSize: 20 },
-  quota: { color: c.muted, fontSize: 12, fontWeight: '700' }, error: { color: c.disc, fontSize: 13, fontWeight: '700' }, actions: { flexDirection: 'row', gap: 10 }, button: { minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, secondary: { backgroundColor: c.screen }, primary: { backgroundColor: c.pill }, disabled: { opacity: 0.42 }, secondaryText: { color: c.ink, fontWeight: '800' }, primaryText: { color: c.onPill, fontWeight: '900' },
-  deleteButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' }, deleteText: { color: c.danger, fontWeight: '800' },
+  preset: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, paddingHorizontal: 6 }, presetSelected: { backgroundColor: c.pill, borderColor: c.pill }, presetText: { ...text.footnote, color: c.ink2, textAlign: 'center' }, presetTextSelected: { color: c.onPill },
+  input: { minHeight: 48, borderRadius: radii.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: c.hair2, color: c.ink, backgroundColor: c.screen, paddingHorizontal: 12, ...text.body }, targetPreview: { ...text.title1, color: c.disc, fontFamily: typography.mono },
+  switchRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hair }, flex: { flex: 1 }, rowTitle: { ...text.body, color: c.ink }, help: { ...text.footnote, color: c.muted, marginTop: 3 }, emailToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, emailHelp: { ...text.caption1, color: c.muted, lineHeight: 17 }, chevron: { ...text.title3, color: c.ink },
+  quota: { ...text.footnote, color: c.muted }, error: { ...text.footnoteEmphasized, color: c.disc }, actions: { flexDirection: 'row', gap: 10 }, button: { minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, secondary: { backgroundColor: c.screen }, primary: { backgroundColor: c.pill }, disabled: { opacity: 0.42 }, secondaryText: { ...text.headline, color: c.ink }, primaryText: { ...text.headline, color: c.onPill },
+  deleteButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' }, deleteText: { ...text.subheadEmphasized, color: c.danger },
 }); }

@@ -86,6 +86,8 @@ jobs:
           test -n "$SUPABASE_KEY"
 
       - name: Verify MEC fallback browser runtime
+        # EVO-only runs must not be blocked by the MEC-specific fallback runtime.
+        if: ${{ contains(format(',{0},', env.REVALIDATE_DEALERS), ',mec,') }}
         run: python tools/check_mec_browser_runtime.py
 
       - name: Repair derived dealer discounts

@@ -50,6 +50,15 @@ class WorkflowGuardTests(unittest.TestCase):
             workflow.index("python tools/check_mec_browser_runtime.py"),
         )
 
+    def test_evo_only_revalidation_skips_mec_browser_preflight(self):
+        workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "if: ${{ contains(format(',{0},', env.REVALIDATE_DEALERS), ',mec,') }}",
+            workflow,
+        )
+
     def test_mec_fallback_allows_full_pdp_enrichment_window(self):
         workflow = (ROOT / ".github/workflows/refresh-mec.yml").read_text(encoding="utf-8")
         self.assertIn("timeout-minutes: 120", workflow)

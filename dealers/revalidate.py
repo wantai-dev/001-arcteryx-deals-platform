@@ -439,14 +439,13 @@ def _evo_needs_browser_fallback(result: dict | None) -> bool:
 
 
 def _evo_should_confirm_with_browser(result: dict | None) -> bool:
-    """Confirm every usable Shopify snapshot because the PDP may have a deeper sale."""
-    if not result or result.get("_err") or result.get("_unavailable"):
-        return False
-    sale = _num(result.get("sale_price"))
-    original = _num(result.get("original_price"))
-    if not sale or not original:
-        return False
-    return True
+    """The official Shopify variant payload is authoritative for usable EVO rows.
+
+    It exposes the currently purchasable variants and their price/compare-at
+    values, so it is the price fact source for revalidation.  A browser remains
+    a fallback only when that official structured endpoint cannot be read.
+    """
+    return False
 
 
 def _evo_choose_more_informative_price(direct_result: dict | None, browser_result: dict | None) -> dict | None:

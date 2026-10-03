@@ -758,13 +758,13 @@ class DealerRevalidationTests(unittest.TestCase):
             "discount_pct": 30,
         }))
 
-    def test_evo_browser_confirmation_targets_every_usable_direct_result(self):
-        self.assertTrue(_evo_should_confirm_with_browser({
+    def test_evo_official_structured_price_does_not_require_browser_confirmation(self):
+        self.assertFalse(_evo_should_confirm_with_browser({
             "sale_price": 180.0,
             "original_price": 180.0,
             "discount_pct": 0,
         }))
-        self.assertTrue(_evo_should_confirm_with_browser({
+        self.assertFalse(_evo_should_confirm_with_browser({
             "sale_price": 119.99,
             "original_price": 180.0,
             "discount_pct": 33,

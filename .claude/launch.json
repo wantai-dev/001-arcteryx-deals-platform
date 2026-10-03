@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "5180"],
       "port": 5180
+    },
+    {
+      "name": "geardrop-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "app", "run", "web", "--", "--port", "8082"],
+      "port": 8082
     }
   ]
 }

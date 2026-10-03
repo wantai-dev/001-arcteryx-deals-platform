@@ -1,44 +1,47 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
-import { router } from "expo-router";
+import { Stack, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
   Linking,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MarketSheet } from "../../components/MarketSheet";
-import { useProducts } from "../../contexts/ProductsContext";
-import { usePreferences } from "../../contexts/PreferencesContext";
-import { usePro } from "../../contexts/ProContext";
-import { useTheme } from "../../contexts/ThemeContext";
-import { browseText } from "../../lib/browseI18n";
-import { availableDealRegions } from "../../lib/deals";
+import { MarketSheet } from "../../../components/MarketSheet";
+import { Sheet } from "../../../components/Sheet";
+import { useProducts } from "../../../contexts/ProductsContext";
+import { usePreferences } from "../../../contexts/PreferencesContext";
+import { usePro } from "../../../contexts/ProContext";
+import { useTheme } from "../../../contexts/ThemeContext";
+import { browseText } from "../../../lib/browseI18n";
+import { availableDealRegions } from "../../../lib/deals";
 import {
   LANGUAGE_LABELS,
   LANGUAGE_OPTIONS,
   LanguageChoice,
-} from "../../lib/i18n";
-import { AppearancePreference } from "../../lib/preferences";
+} from "../../../lib/i18n";
+import { AppearancePreference } from "../../../lib/preferences";
 import {
   marketCurrencyOptions,
   marketRegionOptions,
-} from "../../lib/marketOptions";
+} from "../../../lib/marketOptions";
 import {
   openSupportUrl,
   requestNotificationPermission,
-} from "../../lib/actions";
-import { ThemeColors, radii } from "../../lib/theme";
+} from "../../../lib/actions";
+import { radii, text, type ThemeColors } from "../../../lib/theme";
+import {
+  isAccessibilityScale,
+  scaleLength,
+} from "../../../lib/typeScale";
 
 const APPLE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
 
@@ -87,9 +90,12 @@ export default function MeScreen() {
       ? p.t("me.languageSystem")
       : LANGUAGE_LABELS[p.languageChoice];
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{p.t("me.title")}</Text>
+    <View style={styles.safe}>
+      <Stack.Screen options={{ title: p.t("me.title") }} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View style={styles.proCard}>
           <View>
             <Text style={styles.proTitle}>
@@ -256,7 +262,7 @@ export default function MeScreen() {
         onApply={(region, currency) => p.setMarket({ region, currency })}
         onClose={() => setPicker(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -275,16 +281,26 @@ function Row({
   onPress: () => void;
   external?: boolean;
 }) {
+  const { fontScale } = useWindowDimensions();
+  // At the accessibility text sizes a label and its value no longer share a
+  // line legibly, so the row stacks the way iOS Settings does.
+  const stacked = isAccessibilityScale(fontScale);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={[label, value].filter(Boolean).join(", ")}
-      style={styles.row}
+      style={[
+        styles.row,
+        { minHeight: scaleLength(52, fontScale) },
+        stacked && styles.rowStacked,
+      ]}
       onPress={onPress}
     >
       <Text style={styles.rowTitle}>{label}</Text>
-      <View style={styles.value}>
-        <Text style={styles.valueText}>{value}</Text>
+      <View style={[styles.value, stacked && styles.valueStacked]}>
+        <Text style={[styles.valueText, stacked && styles.valueTextStacked]}>
+          {value}
+        </Text>
         <Ionicons
           name={external ? "open-outline" : "chevron-forward"}
           size={17}
@@ -316,6 +332,7 @@ function Picker({
   colors: ThemeColors;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState(false);
   useEffect(() => {
@@ -335,14 +352,13 @@ function Picker({
     }
   }
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType={Platform.OS === "web" ? "fade" : "slide"}
-      onRequestClose={onClose}
+      onClose={onClose}
+      closeAccessibilityLabel={closeLabel}
+      style={s.sheetSurface}
     >
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+        <ScrollView contentContainerStyle={s.sheet}>
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>{title}</Text>
             <Pressable
@@ -363,7 +379,7 @@ function Picker({
               accessibilityLabel={o.label}
               accessibilityState={{ checked: o.value === value, disabled: busy }}
               disabled={busy}
-              style={s.option}
+              style={[s.option, { minHeight: scaleLength(48, fontScale) }]}
               onPress={() => void select(o.value)}
             >
               <Text style={s.rowTitle}>{o.label}</Text>
@@ -374,16 +390,14 @@ function Picker({
           ))}
           {busy ? <ActivityIndicator color={colors.ink} /> : null}
           {saveError ? <Text accessibilityRole="alert" style={s.saveError}>{errorLabel}</Text> : null}
-        </View>
-      </View>
-    </Modal>
+        </ScrollView>
+    </Sheet>
   );
 }
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.bg },
     content: { padding: 20, paddingBottom: 38, gap: 12 },
-    title: { color: c.ink, fontSize: 34, lineHeight: 40, fontWeight: "900" },
     proCard: {
       minHeight: 126,
       padding: 18,
@@ -392,8 +406,8 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       gap: 14,
     },
-    proTitle: { color: c.onPill, fontSize: 18, fontWeight: "900" },
-    sub: { color: c.onPill, marginTop: 4, fontSize: 13 },
+    proTitle: { ...text.title3, color: c.onPill },
+    sub: { ...text.footnote, color: c.onPill, marginTop: 4 },
     proButton: {
       minHeight: 44,
       alignSelf: "flex-end",
@@ -402,13 +416,13 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       backgroundColor: c.card,
     },
-    proButtonText: { color: c.ink, fontWeight: "900" },
+    proButtonText: { ...text.subheadEmphasized, color: c.ink },
     section: {
+      ...text.footnote,
       color: c.muted,
       marginTop: 8,
-      fontSize: 11,
-      fontWeight: "800",
-      letterSpacing: 0.7,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
     },
     card: {
       borderRadius: radii.lg,
@@ -429,9 +443,8 @@ function makeStyles(c: ThemeColors) {
       padding: 14,
     },
     preferencesErrorTitle: {
+      ...text.subheadEmphasized,
       color: c.ink,
-      fontSize: 14,
-      fontWeight: "800",
       marginBottom: 3,
     },
     preferencesRetry: {
@@ -439,7 +452,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
       paddingHorizontal: 12,
     },
-    preferencesRetryText: { color: c.disc, fontSize: 13, fontWeight: "900" },
+    preferencesRetryText: { ...text.footnoteEmphasized, color: c.disc },
     row: {
       minHeight: 52,
       paddingHorizontal: 16,
@@ -451,8 +464,16 @@ function makeStyles(c: ThemeColors) {
       borderBottomColor: c.border,
     },
     flex: { flex: 1 },
-    rowTitle: { color: c.ink, fontSize: 15, fontWeight: "700" },
-    rowSub: { color: c.muted, fontSize: 12, lineHeight: 17 },
+    rowStacked: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: 2,
+      paddingVertical: 12,
+    },
+    valueStacked: { alignSelf: "stretch" },
+    valueTextStacked: { textAlign: "left" },
+    rowTitle: { ...text.body, color: c.ink },
+    rowSub: { ...text.footnote, color: c.muted },
     value: {
       flexShrink: 1,
       flexDirection: "row",
@@ -460,31 +481,20 @@ function makeStyles(c: ThemeColors) {
       gap: 4,
     },
     valueText: {
+      ...text.body,
       flexShrink: 1,
       color: c.muted,
-      fontSize: 13,
       textAlign: "right",
     },
-    backdrop: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(8,9,10,.45)",
-    },
-    sheet: {
-      maxHeight: "88%",
-      padding: 18,
-      paddingBottom: 34,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      backgroundColor: c.card,
-    },
+    sheetSurface: { backgroundColor: c.card },
+    sheet: { padding: 18, paddingTop: 4, paddingBottom: 16 },
     sheetHead: {
       minHeight: 44,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    sheetTitle: { color: c.ink, fontSize: 20, fontWeight: "900" },
+    sheetTitle: { ...text.title3, color: c.ink },
     close: {
       width: 44,
       height: 44,
@@ -499,7 +509,7 @@ function makeStyles(c: ThemeColors) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.border,
     },
-    saveError: { color: c.disc, fontSize: 12, lineHeight: 17, marginTop: 10 },
-    version: { color: c.muted, fontSize: 11, textAlign: "center", marginTop: 4 },
+    saveError: { ...text.footnote, color: c.disc, marginTop: 10 },
+    version: { ...text.caption1, color: c.muted, textAlign: "center", marginTop: 4 },
   });
 }

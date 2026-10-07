@@ -6,16 +6,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import tools.audit_price_accuracy as audit_module
-
 from tools.audit_price_accuracy import (
-    AuditSetupError,
     DEALER_TARGETS,
+    AuditSetupError,
     build_audits,
     normalize_read,
     sample_rows,
     sample_rows_from_artifact,
     summarize,
 )
+from tools.evo_price_evidence import parse_evo_official_read
 
 
 def row(sku_id, dealer, sale=100.0, original=120.0, discount=17):
@@ -152,11 +152,12 @@ class PriceAuditTests(unittest.TestCase):
                 "original_price": 120,
                 "discount_pct": 17,
             },
-            "evo:wrong": {
-                "sale_price": 90,
-                "original_price": 120,
-                "discount_pct": 25,
-            },
+            "evo:wrong": parse_evo_official_read(
+                json.dumps({"variants": [{
+                    "id": 1, "available": True, "price": 9000, "compare_at_price": 12000,
+                }]}).encode(),
+                "https://www.evo.com/products/audit-fixture",
+            ),
             "rei:blocked": {"_err": "goto Error: blocked"},
         }
         second = dict(first)
@@ -173,6 +174,36 @@ class PriceAuditTests(unittest.TestCase):
         self.assertEqual(summary["confirmed_wrong"], 1)
         self.assertEqual(summary["unverifiable"], 1)
         self.assertEqual(summary["accuracy"], 0.5)
+
+    def test_evo_price_without_raw_variant_evidence_is_unverifiable(self):
+        candidate = row("evo:no-proof", "evo")
+        read = {"sale_price": 100, "original_price": 120, "discount_pct": 17}
+        result = build_audits([candidate], {candidate["sku_id"]: read}, {candidate["sku_id"]: read})
+        self.assertEqual(result[0]["verdict"], "unverifiable")
+        self.assertEqual(result[0]["error"], "evo_missing_variant_evidence")
+
+    def test_evo_two_reads_must_agree_before_a_wrong_pair_is_confirmed(self):
+        candidate = row("evo:changes", "evo")
+        def read(sale):
+            return parse_evo_official_read(json.dumps({"variants": [{
+                "id": 1, "available": True, "price": sale, "compare_at_price": 12000,
+            }]}).encode(), "https://www.evo.com/products/audit-fixture")
+        first, second = read(9000), read(10000)
+        result = build_audits([candidate], {candidate["sku_id"]: first}, {candidate["sku_id"]: second})
+        self.assertEqual(result[0]["verdict"], "unverifiable")
+        self.assertEqual(result[0]["error"], "inconsistent_official_reads")
+        self.assertIn("evo_evidence", result[0]["official_reads"][0])
+
+    @patch("tools.audit_price_accuracy.time.sleep")
+    def test_evo_pass_does_not_start_a_browser(self, _sleep):
+        candidate = row("evo:raw", "evo")
+        read = {"_err": "evo_http 403"}
+        with patch.object(audit_module, "read_evo", return_value=read), patch.object(
+            audit_module, "open_camoufox_browser", side_effect=AssertionError("browser called")
+        ) as browser:
+            result = audit_module.read_evo_pass([candidate])
+        self.assertEqual(result[candidate["sku_id"]], read)
+        browser.assert_not_called()
 
     def test_official_unavailable_is_fail_closed(self):
         self.assertEqual(

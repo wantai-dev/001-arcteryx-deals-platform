@@ -9,7 +9,7 @@ independent official-source reads.
 Dealer browser policy mirrors the proven production revalidator while keeping
 the audit read-only:
 
-* Evo: official Shopify endpoint plus Camoufox PDP confirmation.
+* Evo: raw official Shopify variants, independently enumerated without a browser.
 * REI: warmed, humanized Camoufox contexts with bounded rotation.
 * MEC: existing curl_cffi/Scrapling read-only session.
 * Arc'teryx Outlet: official structured product data.
@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import random
 import subprocess
@@ -37,24 +38,23 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from dealers.revalidate import (  # noqa: E402
-    _evo_choose_more_informative_price,
-    _evo_needs_browser_fallback,
-    _evo_should_confirm_with_browser,
-    fetch_evo_pdp,
-    fetch_evo_pdp_browser_with_retry,
     fetch_mec_pdp,
     fetch_rei_pdp,
     open_camoufox_browser,
     open_mec_revalidation_session,
 )
+from dealers.source_registry import PRICE_AUDIT_TARGETS  # noqa: E402
 from sku_scraper import (  # noqa: E402
     normalize_color,
     parse_next_product_from_html,
     price_from_variants,
 )
 from tools.check_data_quality import parse_frontend_config  # noqa: E402
-from dealers.source_registry import PRICE_AUDIT_TARGETS  # noqa: E402
-
+from tools.evo_price_evidence import (  # noqa: E402
+    check_evo_output_pair,
+    fetch_evo_official_read,
+    has_evo_variant_evidence,
+)
 
 SELECT = ",".join(
     [
@@ -137,27 +137,38 @@ def calc_discount(original: float | None, sale: float | None) -> int | None:
 def normalize_read(result: dict | None) -> dict:
     if not result:
         return {"_err": "empty_result"}
+    evidence = {"evo_evidence": result["evo_evidence"]} if "evo_evidence" in result else {}
     if result.get("_unavailable"):
-        return {"_err": "official_unavailable"}
+        return {"_err": "official_unavailable", **evidence}
     if result.get("_err"):
-        return {"_err": str(result["_err"])[:240]}
+        return {"_err": str(result["_err"])[:240], **evidence}
     try:
         sale = round(float(result.get("sale_price") or 0), 2)
         original = round(float(result.get("original_price") or sale), 2)
     except (TypeError, ValueError):
-        return {"_err": "invalid_numeric_price"}
+        return {"_err": "invalid_numeric_price", **evidence}
+    if not math.isfinite(sale) or not math.isfinite(original):
+        return {"_err": "invalid_numeric_price", **evidence}
     if sale <= 0:
-        return {"_err": "non_positive_sale"}
+        return {"_err": "non_positive_sale", **evidence}
     if original < sale:
-        return {"_err": "original_below_sale"}
+        return {"_err": "original_below_sale", **evidence}
     return {
         "sale_price": sale,
         "original_price": original,
         "discount_pct": calc_discount(original, sale),
+        **evidence,
     }
 
 
 def same_price(first: dict, second: dict) -> bool:
+    if "evo_evidence" in first or "evo_evidence" in second:
+        if not has_evo_variant_evidence(first) or not has_evo_variant_evidence(second):
+            return False
+        first_evidence, second_evidence = first["evo_evidence"], second["evo_evidence"]
+        return all(first_evidence[key] == second_evidence[key] for key in (
+            "sale_cents", "original_cents"
+        ))
     return (
         abs(float(first.get("sale_price") or 0) - float(second.get("sale_price") or 0)) <= 0.01
         and abs(float(first.get("original_price") or 0) - float(second.get("original_price") or 0)) <= 0.01
@@ -166,6 +177,14 @@ def same_price(first: dict, second: dict) -> bool:
 
 
 def db_matches(row: dict, official: dict) -> bool:
+    if row.get("dealer") == "evo":
+        if not has_evo_variant_evidence(official):
+            return False
+        proof = check_evo_output_pair(official, row)
+        if not all(proof[key] for key in (
+            "pair_exists", "sale_is_available_minimum", "matches_canonical_pair"
+        )):
+            return False
     db_sale = round(float(row.get("sale_price") or 0), 2)
     db_original = round(float(row.get("original_price") or 0), 2)
     db_discount = calc_discount(db_original, db_sale)
@@ -364,34 +383,8 @@ def read_outlet(row: dict, session: requests.Session) -> dict:
         return format_error("outlet", exc)
 
 
-def read_evo(row: dict, browser) -> dict:
-    retry_flat = (
-        float(row.get("original_price") or 0)
-        > float(row.get("sale_price") or 0) + 0.01
-    )
-    direct = fetch_evo_pdp(row["url"])
-    if _evo_needs_browser_fallback(direct):
-        retry = fetch_evo_pdp(row["url"])
-        if retry and (not retry.get("_err") or retry.get("_unavailable")):
-            direct = retry
-        else:
-            return normalize_read(
-                fetch_evo_pdp_browser_with_retry(
-                    browser,
-                    row["url"],
-                    retry_flat=retry_flat,
-                )
-            )
-    if _evo_should_confirm_with_browser(direct):
-        browser_result = fetch_evo_pdp_browser_with_retry(
-            browser,
-            row["url"],
-            retry_flat=retry_flat,
-        )
-        return normalize_read(
-            _evo_choose_more_informative_price(direct, browser_result)
-        )
-    return normalize_read(direct)
+def read_evo(row: dict, session=None) -> dict:
+    return normalize_read(fetch_evo_official_read(row["url"], session))
 
 
 def read_mec(row: dict, session) -> dict:
@@ -427,17 +420,17 @@ def read_evo_pass(rows: list[dict]) -> dict[str, dict]:
     results: dict[str, dict] = {}
     delay = env_float("EVO_AUDIT_DELAY_SECONDS", 0.8, 0.0)
     try:
-        with open_camoufox_browser() as browser:
+        with requests.Session() as session:
             for index, row in enumerate(rows, 1):
                 try:
-                    results[row["sku_id"]] = read_evo(row, browser)
+                    results[row["sku_id"]] = read_evo(row, session)
                 except Exception as exc:
                     results[row["sku_id"]] = format_error("evo", exc)
                 print(f"  evo {index}/{len(rows)}", flush=True)
                 if delay:
                     time.sleep(delay)
     except Exception as exc:
-        assign_runtime_error(results, rows, "evo_browser", exc)
+        assign_runtime_error(results, rows, "evo_http", exc)
     return results
 
 
@@ -603,6 +596,11 @@ def build_audits(
         sku_id = row["sku_id"]
         first = normalize_read(first_pass.get(sku_id))
         second = normalize_read(second_pass.get(sku_id))
+        is_evo = row.get("dealer") == "evo"
+        if is_evo:
+            for official in (first, second):
+                if not official.get("_err") and not has_evo_variant_evidence(official):
+                    official["_err"] = "evo_missing_variant_evidence"
         verdict = "unverifiable"
         error = None
         if not first.get("_err") and not second.get("_err") and same_price(first, second):
@@ -611,6 +609,14 @@ def build_audits(
             else:
                 verdict = "confirmed_wrong"
                 error = "db_price_mismatch"
+                if is_evo:
+                    proof = check_evo_output_pair(first, row)
+                    if not proof["pair_exists"]:
+                        error = "db_pair_not_in_available_variant"
+                    elif not proof["sale_is_available_minimum"]:
+                        error = "db_sale_not_available_minimum"
+                    elif not proof["matches_canonical_pair"]:
+                        error = "db_noncanonical_variant_pair"
         else:
             error = (
                 first.get("_err")
@@ -629,6 +635,10 @@ def build_audits(
                 "db_discount": row.get("discount_pct"),
                 "currency": row.get("currency"),
                 "official_reads": [first, second],
+                **({"db_pair_evidence": [
+                    check_evo_output_pair(first, row),
+                    check_evo_output_pair(second, row),
+                ]} if is_evo else {}),
                 "verdict": verdict,
                 "error": error,
             }

@@ -1,6 +1,7 @@
+import io
 import unittest
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -15,6 +16,7 @@ from dealers.revalidate import (
     fetch_evo_pdp_browser_with_retry,
     fetch_rei_pdp,
     fetch_rei_rows_with_browser_retries,
+    main as revalidate_dealers,
     open_camoufox_browser,
     open_mec_revalidation_session,
     parse_evo_browser_snapshot,
@@ -149,6 +151,25 @@ class DealerRevalidationTests(unittest.TestCase):
 
         self.assertFalse(changed)
         client.table.assert_not_called()
+
+    def test_evo_original_only_correction_persists_a_complete_pair_without_sale_history(self):
+        client = MagicMock()
+        products = MagicMock()
+        history = MagicMock()
+        client.table.side_effect = {"products": products, "price_history": history}.__getitem__
+        old_row = {"sale_price": 34.99, "original_price": 529.95, "discount_pct": 93}
+        corrected = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+
+        changed = update_row(client, "evo:gloves", corrected, old_row)
+
+        self.assertTrue(changed)
+        client.table.assert_called_once_with("products")
+        payload = products.update.call_args.args[0]
+        self.assertEqual({key: payload[key] for key in corrected}, corrected)
+        products.update.return_value.eq.assert_called_once_with("sku_id", "evo:gloves")
+        products.update.return_value.eq.return_value.execute.assert_called_once_with()
+        history.insert.assert_not_called()
+        self.assertFalse(should_preserve_previous_discount("evo", "pdp", 34.99, 52.95, 34.99, 529.95))
 
     def test_invalid_active_price_can_be_quarantined_without_price_write(self):
         client = MagicMock()
@@ -673,6 +694,71 @@ class DealerRevalidationTests(unittest.TestCase):
 
         self.assertEqual(result, {"_unavailable": True})
 
+    def test_evo_browser_selected_sold_out_rendered_variant_does_not_hide_another_available_variant(self):
+        snapshot = {
+            "RegiosDOPP_ProductPage": {"variants": [
+                {"priceInCents": 999, "compareAtPriceInCents": 52995, "isOutOfStock": True},
+                {"priceInCents": 3499, "compareAtPriceInCents": 5295, "isOutOfStock": False},
+            ]},
+            "RenderedProductPrice": {
+                "sale": "$9.99", "original": "$529.95", "discounted": True, "available": False,
+            },
+        }
+
+        result = parse_evo_browser_snapshot(snapshot, "https://www.evo.com/products/test")
+
+        self.assertEqual(result, {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34})
+
+    def test_evo_browser_all_structured_variants_sold_out_overrides_rendered_availability(self):
+        snapshot = {
+            "RegiosDOPP_ProductPage": {"variants": [
+                {"priceInCents": 3499, "compareAtPriceInCents": 5295, "isOutOfStock": True},
+            ]},
+            "RenderedProductPrice": {
+                "sale": "$34.99", "original": "$52.95", "discounted": True, "available": True,
+            },
+        }
+
+        self.assertEqual(parse_evo_browser_snapshot(snapshot, "https://www.evo.com/products/test"), {"_unavailable": True})
+
+    def test_evo_browser_product_aggregate_cannot_replace_missing_variant_prices(self):
+        snapshot = {
+            "ShopifyAnalytics": {"meta": {"product": {"id": 1}}},
+            "igProductData": {"1": {"lowestVariantPrice": 3499}},
+            "RegiosDOPP_ProductPage": {"compareAtPriceInCents": 52995},
+        }
+
+        self.assertIsNone(parse_evo_browser_snapshot(snapshot, "https://www.evo.com/products/test"))
+
+    def test_evo_browser_rendered_fallback_uses_its_complete_container_pair(self):
+        snapshot = {
+            "ShopifyAnalytics": {"meta": {"product": {"id": 1}}},
+            "igProductData": {"1": {"lowestVariantPrice": 3499}},
+            "RegiosDOPP_ProductPage": {"compareAtPriceInCents": 52995},
+            "RenderedProductPrice": {
+                "sale": "$34.99", "original": "$52.95", "discounted": True, "available": True,
+            },
+        }
+
+        result = parse_evo_browser_snapshot(snapshot, "https://www.evo.com/products/test")
+
+        self.assertEqual(result, {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34})
+        self.assertNotEqual(result["original_price"], 529.95)
+
+    def test_evo_browser_invalid_structured_variants_do_not_fall_back_to_rendered_prices(self):
+        for variant in (
+            {"priceInCents": 0, "compareAtPriceInCents": 5295, "isOutOfStock": False},
+            {"priceInCents": 3499, "compareAtPriceInCents": 5295},
+        ):
+            with self.subTest(variant=variant):
+                snapshot = {
+                    "RegiosDOPP_ProductPage": {"variants": [variant]},
+                    "RenderedProductPrice": {
+                        "sale": "$34.99", "original": "$52.95", "discounted": True, "available": True,
+                    },
+                }
+                self.assertIsNone(parse_evo_browser_snapshot(snapshot, "https://www.evo.com/products/test"))
+
     def test_evo_browser_snapshot_uses_rendered_product_price_without_legacy_globals(self):
         snapshot = {
             "RenderedProductPrice": {
@@ -748,6 +834,20 @@ class DealerRevalidationTests(unittest.TestCase):
             {"_unavailable": True},
         )
 
+    def test_evo_browser_rendered_prices_reject_non_finite_and_boolean_values(self):
+        for field in ("sale", "original"):
+            for value in (float("nan"), float("inf"), float("-inf"), "NaN", "Infinity", True, False):
+                with self.subTest(field=field, value=value):
+                    rendered = {"sale": "$34.99", "original": "$52.95", "discounted": True, "available": True}
+                    rendered[field] = value
+                    self.assertIsNone(parse_evo_browser_snapshot({"RenderedProductPrice": rendered}, "https://www.evo.com/products/test"))
+
+    def test_evo_browser_rendered_fallback_requires_explicit_availability(self):
+        for value in (None, 0, 1, "true", "false"):
+            with self.subTest(value=value):
+                rendered = {"sale": "$34.99", "original": "$52.95", "discounted": True, "available": value}
+                self.assertIsNone(parse_evo_browser_snapshot({"RenderedProductPrice": rendered}, "https://www.evo.com/products/test"))
+
     def test_evo_browser_fallback_triggers_on_any_non_successful_direct_result(self):
         self.assertTrue(_evo_needs_browser_fallback(None))
         self.assertTrue(_evo_needs_browser_fallback({"_err": "http HTTPError"}))
@@ -803,7 +903,7 @@ class DealerRevalidationTests(unittest.TestCase):
 
         self.assertEqual(_evo_choose_more_informative_price(direct, browser), browser)
 
-    def test_evo_combines_browser_sale_with_direct_regular_price(self):
+    def test_evo_keeps_the_complete_browser_pair_instead_of_an_older_direct_original(self):
         direct = {
             "sale_price": 850.0,
             "original_price": 850.0,
@@ -819,10 +919,47 @@ class DealerRevalidationTests(unittest.TestCase):
             _evo_choose_more_informative_price(direct, browser),
             {
                 "sale_price": 679.99,
-                "original_price": 850.0,
-                "discount_pct": 20,
+                "original_price": 679.99,
+                "discount_pct": 0,
             },
         )
+
+    def test_evo_newer_browser_price_wins_even_when_the_direct_sale_was_lower(self):
+        direct = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+        browser = {"sale_price": 40.0, "original_price": 40.0, "discount_pct": 0}
+
+        result = _evo_choose_more_informative_price(direct, browser)
+
+        self.assertEqual(result, browser)
+        self.assertIn((result["sale_price"], result["original_price"]), [(34.99, 52.95), (40.0, 40.0)])
+
+    def test_evo_invalid_browser_pair_cannot_borrow_usable_direct_fields(self):
+        direct = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+        invalid_browser_results = [
+            None, {}, {"_unavailable": True}, {"_err": "http 429"},
+            {"sale_price": 34.99},
+            {"sale_price": 0, "original_price": 52.95},
+            {"sale_price": 34.99, "original_price": 20.0},
+            {"sale_price": True, "original_price": 52.95},
+            {"sale_price": 34.99, "original_price": False},
+        ]
+        for field in ("sale_price", "original_price"):
+            for value in (float("nan"), float("inf"), float("-inf")):
+                invalid = dict(direct)
+                invalid[field] = value
+                invalid_browser_results.append(invalid)
+        for browser in invalid_browser_results:
+            with self.subTest(browser=browser):
+                result = _evo_choose_more_informative_price(direct, browser)
+                self.assertTrue(result["_err"].startswith("browser_confirmation_failed:"))
+                self.assertNotIn("sale_price", result)
+                self.assertNotIn("original_price", result)
+
+    def test_evo_valid_browser_pair_replaces_invalid_direct_reads_as_a_whole(self):
+        browser = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+        for direct in (None, {"_err": "http 500"}, {"_unavailable": True}, {"sale_price": 10.0}, {"sale_price": 34.99, "original_price": float("inf")}):
+            with self.subTest(direct=direct):
+                self.assertEqual(_evo_choose_more_informative_price(direct, browser), browser)
 
     @patch.dict("os.environ", {"EVO_BROWSER_SETTLE_SECONDS": "3"})
     def test_evo_browser_fetch_uses_fresh_url_and_waits_for_runtime_price(self):
@@ -915,6 +1052,67 @@ class DealerRevalidationTests(unittest.TestCase):
         self.assertEqual(result, discounted)
         self.assertTrue(first.closed)
         self.assertTrue(second.closed)
+
+    @patch("dealers.revalidate.time.sleep")
+    @patch.dict("os.environ", {"EVO_BROWSER_CONFIRM_ATTEMPTS": "2", "EVO_BROWSER_RETRY_DELAY_SECONDS": "0"})
+    def test_evo_browser_retry_returns_the_latest_complete_flat_pair(self, _sleep):
+        for old_price, new_price in ((850.0, 679.99), (679.99, 850.0)):
+            with self.subTest(old_price=old_price, new_price=new_price):
+                first = FakeEvoPage()
+                second = FakeEvoPage()
+                browser = FakeEvoBrowser([first, second])
+                older = {"sale_price": old_price, "original_price": old_price, "discount_pct": 0}
+                newer = {"sale_price": new_price, "original_price": new_price, "discount_pct": 0}
+                with patch("dealers.revalidate.fetch_evo_pdp_browser", side_effect=[older, newer]):
+                    result = fetch_evo_pdp_browser_with_retry(browser, "https://www.evo.com/products/test", retry_flat=True)
+
+                self.assertEqual(result, newer)
+                self.assertTrue(first.closed)
+                self.assertTrue(second.closed)
+
+    @patch("dealers.revalidate.time.sleep")
+    @patch.dict("os.environ", {"REVALIDATE_DEALERS": "evo", "REVALIDATE_SKU_IDS": "evo:gloves", "REVALIDATE_MAX_ROWS_PER_DEALER": "1"})
+    def test_evo_direct_retry_persists_the_successful_reads_complete_pair(self, _sleep):
+        client = MagicMock()
+        products = client.table.return_value
+        old_row = {"dealer": "evo", "sku_id": "evo:gloves", "url": "https://www.evo.com/products/test", "sale_price": 34.99, "original_price": 529.95}
+        expected = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+        with patch("dealers.revalidate.SB_KEY", "test-only"), patch("supabase.create_client", return_value=client), patch(
+            "dealers.revalidate.load_all_dealer_rows", return_value=[old_row]
+        ), patch("dealers.revalidate.fetch_evo_pdp", side_effect=[{"_err": "http 500"}, expected]) as direct, patch(
+            "dealers.revalidate.open_camoufox_browser"
+        ) as open_browser, redirect_stdout(io.StringIO()):
+            revalidate_dealers()
+
+        self.assertEqual(direct.call_count, 2)
+        open_browser.assert_not_called()
+        payload = products.update.call_args.args[0]
+        self.assertEqual({key: payload[key] for key in expected}, expected)
+        client.table.assert_called_once_with("products")
+
+    @patch("dealers.revalidate.time.sleep")
+    @patch.dict("os.environ", {"REVALIDATE_DEALERS": "evo", "REVALIDATE_SKU_IDS": "evo:gloves", "REVALIDATE_MAX_ROWS_PER_DEALER": "1"})
+    def test_evo_failed_direct_retries_persist_a_complete_browser_fallback_pair(self, _sleep):
+        client = MagicMock()
+        products = client.table.return_value
+        old_row = {"dealer": "evo", "sku_id": "evo:gloves", "url": "https://www.evo.com/products/test", "sale_price": 34.99, "original_price": 529.95}
+        expected = {"sale_price": 34.99, "original_price": 52.95, "discount_pct": 34}
+        browser_context = MagicMock()
+        browser = browser_context.__enter__.return_value
+        with patch("dealers.revalidate.SB_KEY", "test-only"), patch("supabase.create_client", return_value=client), patch(
+            "dealers.revalidate.load_all_dealer_rows", return_value=[old_row]
+        ), patch("dealers.revalidate.fetch_evo_pdp", side_effect=[None, {"_err": "http 429"}]) as direct, patch(
+            "dealers.revalidate.open_camoufox_browser", return_value=browser_context
+        ) as open_browser, patch("dealers.revalidate.fetch_evo_pdp_browser_with_retry", return_value=expected) as browser_fetch, redirect_stdout(io.StringIO()):
+            revalidate_dealers()
+
+        self.assertEqual(direct.call_count, 2)
+        open_browser.assert_called_once_with()
+        browser_fetch.assert_called_once_with(browser, old_row["url"], retry_flat=True)
+        browser_context.__exit__.assert_called_once_with(None, None, None)
+        payload = products.update.call_args.args[0]
+        self.assertEqual({key: payload[key] for key in expected}, expected)
+        client.table.assert_called_once_with("products")
 
     def test_browser_rotation_chunks_cover_every_row(self):
         chunks = list(_chunks(list(range(65)), 30))

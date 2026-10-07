@@ -317,6 +317,69 @@ class DealerScraperTests(unittest.TestCase):
 
         self.assertEqual(parsed, {"available": False, "variants": []})
 
+    def test_evo_http_snapshot_publishes_the_cheapest_pdp_variants_complete_pair(self):
+        scraper = EvoScraper()
+        scraper.COLLECTIONS = [("burton", "auto", "burton")]
+        handle = "burton-profile-under-gloves"
+        collection_product = {
+            "vendor": "Burton",
+            "handle": handle,
+            "title": "Burton Profile Under Gloves",
+            "product_type": "Gloves",
+            "variants": [{"available": True, "price": "34.99", "compare_at_price": "529.95"}],
+        }
+        pdp_product = {
+            "available": True,
+            "handle": handle,
+            "vendor": "Burton",
+            "title": collection_product["title"],
+            "variants": [
+                {"available": True, "price": 3499, "compare_at_price": 5295, "option1": "Black", "option2": "M"},
+                {"available": True, "price": 41999, "compare_at_price": 52995, "option1": "Blue", "option2": "L"},
+            ],
+        }
+
+        with patch.object(scraper, "_fetch_json", return_value={"products": [collection_product]}), patch.object(
+            scraper, "_fetch_pdp_json", return_value=pdp_product
+        ):
+            items, complete = scraper._scrape_http()
+
+        self.assertTrue(complete)
+        self.assertEqual(len(items), 1)
+        self.assertEqual((items[0]["sale_price"], items[0]["original_price"]), (34.99, 52.95))
+        self.assertIn((items[0]["sale_price"], items[0]["original_price"]), [(34.99, 52.95), (419.99, 529.95)])
+        self.assertEqual(items[0]["discount_pct"], 34)
+        self.assertEqual(items[0]["price_source_quality"], "pdp")
+
+    def test_evo_browser_item_confirmation_replaces_list_price_with_a_complete_pdp_pair(self):
+        scraper = EvoScraper()
+        item = {
+            "url": "https://www.evo.com/products/burton-profile-under-gloves",
+            "name": "Burton Profile Under Gloves",
+            "brand": "burton",
+            "sale_price": 34.99,
+            "original_price": 529.95,
+            "discount_pct": 93,
+            "price_source_quality": "list_fallback",
+        }
+        pdp_product = {
+            "available": True,
+            "handle": "burton-profile-under-gloves",
+            "vendor": "Burton",
+            "title": item["name"],
+            "variants": [
+                {"available": True, "price": 3499, "compare_at_price": 5295},
+                {"available": True, "price": 41999, "compare_at_price": 52995},
+            ],
+        }
+
+        with patch.object(scraper, "_fetch_pdp_json", return_value=pdp_product):
+            confirmed = scraper._confirm_browser_item_with_pdp(item)
+
+        self.assertEqual((confirmed["sale_price"], confirmed["original_price"]), (34.99, 52.95))
+        self.assertEqual(confirmed["discount_pct"], 34)
+        self.assertEqual(confirmed["price_source_quality"], "pdp")
+
     def test_evo_http_snapshot_publishes_pdp_price_instead_of_collection_price(self):
         scraper = EvoScraper()
         scraper.COLLECTIONS = [("patagonia", "auto", "patagonia")]

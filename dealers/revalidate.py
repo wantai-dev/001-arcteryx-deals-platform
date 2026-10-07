@@ -17,13 +17,15 @@ DB 里旧价就僵在那里. 本脚本针对已知 dealer URL 重新拉 PDP 验�
 每日 06:30 UTC 跑一次, 错开 outlet 06:00 + dealer 03/09/15/21
 """
 from __future__ import annotations
-import os, sys, time, json, re, urllib.request, ssl
+import os, sys, time, json, re, urllib.request, ssl, math
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from collections import defaultdict
 from pathlib import Path
 
 from dealers.source_registry import REVALIDATION_DEALERS
+from dealers.evo import Scraper as EvoScraper
+from dealers.evo_price import select_variant_price
 
 SB_URL = os.environ.get("SUPABASE_URL", "https://bupqagkrcvrezjkdbald.supabase.co")
 SB_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -234,76 +236,71 @@ def fetch_evo_pdp(url: str) -> dict | None:
             p = json.loads(r.read().decode("utf-8","ignore"))
     except Exception as e:
         return {"_err": _format_error("http", e)}
-    # 顶层 available=False 表示整品下架
-    if p.get("available") is False:
+    parsed = EvoScraper.parse_pdp_product(p)
+    if parsed is None:
+        return None
+    if not parsed["available"]:
         return {"_unavailable": True}
-    variants = p.get("variants") or []
-    avail = [v for v in variants if v.get("available")]
-    if not avail:
-        return {"_unavailable": True}
-    # price 单位是 cents (e.g. 19120 = \$191.20). 除 100 转 dollars
-    prices   = [(_num(v.get("price")) or 0) / 100 for v in avail if v.get("price")]
-    compares = [(_num(v.get("compare_at_price")) or 0) / 100 for v in avail if v.get("compare_at_price")]
-    prices   = [x for x in prices if x > 0]
-    compares = [x for x in compares if x > 0]
-    if not prices: return None
-    sale = min(prices)
-    orig = max(compares) if compares else sale
-    if orig < sale: orig = sale
-    return {"sale_price": round(sale, 2), "original_price": round(orig, 2), "discount_pct": _disc(orig, sale)}
+    sale = parsed["sale_price"]
+    original = parsed["original_price"]
+    return {"sale_price": sale, "original_price": original, "discount_pct": _disc(original, sale)}
 
 
 def parse_evo_browser_snapshot(snapshot: dict, url: str) -> dict | None:
-    product = (snapshot.get("ShopifyAnalytics") or {}).get("meta", {}).get("product") or {}
-    regios = snapshot.get("RegiosDOPP_ProductPage") or {}
-    inventory_blob = snapshot.get("igProductData") or {}
-    inventory = inventory_blob.get(str(product.get("id"))) or inventory_blob.get(product.get("id")) or {}
-    variants = regios.get("variants") or []
-    available = [variant for variant in variants if not variant.get("isOutOfStock")]
-    fallback_sale = (_num(inventory.get("lowestVariantPrice")) or 0) / 100
-    fallback_orig = (_num(regios.get("compareAtPriceInCents")) or 0) / 100
-    if available:
-        # lowestVariantPrice is product-wide and can belong to a sold-out
-        # clearance colour. Once availability is known, price only those rows.
-        prices = [(_num(variant.get("priceInCents")) or 0) / 100 for variant in available]
-        compares = [(_num(variant.get("compareAtPriceInCents")) or 0) / 100 for variant in available]
-        prices = [price for price in prices if price > 0]
-        compares = [compare for compare in compares if compare > 0]
-        if prices:
-            sale = min(prices)
-            orig = max(compares) if compares else sale
-            if orig < sale:
-                orig = sale
-            return {
-                "sale_price": round(sale, 2),
-                "original_price": round(orig, 2),
-                "discount_pct": _disc(orig, sale),
-            }
+    if not isinstance(snapshot, dict):
+        return None
+    rendered = snapshot.get("RenderedProductPrice")
+    rendered = rendered if isinstance(rendered, dict) else {}
+
+    regios = snapshot.get("RegiosDOPP_ProductPage")
+    if regios is None:
+        regios = {}
+    if not isinstance(regios, dict):
+        return None
+    variants = regios.get("variants", [])
+    if not isinstance(variants, list):
         return None
     if variants:
-        return {"_unavailable": True}
-    if fallback_sale > 0:
-        orig = fallback_orig if fallback_orig >= fallback_sale else fallback_sale
+        available = [
+            variant for variant in variants
+            if isinstance(variant, dict) and variant.get("isOutOfStock") is False
+        ]
+        if not available:
+            if all(
+                isinstance(variant, dict) and variant.get("isOutOfStock") is True
+                for variant in variants
+            ):
+                return {"_unavailable": True}
+            return None
+        selected = select_variant_price(
+            available,
+            price_key="priceInCents",
+            compare_key="compareAtPriceInCents",
+        )
+        if selected is None:
+            return None
+        sale = selected["sale_price"]
+        original = selected["original_price"]
         return {
-            "sale_price": round(fallback_sale, 2),
-            "original_price": round(orig, 2),
-            "discount_pct": _disc(orig, fallback_sale),
+            "sale_price": sale,
+            "original_price": original,
+            "discount_pct": _disc(original, sale),
         }
-    rendered = snapshot.get("RenderedProductPrice") or {}
+
     if rendered.get("available") is False:
         return {"_unavailable": True}
     if rendered.get("available") is not True:
         return None
     sale = _num(rendered.get("sale"))
     original = _num(rendered.get("original")) if rendered.get("discounted") else sale
-    if not sale or sale <= 0:
+    if not sale or not math.isfinite(sale) or sale <= 0:
         return None
     # A red rendered price is a sale. Fail closed unless the corresponding
     # compare-at value is present in the same product-price container.
     if rendered.get("discounted") and not original:
         return None
     original = original or sale
-    if original < sale:
+    if not math.isfinite(original) or original < sale:
         return None
     return {
         "sale_price": round(sale, 2),
@@ -336,14 +333,12 @@ def fetch_evo_pdp_browser(page, url: str) -> dict | None:
           const priceNode = candidates.find((element) => element.closest('main,[role="main"]'))
             || candidates[0]
             || null;
-          let compareNode = null;
-          let scope = priceNode ? priceNode.parentElement : null;
-          for (let depth = 0; scope && depth < 4 && !compareNode; depth += 1) {
-            compareNode = Array.from(scope.querySelectorAll('s,del,[class*="line-through" i]'))
+          const priceScope = priceNode ? priceNode.parentElement : null;
+          const compareNode = priceScope
+            ? Array.from(priceScope.querySelectorAll('s,del,[class*="line-through" i]'))
               .find((element) => visible(element) && money.test(element.textContent || ''))
-              || null;
-            scope = scope.parentElement;
-          }
+              || null
+            : null;
 
           let structuredAvailability = null;
           for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
@@ -449,28 +444,21 @@ def _evo_should_confirm_with_browser(result: dict | None) -> bool:
 
 
 def _evo_choose_more_informative_price(direct_result: dict | None, browser_result: dict | None) -> dict | None:
+    if not isinstance(browser_result, dict):
+        return {"_err": "browser_confirmation_failed:unavailable_or_empty"}
     if not browser_result or browser_result.get("_err") or browser_result.get("_unavailable"):
         reason = (browser_result or {}).get("_err") or "unavailable_or_empty"
         return {"_err": f"browser_confirmation_failed:{reason}"}
-    if not direct_result or direct_result.get("_err") or direct_result.get("_unavailable"):
-        return browser_result
 
-    direct_sale = _num(direct_result.get("sale_price"))
-    direct_original = _num(direct_result.get("original_price"))
     browser_sale = _num(browser_result.get("sale_price"))
     browser_original = _num(browser_result.get("original_price"))
-    if not browser_sale or not browser_original:
+    if (
+        not browser_sale or not browser_original
+        or not math.isfinite(browser_sale) or not math.isfinite(browser_original)
+        or browser_sale <= 0 or browser_original < browser_sale
+    ):
         return {"_err": "browser_confirmation_failed:invalid_price"}
-    if not direct_sale or not direct_original:
-        return browser_result
-
-    sale = min(direct_sale, browser_sale)
-    original = max(direct_original, browser_original, direct_sale, browser_sale)
-    return {
-        "sale_price": round(sale, 2),
-        "original_price": round(original, 2),
-        "discount_pct": _disc(original, sale),
-    }
+    return browser_result
 
 
 def _rei_variant_price(body: str, url: str) -> tuple[float, float] | None:

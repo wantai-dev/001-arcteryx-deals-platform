@@ -2,6 +2,7 @@
 from __future__ import annotations
 from .base import discount_pct
 from .brands import BRAND_LABELS, vendor_matches_brand
+from .evo_price import select_variant_price
 import json, urllib.parse, urllib.request, ssl, os, re, time
 from collections import Counter, defaultdict
 
@@ -517,49 +518,38 @@ class Scraper:
         The collection JSON can retain prices for discontinued variants. The
         product ``.js`` endpoint is the authoritative current-PDP source, so
         only variants marked available are eligible for the price pair.
-        ``None`` means the response was malformed; ``available=False`` means
-        the product is currently unavailable and should be skipped.
+        ``None`` means a usable price could not be confirmed;
+        ``available=False`` means the product is explicitly unavailable.
         """
         if not isinstance(product, dict):
             return None
-        variants = product.get("variants") or []
         if product.get("available") is False:
             return {"available": False, "variants": []}
+        variants = product.get("variants")
+        if not isinstance(variants, list):
+            return None
 
         available_variants = [
             variant
             for variant in variants
-            if isinstance(variant, dict) and variant.get("available")
+            if isinstance(variant, dict) and variant.get("available") is True
         ]
         if not available_variants:
-            return {"available": False, "variants": []}
-
-        prices = []
-        compares = []
-        for variant in available_variants:
-            price = variant.get("price")
-            if price is not None:
-                try:
-                    prices.append(float(price) / 100)
-                except (TypeError, ValueError):
-                    continue
-            compare_at_price = variant.get("compare_at_price")
-            if compare_at_price is not None:
-                try:
-                    compares.append(float(compare_at_price) / 100)
-                except (TypeError, ValueError):
-                    continue
-        if not prices:
+            if variants and all(
+                isinstance(variant, dict) and variant.get("available") is False
+                for variant in variants
+            ):
+                return {"available": False, "variants": []}
             return None
 
-        sale = min(prices)
-        original = max(compares or [sale])
-        original = max(original, sale)
+        selected = select_variant_price(available_variants)
+        if selected is None:
+            return None
         return {
             "available": True,
             "variants": available_variants,
-            "sale_price": round(sale, 2),
-            "original_price": round(original, 2),
+            "sale_price": selected["sale_price"],
+            "original_price": selected["original_price"],
         }
 
     def parse_browser_snapshot(

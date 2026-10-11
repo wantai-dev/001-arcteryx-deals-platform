@@ -53,10 +53,17 @@ test('rejects SSENSE rows whose brand path is not Arc\'teryx', () => {
 });
 
 test('registry includes every newly audited production family', () => {
-  for (const family of ['Argand', 'Axios', 'Bucket', 'Chunky', 'Colour', 'Cusec', 'Diantric', 'Diene', 'Dromos', 'Isogon', 'Metron', 'Micon', 'Oloss', 'Performance', 'Quintic', 'Rescue', 'Rhoam', 'Sunna', 'Synthetic', 'Venta', 'Verro', "Arc'Word", 'AR-385a', 'AR-395a']) {
+  for (const family of ['Argand', 'Axios', 'Bucket', 'Chunky', 'Colour', 'Cusec', 'Diantric', 'Diene', 'Dromos', 'Isogon', 'Metron', 'Micon', 'Oloss', 'Performance', 'Postour', 'Quintic', 'Rescue', 'Rhoam', 'Sunna', 'Synthetic', 'Venta', 'Verro', "Arc'Word", 'AR-385a', 'AR-395a']) {
     assert.ok(MODEL_FAMILIES.includes(family), family);
     assert.equal(extractModelFamily(`${family} Test Product`), family);
   }
+});
+
+test('recognizes official Postour family without altering retailer product names', () => {
+  assert.equal(standardProductName("Arc'teryx Postour Shoes - Women's"), "Postour Shoes Women's");
+  assert.equal(standardProductName("Arc'teryx Postour Winter Boots - Men's"), "Postour Winter Boots Men's");
+  assert.equal(extractModelFamily("Postour Shoes Women's"), 'Postour');
+  assert.equal(extractModelFamily("Postour Winter Boots Men's"), 'Postour');
 });
 
 test('shared brand runtime normalizes Burton and Patagonia without Arc naming rules', () => {

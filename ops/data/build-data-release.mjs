@@ -11,6 +11,7 @@ import {
   dataRevision,
   fetchCatalogRows,
 } from '../../api/catalog.mjs';
+import { artifactRevision } from './artifact-revision.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
@@ -104,23 +105,6 @@ function sha256(filename) {
   return crypto.createHash('sha256').update(fs.readFileSync(filename)).digest('hex');
 }
 
-function artifactRevision(data) {
-  const contractFiles = [
-    fileURLToPath(import.meta.url),
-    path.join(REPO_ROOT, 'api', 'catalog.mjs'),
-    path.join(REPO_ROOT, 'api', 'seo-index.mjs'),
-    path.join(REPO_ROOT, 'tools', 'generate_geo_catalog.py'),
-    path.join(REPO_ROOT, 'seo-index-policy.json'),
-    path.join(REPO_ROOT, 'product-detail.html'),
-  ];
-  const digest = crypto.createHash('sha256');
-  digest.update(`data:${data}\n`);
-  for (const filename of contractFiles.sort()) {
-    digest.update(`${path.relative(REPO_ROOT, filename)}:${sha256(filename)}\n`);
-  }
-  return digest.digest('hex').slice(0, 20);
-}
-
 function listFiles(directory, relative = '') {
   const values = [];
   for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true })) {
@@ -150,8 +134,8 @@ async function main() {
   if (!rows.length) throw new Error('Refusing to publish an empty catalog');
   const publicRows = rows.map(publicProduct);
   const revision = dataRevision(rows);
-  const artifact = artifactRevision(revision);
   const code = codeRevision();
+  const artifact = artifactRevision(revision, code);
   const generatedAt = new Date().toISOString();
   const compactJson = JSON.stringify(publicRows);
   const outletRows = publicRows.filter((product) => product.dealer === 'arcteryx_outlet');

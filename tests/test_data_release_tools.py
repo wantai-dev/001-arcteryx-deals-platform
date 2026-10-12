@@ -63,16 +63,20 @@ class DataReleaseToolTests(unittest.TestCase):
         after = parse_timestamp("2026-08-31T10:00:00Z")
         status = {
             "checked_at": "2026-08-31T10:00:01Z",
+            "release_generated_at": "2026-08-31T10:00:01Z",
             "data_revision": "a" * 20,
             "artifact_revision": "c" * 20,
             "code_revision": "b" * 40,
             "active_products": 8088,
+            "snapshot_observed_at": "2026-08-31 09:59:58",
         }
         manifest = {
+            "generated_at": "2026-08-31T10:00:01Z",
             "data_revision": "a" * 20,
             "artifact_revision": "c" * 20,
             "code_revision": "b" * 40,
             "active_products": 8088,
+            "snapshot_observed_at": "2026-08-31 09:59:58",
         }
         matched, reason = release_match(status, manifest, after)
         self.assertTrue(matched, reason)
@@ -80,6 +84,13 @@ class DataReleaseToolTests(unittest.TestCase):
 
         stale = dict(status, checked_at="2026-08-31T09:59:59Z")
         self.assertFalse(release_match(stale, manifest, after)[0])
+        stale_release = dict(status, release_generated_at="2026-08-31T09:59:59Z")
+        stale_manifest = dict(manifest, generated_at="2026-08-31T09:59:59Z")
+        matched, reason = release_match(stale_release, stale_manifest, after)
+        self.assertFalse(matched)
+        self.assertIn("release generated_at", reason)
+        self.assertFalse(release_match(status, stale_manifest, after)[0])
+        self.assertFalse(release_match(status, dict(manifest, snapshot_observed_at="older"), after)[0])
         wrong = dict(manifest, data_revision="c" * 20)
         self.assertFalse(release_match(status, wrong, after)[0])
 

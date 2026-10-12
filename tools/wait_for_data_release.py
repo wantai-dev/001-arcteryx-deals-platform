@@ -33,6 +33,17 @@ def release_match(
         return False, f"invalid data status timestamp: {error}"
     if checked_at < after:
         return False, f"data status checked_at={checked_at.isoformat()} is before required time"
+    try:
+        release_generated_at = parse_timestamp(str(status["release_generated_at"]))
+        manifest_generated_at = parse_timestamp(str(manifest["generated_at"]))
+    except (KeyError, TypeError, ValueError) as error:
+        return False, f"invalid release generation timestamp: {error}"
+    if release_generated_at != manifest_generated_at:
+        return False, "status and public manifest release generation times differ"
+    if release_generated_at < after:
+        return False, (
+            f"release generated_at={release_generated_at.isoformat()} is before required time"
+        )
 
     revision = str(status.get("data_revision") or "")
     artifact_revision = str(status.get("artifact_revision") or "")
@@ -51,9 +62,12 @@ def release_match(
         return False, "status and public manifest artifact revisions differ"
     if manifest.get("active_products") != status.get("active_products"):
         return False, "status and public manifest product counts differ"
+    if manifest.get("snapshot_observed_at") != status.get("snapshot_observed_at"):
+        return False, "status and public manifest snapshot times differ"
     return True, (
         f"data_revision={revision} artifact_revision={artifact_revision} code_revision={code_revision} "
-        f"active_products={status.get('active_products')} checked_at={checked_at.isoformat()}"
+        f"active_products={status.get('active_products')} "
+        f"generated_at={release_generated_at.isoformat()} checked_at={checked_at.isoformat()}"
     )
 
 

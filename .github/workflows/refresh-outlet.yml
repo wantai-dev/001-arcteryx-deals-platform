@@ -52,13 +52,9 @@ jobs:
           fi
           acquired=false
           if [ "$should_run" = "true" ]; then
-            if [ "$FORCE_RUN" = "true" ]; then
-              acquired=true
-            else
-              acquired=$(python tools/crawler_lease.py acquire --scope outlet --owner "$owner" --ttl-minutes 240)
-              if [ "$acquired" = "true" ]; then
-                lease_owned=true
-              fi
+            acquired=$(python tools/crawler_lease.py acquire --scope outlet --owner "$owner" --ttl-minutes 240)
+            if [ "$acquired" = "true" ]; then
+              lease_owned=true
             fi
           fi
           echo "owner=$owner" >> "$GITHUB_OUTPUT"

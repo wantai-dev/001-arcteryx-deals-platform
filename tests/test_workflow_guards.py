@@ -43,6 +43,12 @@ class WorkflowGuardTests(unittest.TestCase):
             primary_runner,
         )
 
+    def test_forced_outlet_refresh_still_claims_lease(self):
+        workflow = (ROOT / ".github/workflows/refresh-outlet.yml").read_text(encoding="utf-8")
+        self.assertIn('acquired=$(python tools/crawler_lease.py acquire --scope outlet', workflow)
+        self.assertNotIn('if [ "$FORCE_RUN" = "true" ]; then\n              acquired=true', workflow)
+        self.assertIn('if [ "$acquired" = "true" ]; then\n              lease_owned=true', workflow)
+
     def test_mec_fallback_installs_camoufox_runtime_before_preflight(self):
         workflow = (ROOT / ".github/workflows/refresh-mec.yml").read_text(encoding="utf-8")
         self.assertLess(

@@ -10,6 +10,11 @@ on:
         required: false
         type: boolean
         default: false
+      dealers:
+        description: "Optional strict lowercase comma-separated dealers: burton/backcountry/evo/rei; empty means all"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -110,12 +115,22 @@ jobs:
         run: python tools/hydrate_runtime_snapshot.py --site-url "$SITE_URL" --dataset dealers --output dealers/results.json
 
       - name: Refresh dealer scrape and sync
+        env:
+          REQUESTED_DEALERS: ${{ inputs.dealers || '' }}
         run: |
+          selected_dealers="${REQUESTED_DEALERS:-burton,backcountry,evo,rei}"
+          if [[ ! "$selected_dealers" =~ ^(burton|backcountry|evo|rei)(,(burton|backcountry|evo|rei))*$ ]]; then
+            echo "::error::dealers must be strict lowercase comma-separated burton/backcountry/evo/rei"
+            exit 1
+          fi
           python tools/retire_dealer.py --dealer ssense
           mkdir -p dealers/_partial
           rm -f dealers/_partial/*.json
           failed_dealers=""
           for dealer in burton backcountry evo rei; do
+            if [[ ",$selected_dealers," != *",$dealer,"* ]]; then
+              continue
+            fi
             echo "[dealers] $dealer"
             dealer_timeout=1800
             # EVO retries and complete REI PDP enrichment can exceed 30 minutes.

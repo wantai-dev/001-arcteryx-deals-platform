@@ -66,6 +66,49 @@ test('recognizes official Postour family without altering retailer product names
   assert.equal(extractModelFamily("Postour Winter Boots Men's"), 'Postour');
 });
 
+test('recognizes official Cila dress family while preserving SL and gender', async () => {
+  const { auditRows } = await import('../tools/audit_product_names.mjs');
+  for (const raw of ["Cila SL Dress Women's", "Arc'teryx Cila SL Dress - Women's"]) {
+    const standard = standardProductName(raw);
+    assert.equal(standard, "Cila SL Dress Women's");
+    assert.equal(extractModelFamily(standard), 'Cila');
+  }
+  assert.equal(extractModelFamily("cila SL Dress Women's"), 'Cila');
+  const row = {
+    dealer: 'arcteryx_outlet',
+    full_name: "Cila SL Dress Women's",
+    gender: 'women',
+    status: 'active',
+  };
+  const result = auditRows([row], { strictSource: true });
+  assert.equal(result.accepted, 1);
+  assert.equal(result.violations, 0);
+  const unknown = auditRows([{ ...row, full_name: "CilaFuture SL Dress Women's" }], { strictSource: true });
+  assert.equal(unknown.unknownFamilies.length, 1);
+  assert.equal(unknown.violations, 1);
+});
+
+test('recognizes official Sidewinder family without accepting partial or embedded matches', async () => {
+  const { auditRows } = await import('../tools/audit_product_names.mjs');
+  const row = {
+    dealer: 'evo',
+    full_name: "Arc'teryx Sidewinder Jacket - Women's",
+    gender: 'women',
+    status: 'active',
+    url: 'https://www.evo.com/products/279098-arc-teryx-sidewinder-jacket-women-s',
+  };
+  assert.equal(standardProductName(row.full_name, row), "Sidewinder Jacket Women's");
+  assert.equal(extractModelFamily("Sidewinder Jacket Women's"), 'Sidewinder');
+  assert.equal(extractModelFamily("sidewinder Jacket Women's"), 'Sidewinder');
+  assert.equal(auditRows([row], { strictSource: true }).violations, 0);
+  for (const name of ["SidewinderFuture Jacket Women's", "Sidewinde Jacket Women's", "Unknown Sidewinder Jacket Women's"]) {
+    assert.equal(extractModelFamily(name), null, name);
+    const result = auditRows([{ ...row, full_name: name }], { strictSource: true });
+    assert.equal(result.unknownFamilies.length, 1, name);
+    assert.equal(result.violations, 1, name);
+  }
+});
+
 test('shared brand runtime normalizes Burton and Patagonia without Arc naming rules', () => {
   const burton = { brand: 'Burton', dealer: 'evo', gender: 'men', url: 'https://www.evo.com/products/burton-custom' };
   const patagonia = { brand: 'patagonia', dealer: 'evo', gender: 'women', url: 'https://www.evo.com/products/patagonia-nano' };

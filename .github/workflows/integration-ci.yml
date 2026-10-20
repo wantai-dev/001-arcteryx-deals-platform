@@ -1,0 +1,74 @@
+name: Manual dev to main integration CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open dev to main integration PR number
+        required: true
+        type: string
+      expected_sha:
+        description: Exact 40-character current dev head SHA to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.verify.outputs.sha }}
+      runner: ${{ steps.verify.outputs.runner }}
+    steps:
+      - name: Check out trusted default branch gate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify current integration PR and expected SHA
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_PR_NUMBER: ${{ inputs.pr_number }}
+          CI_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: >-
+          python3 tools/development_ci.py gate
+          --repository "$CI_REPOSITORY"
+          --pr "$CI_PR_NUMBER"
+          --expected-sha "$CI_EXPECTED_SHA"
+
+  regression:
+    needs: gate
+    runs-on: ${{ needs.gate.outputs.runner }}
+    steps:
+      - name: Check out verified integration SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        if: github.repository == 'wantai-dev/ai-native-ops-canvas'
+        with:
+          go-version: '1.22.x'
+          cache: false
+      - uses: shivammathur/setup-php@v2
+        if: github.repository == 'wantai-dev/moreprk-backend'
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Run explicitly configured regression
+        run: python3 tools/development_ci.py full --install

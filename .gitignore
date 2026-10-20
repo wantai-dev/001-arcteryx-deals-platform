@@ -64,3 +64,4 @@ arcteryx_skus.json
 # 图片（太大，不入版本库）
 images/
 .vercel
+/.local/development-ci/

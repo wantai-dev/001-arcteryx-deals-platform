@@ -101,10 +101,10 @@ jobs:
           python -u global_scraper.py --redirect-timeout 3 --redirect-workers 50
           python -u sku_scraper.py --reset --update-data
           python -u supabase_sync.py
+          echo "SYNC_COMPLETED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
           python -u tools/check_product_urls.py --status active --stored-http-status 404 --stored-http-status 410 --max-rows 500
           python -u tools/check_product_urls.py --status missing --max-rows 500
           python tools/check_data_quality.py --online --dealer arcteryx_outlet --max-age-hours 36 --max-product-age-hours 72 --min-rows 100 --forbid-region jp
-          echo "SYNC_COMPLETED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
       - name: Optional notifications
         run: |

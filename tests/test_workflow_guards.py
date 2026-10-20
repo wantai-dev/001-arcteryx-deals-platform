@@ -43,6 +43,20 @@ class WorkflowGuardTests(unittest.TestCase):
             primary_runner,
         )
 
+    def test_outlet_release_after_is_captured_at_sync_boundary(self):
+        workflow = (ROOT / ".github/workflows/refresh-outlet.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(workflow.count("SYNC_COMPLETED_AT=$(date -u"), 1)
+        self.assertLess(
+            workflow.index("python -u supabase_sync.py"),
+            workflow.index("SYNC_COMPLETED_AT=$(date -u"),
+        )
+        self.assertLess(
+            workflow.index("SYNC_COMPLETED_AT=$(date -u"),
+            workflow.index("python -u tools/check_product_urls.py"),
+        )
+
     def test_forced_outlet_refresh_still_claims_lease(self):
         workflow = (ROOT / ".github/workflows/refresh-outlet.yml").read_text(encoding="utf-8")
         self.assertIn('acquired=$(python tools/crawler_lease.py acquire --scope outlet', workflow)

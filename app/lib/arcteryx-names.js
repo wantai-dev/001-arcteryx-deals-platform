@@ -35,7 +35,7 @@
         'Secant', 'Sentinel', 'Serratus', 'Sidewinder', 'Sigma', 'Silex', 'Silene', 'Sima', 'Sinsola',
         'Sinsolo', 'Skaha', 'Ski', 'Skyline', 'Solano', 'Sonii', 'Soria', 'Sorin',
         'Synthetic',
-        'Spere', 'Squamish', 'Sunna', 'Sylan', 'Taema', 'Therme', 'Theta', 'Thorium',
+        'Spere', 'Squamish', 'Strato', 'Sunna', 'Sylan', 'Taema', 'Therme', 'Theta', 'Thorium',
         'Toric', 'Veilance', 'Venta', 'Verro', 'Vertex', 'Voronoi', 'Word', 'Zeta',
     ]);
 

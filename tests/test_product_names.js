@@ -109,6 +109,51 @@ test('recognizes official Sidewinder family without accepting partial or embedde
   }
 });
 
+// refresh-dealers run39509821011: exact names and URLs, audited entirely offline.
+for (const row of [
+  {
+    dealer: 'evo',
+    full_name: "Strato Jacket Men's",
+    gender: 'men',
+    status: 'active',
+    url: 'https://www.evo.com/products/279102-arc-teryx-strato-jacket-men-s',
+  },
+  {
+    dealer: 'evo',
+    full_name: "Strato Pants Men's",
+    gender: 'men',
+    status: 'active',
+    url: 'https://www.evo.com/products/279103-arc-teryx-strato-pants-men-s',
+  },
+]) {
+  test(`offline audit recognizes ${row.full_name} and preserves its exact name`, async () => {
+    const { auditRows } = await import('../tools/audit_product_names.mjs');
+    const standard = standardProductName(row.full_name, row);
+    assert.equal(standard, row.full_name);
+    assert.equal(extractModelFamily(standard), 'Strato');
+    const result = auditRows([row], { strictSource: true });
+    assert.equal(result.active, 1);
+    assert.equal(result.accepted, 1);
+    assert.equal(result.rejected, 0);
+    assert.deepEqual(result.unknownFamilies, []);
+    assert.equal(result.violations, 0);
+  });
+}
+
+test('Strato registration keeps unknown, partial and embedded families fail-closed', async () => {
+  const { auditRows } = await import('../tools/audit_product_names.mjs');
+  const names = ["StratoFuture Jacket Men's", "Strat Pants Men's", "Unknown Strato Jacket Men's"];
+  const rows = names.map((full_name) => ({ dealer: 'evo', full_name, gender: 'men', status: 'active' }));
+  for (const row of rows) {
+    assert.equal(standardProductName(row.full_name, row), row.full_name);
+    assert.equal(extractModelFamily(row.full_name), null);
+  }
+  const result = auditRows(rows, { strictSource: true });
+  assert.equal(result.accepted, names.length);
+  assert.deepEqual(result.unknownFamilies.map((item) => item.standard), names);
+  assert.equal(result.violations, names.length);
+});
+
 test('shared brand runtime normalizes Burton and Patagonia without Arc naming rules', () => {
   const burton = { brand: 'Burton', dealer: 'evo', gender: 'men', url: 'https://www.evo.com/products/burton-custom' };
   const patagonia = { brand: 'patagonia', dealer: 'evo', gender: 'women', url: 'https://www.evo.com/products/patagonia-nano' };

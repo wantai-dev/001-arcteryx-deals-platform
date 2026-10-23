@@ -34,7 +34,7 @@ env:
 
 jobs:
   lease-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       acquired: ${{ steps.lease.outputs.acquired }}
       owner: ${{ steps.lease.outputs.owner }}
@@ -70,7 +70,7 @@ jobs:
   refresh-dealers:
     needs: lease-gate
     if: needs.lease-gate.outputs.acquired == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
 
     steps:

@@ -40,7 +40,7 @@ env:
 
 jobs:
   revalidate-dealer-prices:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     outputs:
       revalidate_outcome: ${{ steps.revalidate.outcome }}

@@ -32,7 +32,7 @@ env:
 
 jobs:
   audit-dealer-prices:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       AUDIT_INDEPENDENT_READ_DELAY_SECONDS: "15"

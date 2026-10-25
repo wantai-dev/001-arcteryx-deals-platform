@@ -1,12 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePreferences } from '../../contexts/PreferencesContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { scaleLength } from '../../lib/typeScale';
 
 export default function TabsLayout() {
   const { t } = usePreferences();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  // A fixed 78/20 bar leaves dead space on devices without a home indicator and
+  // crowds the indicator on the ones that have it. The bar also has to grow for
+  // the larger text sizes, or the scaled labels clip against the icons.
+  const barHeight = scaleLength(50, fontScale) + insets.bottom;
   return (
     <Tabs
       screenOptions={{
@@ -14,16 +23,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: {
-          height: 78,
-          paddingTop: 8,
-          paddingBottom: 20,
+          height: barHeight,
+          paddingTop: 6,
+          paddingBottom: insets.bottom || 6,
           backgroundColor: colors.card,
           borderTopColor: colors.border,
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: '800',
+          fontWeight: '600',
         },
+        // Tab labels scale with the system text size; the bar grows to match.
+        tabBarAllowFontScaling: true,
       }}
     >
       <Tabs.Screen

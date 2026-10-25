@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   bestYearbookOffers,
+  offerImageUris,
   comparableYearbookOffer,
   filterYearbookArchive,
   filterYearbookProducts,
@@ -371,4 +372,44 @@ test('keeps one lowest offer per currency and groups unmatched colors into archi
   assert.equal(archive[0]!.official_product_id, '200000');
   assert.equal(archive[0]!.offers.length, 3);
   assert.deepEqual(archive[0]!.colors, ['Black', 'Blue']);
+});
+
+test('collects merchant photos for a style and drops duplicate or non-HTTPS URLs', () => {
+  const uris = offerImageUris([
+    deal({ sku_id: 'a', image_url: 'https://cdn.example/a.jpg', images: ['https://cdn.example/a-alt.jpg'] }),
+    deal({ sku_id: 'b', image_url: 'https://cdn.example/a.jpg', images: [] }),
+    deal({ sku_id: 'c', image_url: 'http://cdn.example/insecure.jpg', images: ['   '] }),
+    deal({ sku_id: 'd', image_url: null, images: ['https://cdn.example/d.jpg'] }),
+  ]);
+  assert.deepEqual(uris, [
+    'https://cdn.example/a.jpg',
+    'https://cdn.example/a-alt.jpg',
+    'https://cdn.example/d.jpg',
+  ]);
+});
+
+test('returns no photo candidates when every linked listing lacks artwork', () => {
+  assert.deepEqual(offerImageUris([deal({ image_url: null, images: [] })]), []);
+  assert.deepEqual(offerImageUris([]), []);
+});
+
+test('a category filter accepts the slug aliases that share one label', () => {
+  const rows = [
+    normalizeCatalogProduct(arcRow({ categories: ['base-layer'] }))!,
+    normalizeCatalogProduct(arcRow({
+      catalog_product_id: 'arcteryx:x000009716',
+      official_product_id: 'X000009716',
+      name: "Rho Crew Neck LS Women's",
+      categories: ['baselayers'],
+    }))!,
+    normalizeCatalogProduct(arcRow({
+      catalog_product_id: 'arcteryx:x000009717',
+      official_product_id: 'X000009717',
+      name: "Beta Jacket Men's",
+      categories: ['shell-jackets'],
+    }))!,
+  ];
+  assert.equal(filterYearbookProducts(rows, { category: 'base-layer' }).length, 1);
+  assert.equal(filterYearbookProducts(rows, { category: ['base-layer', 'baselayers'] }).length, 2);
+  assert.equal(filterYearbookProducts(rows, { category: 'all' }).length, 3);
 });

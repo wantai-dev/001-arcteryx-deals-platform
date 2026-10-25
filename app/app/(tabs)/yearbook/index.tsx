@@ -1,58 +1,59 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Stack, router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
   Linking,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ControlRow } from "../../components/ControlRow";
-import { ActiveChips, type ActiveChip } from "../../components/ActiveChips";
-import { AlertModal } from "../../components/AlertModal";
-import { DefaultImage } from "../../components/DefaultImage";
+import { ControlRow } from "../../../components/ControlRow";
+import { ActiveChips, type ActiveChip } from "../../../components/ActiveChips";
+import { AlertModal } from "../../../components/AlertModal";
+import { CatalogPhoto } from "../../../components/CatalogPhoto";
+import { Sheet } from "../../../components/Sheet";
 import {
   FilterSheet,
   type FilterSheetSection,
-} from "../../components/FilterSheet";
-import { MarketPill } from "../../components/MarketPill";
-import { MarketSheet } from "../../components/MarketSheet";
-import { ScreenState } from "../../components/ScreenState";
-import { SearchField } from "../../components/SearchField";
-import { usePreferences } from "../../contexts/PreferencesContext";
-import { useProducts } from "../../contexts/ProductsContext";
-import { useMarket } from "../../contexts/MarketContext";
-import { useTheme } from "../../contexts/ThemeContext";
-import { useWatchlist } from "../../contexts/WatchlistContext";
-import { browseText } from "../../lib/browseI18n";
-import { BRAND, PLATFORM, productCategory } from "../../lib/catalog";
+} from "../../../components/FilterSheet";
+import { MarketPill } from "../../../components/MarketPill";
+import { MarketSheet } from "../../../components/MarketSheet";
+import { ScreenState } from "../../../components/ScreenState";
+import { SearchField } from "../../../components/SearchField";
+import { usePreferences } from "../../../contexts/PreferencesContext";
+import { useProducts } from "../../../contexts/ProductsContext";
+import { useMarket } from "../../../contexts/MarketContext";
+import { useTheme } from "../../../contexts/ThemeContext";
+import { useWatchlist } from "../../../contexts/WatchlistContext";
+import { selectionTick } from "../../../lib/actions";
+import { browseText } from "../../../lib/browseI18n";
+import { BRAND, PLATFORM, productCategory } from "../../../lib/catalog";
 import {
   convertAmount,
   type CurrencyPreference,
   type RateSnapshot,
-} from "../../lib/currency";
-import { availableDealRegions, productsForRegion } from "../../lib/deals";
-import { alertPriceReferenceForCatalog } from "../../lib/alertPriceReference";
+} from "../../../lib/currency";
+import { availableDealRegions, productsForRegion } from "../../../lib/deals";
+import { alertPriceReferenceForCatalog } from "../../../lib/alertPriceReference";
 import {
   marketCurrencyOptions,
   marketRegionOptions,
-} from "../../lib/marketOptions";
-import { fetchYearbookProducts } from "../../lib/supabase";
-import { radii, typography, type ThemeColors } from "../../lib/theme";
+} from "../../../lib/marketOptions";
+import { fetchYearbookProducts } from "../../../lib/supabase";
+import { radii, text, typography, type ThemeColors } from "../../../lib/theme";
+import { gridColumns, scaleLength, TYPE_CAP } from "../../../lib/typeScale";
 import type {
   CatalogBrandKey,
   CatalogGender,
   CatalogProduct,
   Product,
-} from "../../lib/types";
+} from "../../../lib/types";
 import {
   bestYearbookOffers,
   brandLabel,
@@ -61,15 +62,16 @@ import {
   filterYearbookProducts,
   groupYearbookArchive,
   indexYearbookDeals,
+  offerImageUris,
   yearbookBrands,
   yearbookCategories,
   yearbookYear,
   yearbookYears,
   type YearbookArchiveStyle,
-} from "../../lib/yearbook";
+} from "../../../lib/yearbook";
 
 type Scope = "current" | "archive";
-type Sort = "name" | "price_asc" | "price_desc" | "newest";
+type Sort = "curated" | "name" | "price_asc" | "price_desc" | "newest";
 type Filters = {
   brand: CatalogBrandKey | "all";
   gender: CatalogGender | "all";
@@ -79,11 +81,35 @@ type Filters = {
 type Item =
   | { kind: "current"; value: CatalogProduct }
   | { kind: "archive"; value: YearbookArchiveStyle };
+type CategoryGroup = {
+  key: string;
+  label: string;
+  slugs: string[];
+  count: number;
+};
+type Row =
+  | { type: "header"; key: string; brand: CatalogBrandKey; count: number }
+  | { type: "cells"; key: string; cells: Item[] };
+
+const BRAND_ORDER: CatalogBrandKey[] = ["arcteryx", "burton", "patagonia"];
+const CURRENT_SORTS: Sort[] = [
+  "curated",
+  "name",
+  "price_asc",
+  "price_desc",
+  "newest",
+];
+// The archive is grouped from live deal listings and carries no catalog season,
+// so offering "newest" there would silently fall back to an alphabetical sort.
+const ARCHIVE_SORTS: Sort[] = ["curated", "name", "price_asc", "price_desc"];
+
 export default function YearbookScreen() {
   const { products: allDeals } = useProducts();
   const prefs = usePreferences();
   const { region, currency, setMarket } = useMarket();
-  const { colors, styles } = useBrowseStyles();
+  const { styles } = useBrowseStyles();
+  const { fontScale } = useWindowDimensions();
+  const columns = gridColumns(fontScale);
   const watchlist = useWatchlist();
   const b = (
     key: Parameters<typeof browseText>[1],
@@ -94,7 +120,7 @@ export default function YearbookScreen() {
   const [unavailable, setUnavailable] = useState(false);
   const [scope, setScope] = useState<Scope>("current");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("name");
+  const [sort, setSort] = useState<Sort>("curated");
   const [filters, setFilters] = useState<Filters>({
     brand: "all",
     gender: "all",
@@ -104,9 +130,12 @@ export default function YearbookScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  // The product outlives `detailOpen` so the sheet can animate out before it
+  // unmounts, whichever control closed it.
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(
     null,
   );
+  const [detailOpen, setDetailOpen] = useState(false);
   const [alertProduct, setAlertProduct] = useState<CatalogProduct | null>(null);
 
   async function toggleModelWithFeedback(
@@ -152,9 +181,58 @@ export default function YearbookScreen() {
     () => groupYearbookArchive(dealIndex.unmatched),
     [dealIndex.unmatched],
   );
+  const categoryCounts = useMemo(
+    () =>
+      countBy<CatalogProduct | YearbookArchiveStyle>(
+        scope === "current" ? catalog : archive,
+        (entry) => entry.categories,
+      ),
+    [archive, catalog, scope],
+  );
+  const categorySlugs = useMemo(
+    () =>
+      scope === "current"
+        ? yearbookCategories(catalog)
+        : [...new Set(archive.flatMap((item) => item.categories))].sort(),
+    [archive, catalog, scope],
+  );
+  // The official feeds ship both `base-layer` and `baselayers`; showing two
+  // identical chips that each filter half the catalog is worse than one.
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, CategoryGroup>();
+    for (const slug of categorySlugs) {
+      const label = prefs.categoryLabel(slug);
+      const existing = groups.get(label);
+      if (existing) {
+        existing.slugs.push(slug);
+        existing.count += categoryCounts[slug] || 0;
+      } else {
+        groups.set(label, {
+          key: slug,
+          label,
+          slugs: [slug],
+          count: categoryCounts[slug] || 0,
+        });
+      }
+    }
+    return [...groups.values()].sort(
+      (left, right) =>
+        right.count - left.count || left.label.localeCompare(right.label),
+    );
+  }, [categoryCounts, categorySlugs, prefs]);
+  const categoryFilter = useMemo(() => {
+    if (filters.category === "all") return "all";
+    const group = categoryGroups.find((entry) => entry.key === filters.category);
+    return group ? group.slugs : filters.category;
+  }, [categoryGroups, filters.category]);
   const currentFiltered = useMemo(
-    () => filterYearbookProducts(catalog, { query, ...filters }),
-    [catalog, filters, query],
+    () =>
+      filterYearbookProducts(catalog, {
+        ...filters,
+        category: categoryFilter,
+        query,
+      }),
+    [catalog, categoryFilter, filters, query],
   );
   const archiveFiltered = useMemo(
     () =>
@@ -162,9 +240,9 @@ export default function YearbookScreen() {
         query,
         brand: filters.brand,
         gender: filters.gender,
-        category: filters.category,
+        category: categoryFilter,
       }),
-    [archive, filters, query],
+    [archive, categoryFilter, filters, query],
   );
   const items = useMemo<Item[]>(() => {
     if (scope === "current")
@@ -185,14 +263,40 @@ export default function YearbookScreen() {
     scope,
     sort,
   ]);
+  // Grouping only reads as organisation when the order itself is by brand.
+  const grouped = sort === "curated" && filters.brand === "all";
+  const rows = useMemo(
+    () => buildRows(items, grouped, columns),
+    [columns, grouped, items],
+  );
+
+  const brandCounts = useMemo(
+    () =>
+      countBy<CatalogProduct | YearbookArchiveStyle>(
+        scope === "current" ? catalog : archive,
+        (entry) => entry.brand_key,
+      ),
+    [archive, catalog, scope],
+  );
+  const genderCounts = useMemo(
+    () =>
+      countBy<CatalogProduct | YearbookArchiveStyle>(
+        scope === "current" ? catalog : archive,
+        (entry) => entry.gender,
+      ),
+    [archive, catalog, scope],
+  );
+  const yearCounts = useMemo(
+    () => countBy(catalog, (entry) => String(yearbookYear(entry))),
+    [catalog],
+  );
+
   const brands =
     scope === "current"
       ? yearbookBrands(catalog)
-      : [...new Set(archive.map((item) => item.brand_key))];
-  const categories =
-    scope === "current"
-      ? yearbookCategories(catalog)
-      : [...new Set(archive.flatMap((item) => item.categories))].sort();
+      : BRAND_ORDER.filter((brand) =>
+          archive.some((item) => item.brand_key === brand),
+        );
   const years = yearbookYears(catalog);
   const regionOptions = availableDealRegions(allDeals);
   const activeCount =
@@ -238,7 +342,10 @@ export default function YearbookScreen() {
       value: filters.brand,
       options: [
         { value: "all", label: b("allBrands") },
-        ...brands.map((value) => ({ value, label: brandLabel(value) })),
+        ...brands.map((value) => ({
+          value,
+          label: withCount(brandLabel(value), brandCounts[value]),
+        })),
       ],
     },
     {
@@ -249,7 +356,7 @@ export default function YearbookScreen() {
         { value: "all", label: b("allYears") },
         ...years.map((value) => ({
           value: String(value),
-          label: String(value),
+          label: withCount(String(value), yearCounts[String(value)]),
         })),
       ],
     },
@@ -259,9 +366,9 @@ export default function YearbookScreen() {
       value: filters.category,
       options: [
         { value: "all", label: b("allCategories") },
-        ...categories.map((value) => ({
-          value,
-          label: prefs.categoryLabel(value),
+        ...categoryGroups.map((group) => ({
+          value: group.key,
+          label: withCount(group.label, group.count),
         })),
       ],
     },
@@ -271,10 +378,26 @@ export default function YearbookScreen() {
       value: filters.gender,
       options: ["all", "women", "men", "kids", "unisex"].map((value) => ({
         value,
-        label: value === "all" ? b("allGenders") : prefs.genderLabel(value),
+        label:
+          value === "all"
+            ? b("allGenders")
+            : withCount(prefs.genderLabel(value), genderCounts[value]),
       })),
     },
-  ].filter((section) => scope === "current" || section.key !== "year");
+  ].filter(
+    (section) =>
+      // A single-year catalog makes the year filter pure noise.
+      (scope === "current" && years.length > 1) || section.key !== "year",
+  );
+
+  function changeScope(next: Scope) {
+    if (next === scope) return;
+    selectionTick();
+    setScope(next);
+    setFilters((value) => ({ ...value, year: "all" }));
+    const allowed = next === "current" ? CURRENT_SORTS : ARCHIVE_SORTS;
+    if (!allowed.includes(sort)) setSort("curated");
+  }
 
   if (loading)
     return (
@@ -302,45 +425,44 @@ export default function YearbookScreen() {
     );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <View style={styles.safe}>
+      <Stack.Screen
+        options={{
+          title: prefs.t("tabs.yearbook"),
+          headerRight: () => (
+            <MarketPill
+              region={region}
+              currency={currency}
+              label={`${b("market")}: ${prefs.regionLabel(region)}`}
+              onPress={() => setMarketOpen(true)}
+            />
+          ),
+        }}
+      />
       <FlatList
-        data={items}
-        numColumns={2}
-        keyExtractor={(item) =>
-          item.kind === "current"
-            ? item.value.catalog_product_id
-            : item.value.archive_id
-        }
-        columnWrapperStyle={styles.columns}
+        data={rows}
+        keyExtractor={(row) => row.key}
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={9}
+        removeClippedSubviews
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.top}>
-              <Text style={styles.title}>{prefs.t("tabs.yearbook")}</Text>
-              <MarketPill
-                region={region}
-                currency={currency}
-                label={`${b("market")}: ${prefs.regionLabel(region)}`}
-                onPress={() => setMarketOpen(true)}
-              />
-            </View>
-            <View style={styles.segment}>
+            <View
+              style={[styles.segment, { height: scaleLength(44, fontScale) }]}
+            >
               <Segment
                 active={scope === "current"}
-                label={b("current", { count: catalog.length })}
-                onPress={() => {
-                  setScope("current");
-                  setFilters((value) => ({ ...value, year: "all" }));
-                }}
+                label={b("currentTab")}
+                onPress={() => changeScope("current")}
               />
               <Segment
                 active={scope === "archive"}
-                label={b("archive", { count: archive.length })}
-                onPress={() => {
-                  setScope("archive");
-                  setFilters((value) => ({ ...value, year: "all" }));
-                }}
+                label={b("archiveTab")}
+                onPress={() => changeScope("archive")}
               />
             </View>
             <Text style={styles.help}>
@@ -361,27 +483,57 @@ export default function YearbookScreen() {
               onFilter={() => setFiltersOpen(true)}
             />
             <ActiveChips chips={activeChips} />
+            <Text style={styles.resultCount}>
+              {b("matchCount", { count: items.length })}
+            </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={styles.item}>
-            {item.kind === "current" ? (
-              <CurrentCard
-                product={item.value}
-                offers={
-                  dealIndex.byCatalogId[item.value.catalog_product_id] || []
-                }
-                saved={watchlist.isModelSaved(item.value)}
-                onOpen={() => setSelectedProduct(item.value)}
-                onToggleSave={(offers) =>
-                  void toggleModelWithFeedback(item.value, offers)
-                }
-              />
-            ) : (
-              <ArchiveCard product={item.value} />
-            )}
-          </View>
-        )}
+        renderItem={({ item: row }) =>
+          row.type === "header" ? (
+            <View style={styles.groupHeader}>
+              <Text style={styles.groupTitle} maxFontSizeMultiplier={TYPE_CAP.standard}>
+                {brandLabel(row.brand)}
+              </Text>
+              <Text style={styles.groupCount}>{row.count}</Text>
+            </View>
+          ) : (
+            <View style={styles.columns}>
+              {row.cells.map((item) => (
+                <View
+                  key={
+                    item.kind === "current"
+                      ? item.value.catalog_product_id
+                      : item.value.archive_id
+                  }
+                  style={styles.item}
+                >
+                  {item.kind === "current" ? (
+                    <CurrentCard
+                      product={item.value}
+                      offers={
+                        dealIndex.byCatalogId[item.value.catalog_product_id] ||
+                        []
+                      }
+                      saved={watchlist.isModelSaved(item.value)}
+                      onOpen={() => {
+                        setSelectedProduct(item.value);
+                        setDetailOpen(true);
+                      }}
+                      onToggleSave={(offers) =>
+                        void toggleModelWithFeedback(item.value, offers)
+                      }
+                    />
+                  ) : (
+                    <ArchiveCard product={item.value} />
+                  )}
+                </View>
+              ))}
+              {columns > 1 && row.cells.length === 1 ? (
+                <View style={styles.item} />
+              ) : null}
+            </View>
+          )
+        }
         ListEmptyComponent={
           <ScreenState
             title={prefs.t("yearbook.noMatchesTitle")}
@@ -396,12 +548,13 @@ export default function YearbookScreen() {
         resultLabel={b("viewResults", { count: items.length })}
         resetLabel={b("reset")}
         closeLabel={b("close")}
-        onSelect={(key, value) =>
+        onSelect={(key, value) => {
+          selectionTick();
           setFilters((current) => ({
             ...current,
             [key]: key === "year" && value !== "all" ? Number(value) : value,
-          }))
-        }
+          }));
+        }}
         onReset={() =>
           setFilters({
             brand: "all",
@@ -415,8 +568,10 @@ export default function YearbookScreen() {
       <SortSheet
         visible={sortOpen}
         value={sort}
+        options={scope === "current" ? CURRENT_SORTS : ARCHIVE_SORTS}
         language={prefs.language}
         onSelect={(value) => {
+          selectionTick();
           setSort(value);
           setSortOpen(false);
         }}
@@ -445,14 +600,16 @@ export default function YearbookScreen() {
       />
       {selectedProduct ? (
         <CatalogDetailSheet
+          visible={detailOpen}
           product={selectedProduct}
           offers={
             dealIndex.byCatalogId[selectedProduct.catalog_product_id] || []
           }
-          onClose={() => setSelectedProduct(null)}
+          onClose={() => setDetailOpen(false)}
+          onClosed={() => setSelectedProduct(null)}
           onAlert={() => {
             setAlertProduct(selectedProduct);
-            setSelectedProduct(null);
+            setDetailOpen(false);
           }}
           onToggleSave={() =>
             void toggleModelWithFeedback(
@@ -484,7 +641,7 @@ export default function YearbookScreen() {
           }
         />
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -503,7 +660,8 @@ function CurrentCard({
 }) {
   const prefs = usePreferences();
   const { currency } = useMarket();
-  const { colors, styles } = useBrowseStyles();
+  const { styles } = useBrowseStyles();
+  const { fontScale } = useWindowDimensions();
   const b = (key: Parameters<typeof browseText>[1]) =>
     browseText(prefs.language, key);
   const selection = comparableYearbookOffer(
@@ -520,7 +678,8 @@ function CurrentCard({
       onPress={onOpen}
     >
       <View style={styles.photo}>
-        <DefaultImage
+        <CatalogPhoto
+          uris={offerImageUris(offers)}
           category={product.categories[0] || "other"}
           brand={product.brand}
         />
@@ -531,34 +690,30 @@ function CurrentCard({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={b("modelWatch")}
-          style={{
-            position: "absolute",
-            top: 3,
-            right: 3,
-            width: 44,
-            height: 44,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 22,
-            backgroundColor: colors.onPhotoBadge,
-          }}
+          accessibilityState={{ selected: saved }}
+          style={styles.save}
+          hitSlop={4}
           onPress={(event) => {
             event.stopPropagation();
+            selectionTick();
             onToggleSave(offers);
           }}
         >
           <Ionicons
             name={saved ? "heart" : "heart-outline"}
-            size={17}
+            size={18}
             color={saved ? "#B73535" : "#202326"}
           />
         </Pressable>
       </View>
-      <Text style={styles.brandMeta}>
+      <Text style={styles.brandMeta} numberOfLines={1}>
         {product.brand} ·{" "}
         {prefs.categoryLabel(product.categories[0] || "other")}
       </Text>
-      <Text style={styles.name} numberOfLines={2}>
+      <Text
+        style={[styles.name, { minHeight: scaleLength(40, fontScale) }]}
+        numberOfLines={2}
+      >
         {product.name}
       </Text>
       <Text style={styles.price}>
@@ -566,7 +721,7 @@ function CurrentCard({
           ? offerPriceLabel(offers, selection.comparableAcrossCurrencies, prefs)
           : formatRange(product, prefs)}
       </Text>
-      <Text style={styles.marketMeta}>
+      <Text style={styles.marketMeta} numberOfLines={1}>
         {best
           ? `${best.region.toUpperCase()} · ${PLATFORM[best._platform]?.label || best._platform}`
           : `${product.country.toUpperCase()} · ${product.currency}`}
@@ -579,6 +734,7 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
   const prefs = usePreferences();
   const { currency } = useMarket();
   const { styles } = useBrowseStyles();
+  const { fontScale } = useWindowDimensions();
   const b = (key: Parameters<typeof browseText>[1]) =>
     browseText(prefs.language, key);
   const selection = comparableYearbookOffer(
@@ -601,17 +757,21 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
       }
     >
       <View style={styles.photo}>
-        <DefaultImage
+        <CatalogPhoto
+          uris={offerImageUris(product.offers)}
           category={product.categories[0] || productCategory(best)}
           brand={BRAND[product.brand_key].label}
         />
         <Status tone="archive" text={b("archiveFrom")} />
       </View>
-      <Text style={styles.brandMeta}>
+      <Text style={styles.brandMeta} numberOfLines={1}>
         {BRAND[product.brand_key].label} ·{" "}
         {prefs.categoryLabel(product.categories[0] || productCategory(best))}
       </Text>
-      <Text style={styles.name} numberOfLines={2}>
+      <Text
+        style={[styles.name, { minHeight: scaleLength(40, fontScale) }]}
+        numberOfLines={2}
+      >
         {product.name}
       </Text>
       <Text style={styles.price}>
@@ -621,7 +781,7 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
           prefs,
         )}
       </Text>
-      <Text style={styles.marketMeta}>
+      <Text style={styles.marketMeta} numberOfLines={1}>
         {best.region.toUpperCase()} ·{" "}
         {PLATFORM[best._platform]?.label || best._platform}
       </Text>
@@ -630,15 +790,21 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
 }
 
 function CatalogDetailSheet({
+  visible,
   product,
   offers,
   onClose,
+  onClosed,
   onAlert,
   onToggleSave,
 }: {
+  visible: boolean;
   product: CatalogProduct;
   offers: Product[];
+  /** Asks the sheet to animate out. */
   onClose: () => void;
+  /** Fires once it is off screen, so the parent can drop the product. */
+  onClosed: () => void;
   onAlert: () => void;
   onToggleSave: () => void;
 }) {
@@ -670,17 +836,15 @@ function CatalogDetailSheet({
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType={Platform.OS === "web" ? "fade" : "slide"}
-      onRequestClose={onClose}
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      onClosed={onClosed}
+      detents={[0.6, 0.9]}
+      closeAccessibilityLabel={b("close")}
+      style={styles.detailSheet}
     >
-      <View style={styles.backdrop}>
-        <ScrollView
-          style={styles.detailSheet}
-          contentContainerStyle={styles.detailContent}
-        >
+        <ScrollView contentContainerStyle={styles.detailContent}>
           <View style={styles.detailHead}>
             <Text style={styles.detailTitle}>{b("modelDetail")}</Text>
             <Pressable
@@ -730,8 +894,12 @@ function CatalogDetailSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={b("modelWatch")}
+            accessibilityState={{ selected: saved }}
             style={styles.detailSecondary}
-            onPress={onToggleSave}
+            onPress={() => {
+              selectionTick();
+              onToggleSave();
+            }}
           >
             <Text style={styles.detailSecondaryText}>
               {b("modelWatch")} · {saved ? "✓" : "+"}
@@ -746,8 +914,7 @@ function CatalogDetailSheet({
             <Text style={styles.detailSecondaryText}>{b("setAlert")}</Text>
           </Pressable>
         </ScrollView>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -809,6 +976,7 @@ function Status({
               : styles.statusListText,
         ]}
         numberOfLines={1}
+        maxFontSizeMultiplier={TYPE_CAP.badge}
       >
         {text}
       </Text>
@@ -835,11 +1003,70 @@ function Segment({
       <Text
         style={[styles.segmentText, active && styles.segmentTextActive]}
         numberOfLines={1}
+        maxFontSizeMultiplier={TYPE_CAP.compact}
       >
         {label}
       </Text>
     </Pressable>
   );
+}
+function withCount(label: string, count?: number) {
+  return count ? `${label} (${count})` : label;
+}
+function countBy<T>(
+  rows: T[],
+  pick: (row: T) => string | string[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const value = pick(row);
+    for (const key of Array.isArray(value) ? value : [value])
+      counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+function itemKey(item: Item) {
+  return item.kind === "current"
+    ? item.value.catalog_product_id
+    : item.value.archive_id;
+}
+/**
+ * Card grid built as explicit rows so brand group headers can occupy a
+ * full-width row; `numColumns` cannot interleave them. `columns` drops to 1 at
+ * the accessibility text sizes.
+ */
+function buildRows(items: Item[], grouped: boolean, columns: number): Row[] {
+  const rows: Row[] = [];
+  const pushPairs = (group: Item[]) => {
+    for (let index = 0; index < group.length; index += columns) {
+      const cells = group.slice(index, index + columns);
+      rows.push({ type: "cells", key: `r:${itemKey(cells[0]!)}`, cells });
+    }
+  };
+  if (!grouped) {
+    pushPairs(items);
+    return rows;
+  }
+  let group: Item[] = [];
+  const flush = () => {
+    if (!group.length) return;
+    const brand = group[0]!.value.brand_key;
+    rows.push({
+      type: "header",
+      key: `h:${brand}:${itemKey(group[0]!)}`,
+      brand,
+      count: group.length,
+    });
+    pushPairs(group);
+    group = [];
+  };
+  for (const item of items) {
+    if (group.length && group[0]!.value.brand_key !== item.value.brand_key)
+      flush();
+    group.push(item);
+  }
+  flush();
+  return rows;
 }
 function formatRange(
   product: CatalogProduct,
@@ -869,6 +1096,16 @@ function comparePrice(
   if (right !== null) return 1;
   return 0;
 }
+function compareBrand(left: CatalogBrandKey, right: CatalogBrandKey) {
+  return BRAND_ORDER.indexOf(left) - BRAND_ORDER.indexOf(right);
+}
+/** Uncategorised styles sort last instead of leading every brand group. */
+function compareCategory(left: string[], right: string[]) {
+  const a = left[0] || '';
+  const b = right[0] || '';
+  if (!a !== !b) return a ? -1 : 1;
+  return a.localeCompare(b);
+}
 function sortCurrent(
   rows: CatalogProduct[],
   sort: Sort,
@@ -876,21 +1113,25 @@ function sortCurrent(
   snapshot: RateSnapshot | null,
 ) {
   return [...rows].sort((a, b) =>
-    sort === "price_asc"
-      ? comparePrice(
-          sortablePrice(a.list_price, a.currency, currency, snapshot),
-          sortablePrice(b.list_price, b.currency, currency, snapshot),
-          1,
-        ) || a.currency.localeCompare(b.currency)
-      : sort === "price_desc"
+    sort === "curated"
+      ? compareBrand(a.brand_key, b.brand_key) ||
+        compareCategory(a.categories, b.categories) ||
+        a.name.localeCompare(b.name)
+      : sort === "price_asc"
         ? comparePrice(
             sortablePrice(a.list_price, a.currency, currency, snapshot),
             sortablePrice(b.list_price, b.currency, currency, snapshot),
-            -1,
+            1,
           ) || a.currency.localeCompare(b.currency)
-        : sort === "newest"
-          ? yearbookYear(b) - yearbookYear(a)
-          : a.name.localeCompare(b.name),
+        : sort === "price_desc"
+          ? comparePrice(
+              sortablePrice(a.list_price, a.currency, currency, snapshot),
+              sortablePrice(b.list_price, b.currency, currency, snapshot),
+              -1,
+            ) || a.currency.localeCompare(b.currency)
+          : sort === "newest"
+            ? yearbookYear(b) - yearbookYear(a) || a.name.localeCompare(b.name)
+            : a.name.localeCompare(b.name),
   );
 }
 function sortArchive(
@@ -900,6 +1141,12 @@ function sortArchive(
   snapshot: RateSnapshot | null,
 ) {
   return [...rows].sort((a, b) => {
+    if (sort === "curated")
+      return (
+        compareBrand(a.brand_key, b.brand_key) ||
+        compareCategory(a.categories, b.categories) ||
+        a.name.localeCompare(b.name)
+      );
     const ao = comparableYearbookOffer(a.offers, currency, snapshot).offer;
     const bo = comparableYearbookOffer(b.offers, currency, snapshot).offer;
     const ap = ao
@@ -916,6 +1163,7 @@ function sortArchive(
   });
 }
 function sortLabel(sort: Sort, language: Parameters<typeof browseText>[0]) {
+  if (sort === "curated") return browseText(language, "sortCurated");
   const labels = {
     en: {
       name: "Name",
@@ -953,45 +1201,46 @@ function sortLabel(sort: Sort, language: Parameters<typeof browseText>[0]) {
 function SortSheet({
   visible,
   value,
+  options,
   language,
   onSelect,
   onClose,
 }: {
   visible: boolean;
   value: Sort;
+  options: Sort[];
   language: Parameters<typeof browseText>[0];
   onSelect: (value: Sort) => void;
   onClose: () => void;
 }) {
   const { colors, styles } = useBrowseStyles();
+  const { fontScale } = useWindowDimensions();
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType={Platform.OS === "web" ? "fade" : "slide"}
-      onRequestClose={onClose}
+      onClose={onClose}
+      closeAccessibilityLabel={browseText(language, "close")}
+      style={styles.sheetSurface}
     >
-      <View style={styles.backdrop}>
         <View style={styles.sortSheet}>
-          {(["name", "price_asc", "price_desc", "newest"] as Sort[]).map(
-            (option) => (
-              <Pressable
-                key={option}
-                style={styles.sortOption}
-                onPress={() => onSelect(option)}
-              >
-                <Text style={styles.sortOptionText}>
-                  {sortLabel(option, language)}
-                </Text>
-                {option === value ? (
-                  <Ionicons name="checkmark" size={18} color={colors.buy} />
-                ) : null}
-              </Pressable>
-            ),
-          )}
+          {options.map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityState={{ selected: option === value }}
+              style={[styles.sortOption, { minHeight: scaleLength(52, fontScale) }]}
+              onPress={() => onSelect(option)}
+            >
+              <Text style={styles.sortOptionText}>
+                {sortLabel(option, language)}
+              </Text>
+              {option === value ? (
+                <Ionicons name="checkmark" size={18} color={colors.buy} />
+              ) : null}
+            </Pressable>
+          ))}
         </View>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -1005,14 +1254,7 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.screen },
     content: { paddingHorizontal: 15, paddingBottom: 28 },
-    header: { gap: 9, paddingTop: 2, paddingBottom: 10 },
-    top: {
-      minHeight: 48,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    title: { color: colors.ink, fontSize: 24, fontWeight: "900" },
+    header: { gap: 9, paddingTop: 6, paddingBottom: 6 },
     segment: {
       height: 44,
       flexDirection: "row",
@@ -1027,12 +1269,28 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 9,
     },
     segmentActive: { backgroundColor: colors.pill },
-    segmentText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+    segmentText: { ...text.footnoteEmphasized, color: colors.muted },
     segmentTextActive: { color: colors.onPill },
-    help: { color: colors.ink2, fontSize: 12, lineHeight: 17 },
-    source: { color: colors.muted, fontSize: 10.5, lineHeight: 15 },
-    columns: { gap: 10 },
-    item: { minWidth: 0, flex: 1, maxWidth: "50%" },
+    help: { ...text.footnote, color: colors.ink2 },
+    source: { ...text.caption1, color: colors.muted },
+    resultCount: { ...text.caption1Emphasized, color: colors.muted },
+    groupHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+      paddingTop: 14,
+      paddingBottom: 8,
+    },
+    groupTitle: { ...text.title3, color: colors.ink },
+    groupCount: {
+      ...text.caption1,
+      color: colors.muted,
+      fontFamily: typography.mono,
+      fontVariant: typography.tabular,
+    },
+    columns: { flexDirection: "row", gap: 10 },
+    item: { minWidth: 0, flex: 1 },
     card: { flex: 1, gap: 4, paddingBottom: 14 },
     photo: {
       width: "100%",
@@ -1043,11 +1301,22 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       backgroundColor: colors.photo,
     },
+    save: {
+      position: "absolute",
+      top: 6,
+      right: 6,
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 20,
+      backgroundColor: colors.onPhotoBadge,
+    },
     status: {
       position: "absolute",
       top: 7,
       left: 7,
-      maxWidth: "84%",
+      maxWidth: "70%",
       borderRadius: radii.sm,
       paddingHorizontal: 7,
       paddingVertical: 4,
@@ -1055,38 +1324,26 @@ const makeStyles = (colors: ThemeColors) =>
     statusSale: { backgroundColor: colors.buyBg },
     statusArchive: { backgroundColor: colors.discBg },
     statusList: { backgroundColor: colors.onPhotoBadge },
-    statusText: { fontSize: 9.5, fontWeight: "900" },
+    statusText: { ...text.caption2Emphasized },
     statusSaleText: { color: colors.buy },
     statusArchiveText: { color: colors.disc },
     statusListText: { color: "#34383C" },
-    brandMeta: { color: colors.muted, fontSize: 10.5, fontWeight: "700" },
+    brandMeta: { ...text.caption1Emphasized, color: colors.muted },
     name: {
-      minHeight: 34,
+      ...text.subheadEmphasized,
+      lineHeight: 20,
       color: colors.ink,
-      fontSize: 13.5,
-      lineHeight: 17,
-      fontWeight: "800",
     },
     price: {
+      ...text.subheadEmphasized,
       color: colors.disc,
       fontFamily: typography.mono,
       fontVariant: typography.tabular,
-      fontSize: 14.5,
-      fontWeight: "900",
+      fontWeight: "700",
     },
-    marketMeta: { color: colors.muted, fontSize: 10.5 },
-    backdrop: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(8,9,10,.42)",
-    },
-    sortSheet: {
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      backgroundColor: colors.card,
-      padding: 18,
-      paddingBottom: 30,
-    },
+    marketMeta: { ...text.caption1, color: colors.muted },
+    sheetSurface: { backgroundColor: colors.card },
+    sortSheet: { padding: 18, paddingTop: 4, paddingBottom: 12 },
     sortOption: {
       minHeight: 52,
       flexDirection: "row",
@@ -1095,52 +1352,43 @@ const makeStyles = (colors: ThemeColors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    sortOptionText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-    detailSheet: {
-      flexGrow: 0,
-      flexShrink: 1,
-      maxHeight: "90%",
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      backgroundColor: colors.card,
-    },
+    sortOptionText: { ...text.body, color: colors.ink },
+    detailSheet: { backgroundColor: colors.card },
     detailContent: {
       gap: 10,
       padding: 20,
-      paddingBottom: 34,
+      paddingTop: 4,
+      paddingBottom: 24,
     },
     detailHead: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    detailTitle: { color: colors.ink, fontSize: 20, fontWeight: "900" },
+    detailTitle: { ...text.title2, color: colors.ink },
     detailClose: {
       width: 44,
       height: 44,
       alignItems: "center",
       justifyContent: "center",
     },
-    detailBrand: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+    detailBrand: { ...text.footnoteEmphasized, color: colors.muted },
     detailName: {
+      ...text.title3,
       color: colors.ink,
-      fontSize: 18,
-      lineHeight: 23,
-      fontWeight: "900",
     },
     detailLabel: {
+      ...text.footnoteEmphasized,
       color: colors.muted,
       marginTop: 4,
-      fontSize: 11,
-      fontWeight: "800",
     },
     detailPrice: {
+      ...text.title2,
       color: colors.disc,
       fontFamily: typography.mono,
-      fontSize: 20,
-      fontWeight: "900",
+      fontVariant: typography.tabular,
     },
-    detailMeta: { color: colors.muted, fontSize: 11 },
+    detailMeta: { ...text.footnote, color: colors.muted },
     detailPrimary: {
       minHeight: 52,
       alignItems: "center",
@@ -1150,9 +1398,8 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 12,
     },
     detailPrimaryText: {
+      ...text.headline,
       color: colors.onPill,
-      fontSize: 13,
-      fontWeight: "900",
       textAlign: "center",
     },
     detailSecondary: {
@@ -1165,9 +1412,8 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 12,
     },
     detailSecondaryText: {
+      ...text.headline,
       color: colors.ink,
-      fontSize: 13,
-      fontWeight: "800",
       textAlign: "center",
     },
   });

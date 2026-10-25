@@ -1,17 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
 import {
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
+import { Sheet } from "./Sheet";
+
 import { useTheme } from "../contexts/ThemeContext";
-import { radii, typography, type ThemeColors } from "../lib/theme";
+import { radii, text, typography, type ThemeColors } from "../lib/theme";
+import { scaleLength } from "../lib/typeScale";
 
 export type FilterSheetSection = {
   key: string;
@@ -45,15 +47,16 @@ export function FilterSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType={Platform.OS === "web" ? "fade" : "slide"}
-      onRequestClose={onClose}
+      onClose={onClose}
+      detents={[0.55, 0.9]}
+      closeAccessibilityLabel={closeLabel}
+      style={styles.sheet}
     >
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      <View style={styles.inner}>
           <View style={styles.head}>
             <Text style={styles.title}>{title}</Text>
             <Pressable
@@ -81,7 +84,11 @@ export function FilterSheet({
                         key={option.value}
                         accessibilityRole="button"
                         accessibilityState={{ selected: active }}
-                        style={[styles.chip, active && styles.chipActive]}
+                        style={[
+                          styles.chip,
+                          { minHeight: scaleLength(44, fontScale) },
+                          active && styles.chipActive,
+                        ]}
                         onPress={() => onSelect(section.key, option.value)}
                       >
                         <Text
@@ -104,7 +111,7 @@ export function FilterSheet({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={resetLabel}
-              style={styles.reset}
+              style={[styles.reset, { minHeight: scaleLength(52, fontScale) }]}
               onPress={onReset}
             >
               <Text style={styles.resetText}>{resetLabel}</Text>
@@ -112,50 +119,37 @@ export function FilterSheet({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={resultLabel}
-              style={styles.done}
+              style={[styles.done, { minHeight: scaleLength(52, fontScale) }]}
               onPress={onClose}
             >
               <Text style={styles.doneText}>{resultLabel}</Text>
             </Pressable>
           </View>
-        </View>
       </View>
-    </Modal>
+    </Sheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(8,9,10,.42)",
-    },
-    sheet: {
-      maxHeight: "88%",
-      gap: 16,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      backgroundColor: colors.card,
-      padding: 18,
-      paddingBottom: 30,
-    },
+    sheet: { backgroundColor: colors.card },
+    inner: { flex: 1, gap: 16, padding: 18, paddingTop: 6, paddingBottom: 12 },
     head: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    title: { color: colors.ink, fontSize: 20, fontWeight: "900" },
+    title: { ...text.title3, color: colors.ink },
     close: {
       width: 44,
       height: 44,
       alignItems: "center",
       justifyContent: "center",
     },
-    scroll: { flexShrink: 1 },
+    scroll: { flex: 1 },
     content: { gap: 20, paddingBottom: 4 },
     section: { gap: 9 },
-    sectionTitle: { color: colors.ink2, fontSize: 12, fontWeight: "800" },
+    sectionTitle: { ...text.footnoteEmphasized, color: colors.ink2 },
     chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     chip: {
       minHeight: 44,
@@ -170,7 +164,7 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 7,
     },
     chipActive: { borderColor: colors.pill, backgroundColor: colors.pill },
-    chipText: { color: colors.ink2, fontSize: 12, fontWeight: "700" },
+    chipText: { ...text.footnote, color: colors.ink2 },
     chipTextActive: { color: colors.onPill },
     actions: { flexDirection: "row", gap: 10 },
     reset: {
@@ -183,7 +177,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.borderStrong,
       paddingHorizontal: 14,
     },
-    resetText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+    resetText: { ...text.subheadEmphasized, color: colors.ink },
     done: {
       minHeight: 52,
       flex: 1,
@@ -194,9 +188,8 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 14,
     },
     doneText: {
+      ...text.subheadEmphasized,
       color: colors.onPill,
       fontFamily: typography.mono,
-      fontSize: 13,
-      fontWeight: "900",
     },
   });

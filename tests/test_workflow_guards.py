@@ -1,3 +1,5 @@
+import os
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -131,6 +133,68 @@ class WorkflowGuardTests(unittest.TestCase):
             "repair_dealer_discounts.py --dealer mec --dealer evo --dealer rei",
             workflow,
         )
+
+    def test_revalidation_commands_use_only_the_validated_dealer_scope(self):
+        workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(
+            encoding="utf-8"
+        )
+
+        def step_script(name):
+            step = workflow.split(f"name: {name}\n", 1)[1].split("\n      - ", 1)[0]
+            return "\n".join(
+                line[10:] for line in step.split("run: |\n", 1)[1].splitlines()
+            )
+
+        # Stub python as a shell function: exercise the real workflow shell and
+        # inspect argv without running scripts, network calls, or database writes.
+        capture = "python() { printf '%s\\0' \"$@\"; }\n"
+        steps = {
+            "Repair derived dealer discounts": ["tools/repair_dealer_discounts.py"],
+            "Verify dealer data quality": ["tools/check_data_quality.py", "--online"],
+        }
+        quality_flags = [
+            "--max-age-hours", "36", "--max-product-age-hours", "72", "--min-rows", "50"
+        ]
+        for scope in ("evo", "mec", "evo,mec", "mec,evo"):
+            for name, prefix in steps.items():
+                with self.subTest(scope=scope, step=name):
+                    result = subprocess.run(
+                        ["bash", "-eu", "-o", "pipefail", "-c", capture + step_script(name)],
+                        env={**os.environ, "REVALIDATE_DEALERS": scope},
+                        capture_output=True, check=True,
+                    )
+                    args = result.stdout.decode().rstrip("\0").split("\0")
+                    expected = prefix + [
+                        value for dealer in scope.split(",") for value in ("--dealer", dealer)
+                    ]
+                    if name == "Verify dealer data quality":
+                        expected += quality_flags
+                    self.assertEqual(args, expected)
+
+        guard = step_script("Reject unsupported dealer egress")
+        for scope in ("rei", "evo,rei", "mec,rei", "ssense", "", "evo,invalid"):
+            with self.subTest(rejected_scope=scope):
+                result = subprocess.run(
+                    ["bash", "-eu", "-o", "pipefail", "-c", guard],
+                    env={**os.environ, "REQUESTED_DEALERS": scope},
+                    capture_output=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+
+    def test_revalidation_keeps_repair_only_and_write_serialization(self):
+        workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "if: ${{ github.event_name != 'workflow_dispatch' || inputs.repair_only != true }}",
+            workflow,
+        )
+        self.assertIn(
+            "if: ${{ inputs.repair_only == true || steps.revalidate.outcome == 'success' }}",
+            workflow,
+        )
+        self.assertIn("group: arcteryx-production-refresh-writes", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
 
     def test_revalidation_preserves_failure_without_fresh_runner_retries(self):
         workflow = (ROOT / ".github/workflows/revalidate-dealer-prices.yml").read_text(

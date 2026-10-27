@@ -92,7 +92,12 @@ jobs:
 
       - name: Repair derived dealer discounts
         run: |
-          python tools/repair_dealer_discounts.py --dealer mec --dealer evo
+          IFS=',' read -ra dealers <<< "$REVALIDATE_DEALERS"
+          dealer_args=()
+          for dealer in "${dealers[@]}"; do
+            dealer_args+=(--dealer "$dealer")
+          done
+          python tools/repair_dealer_discounts.py "${dealer_args[@]}"
 
       - id: revalidate
         name: Revalidate known dealer URLs
@@ -102,4 +107,9 @@ jobs:
       - name: Verify dealer data quality
         if: ${{ inputs.repair_only == true || steps.revalidate.outcome == 'success' }}
         run: |
-          python tools/check_data_quality.py --online --dealer mec --dealer evo --dealer rei --max-age-hours 36 --max-product-age-hours 72 --min-rows 50
+          IFS=',' read -ra dealers <<< "$REVALIDATE_DEALERS"
+          dealer_args=()
+          for dealer in "${dealers[@]}"; do
+            dealer_args+=(--dealer "$dealer")
+          done
+          python tools/check_data_quality.py --online "${dealer_args[@]}" --max-age-hours 36 --max-product-age-hours 72 --min-rows 50

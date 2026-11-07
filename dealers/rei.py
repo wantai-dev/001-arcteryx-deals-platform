@@ -135,7 +135,7 @@ class Scraper:
     def scrape(self) -> list[dict]:
         items = []
         seen = set()
-        successful_lists = 0
+        first_list_complete = False
         with Camoufox(headless=True, humanize=True, geoip=True) as browser:
             page = browser.new_page()
             page.set_default_timeout(30000)
@@ -181,9 +181,9 @@ class Scraper:
                 positions = [(m.start(), m.group(1), m.group(2)) for m in self.URL_RE.finditer(body)]
                 unique_position_ids = {pid for _, pid, _ in positions}
                 before_count = len(items)
-                if len(unique_position_ids) >= self.MIN_LIST_ITEMS:
-                    successful_lists += 1
-                elif page_index == 1:
+                if page_index == 1:
+                    first_list_complete = len(unique_position_ids) >= self.MIN_LIST_ITEMS
+                if page_index == 1 and not first_list_complete:
                     print(
                         f"[rei] WARNING: list only exposed {len(unique_position_ids)} unique products; scope incomplete",
                         flush=True,
@@ -255,7 +255,7 @@ class Scraper:
                 self.enrich_details(browser, items)
             else:
                 print("[rei] detail enrichment disabled (set REI_ENRICH_DETAILS=1 to enable)", flush=True)
-        self.crawl_complete = successful_lists >= 1 and bool(items)
+        self.crawl_complete = first_list_complete and bool(items)
         return items
 
 

@@ -8,7 +8,7 @@ import { BrandLogo } from '../components/BrandLogo';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { openSupportUrl } from '../lib/actions';
 import { useTheme } from '../contexts/ThemeContext';
-import { ThemeColors, radii } from '../lib/theme';
+import { radii, text, type ThemeColors } from '../lib/theme';
 
 export default function PrivacyScreen() {
   const { t } = usePreferences();
@@ -91,10 +91,8 @@ function makeStyles(colors: ThemeColors) { return StyleSheet.create({
     height: 42,
   },
   title: {
+    ...text.largeTitle,
     color: colors.ink,
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: '900',
     marginBottom: 4,
   },
   block: {
@@ -106,15 +104,12 @@ function makeStyles(colors: ThemeColors) { return StyleSheet.create({
     padding: 16,
   },
   blockTitle: {
+    ...text.headline,
     color: colors.ink,
-    fontSize: 16,
-    fontWeight: '900',
   },
   blockBody: {
+    ...text.subhead,
     color: colors.muted,
-    fontSize: 14,
-    lineHeight: 21,
-    fontWeight: '600',
   },
   supportButton: {
     minHeight: 48,
@@ -127,8 +122,7 @@ function makeStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingHorizontal: 16,
   },
   supportButtonText: {
+    ...text.headline,
     color: colors.onPill,
-    fontSize: 15,
-    fontWeight: '900',
   },
 }); }

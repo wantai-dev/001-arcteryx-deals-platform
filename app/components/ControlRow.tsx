@@ -1,9 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { useTheme } from "../contexts/ThemeContext";
-import type { ThemeColors } from "../lib/theme";
+import { text, type ThemeColors } from "../lib/theme";
+import { scaleLength } from "../lib/typeScale";
 
 type Props = {
   sortLabel: string;
@@ -22,12 +29,14 @@ export function ControlRow({
 }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
+  const control = scaleLength(44, fontScale, { max: 1.4 });
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { minHeight: control }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={sortLabel}
-        style={styles.sort}
+        style={[styles.sort, { minHeight: control }]}
         onPress={onSort}
       >
         <Text style={styles.sortText} numberOfLines={1}>
@@ -38,7 +47,7 @@ export function ControlRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${filterLabel}, ${filterCount}`}
-        style={styles.filter}
+        style={[styles.filter, { width: control, height: control }]}
         onPress={onFilter}
       >
         <Ionicons name="options-outline" size={19} color={colors.ink} />
@@ -67,7 +76,7 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       gap: 6,
     },
-    sortText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+    sortText: { ...text.footnoteEmphasized, color: colors.ink },
     filter: {
       width: 44,
       height: 44,
@@ -92,5 +101,5 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.disc,
       paddingHorizontal: 3,
     },
-    countText: { color: "#fff", fontSize: 9, fontWeight: "900" },
+    countText: { ...text.caption2Emphasized, fontSize: 10, lineHeight: 12, color: "#fff" },
   });

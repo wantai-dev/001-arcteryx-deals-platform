@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,7 +23,8 @@ import {
   purchaseConcern,
   resolveRestoreFeedback,
 } from "../lib/iap";
-import { ThemeColors, radii, typography } from "../lib/theme";
+import { radii, text, typography, type ThemeColors } from "../lib/theme";
+import { scaleLength } from "../lib/typeScale";
 
 const TERMS_URL =
   "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
@@ -35,6 +37,7 @@ export const PRO_FEATURES = [
 export default function PaywallScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   const { t } = usePreferences();
   const { isPro, plans, state, busyPlan, purchase, restore, redeemOfferCode, refresh } =
     usePro();
@@ -140,6 +143,7 @@ export default function PaywallScreen() {
           disabled={Boolean(busyPlan) || Boolean(purchaseConcernResult) || (!isPro && !selected)}
           style={[
             styles.cta,
+            { minHeight: scaleLength(52, fontScale) },
             (busyPlan || purchaseConcernResult || (!isPro && !selected)) && styles.disabled,
           ]}
           onPress={() => void buy()}
@@ -158,7 +162,7 @@ export default function PaywallScreen() {
         <Pressable
           accessibilityRole="button"
           disabled={Boolean(busyPlan)}
-          style={styles.restore}
+          style={[styles.restore, { minHeight: scaleLength(44, fontScale) }]}
           onPress={() => void handleRestore()}
         >
           {busyPlan === "restore" ? (
@@ -242,11 +246,16 @@ function Plan({
   styles: ReturnType<typeof makeStyles>;
   t: ReturnType<typeof usePreferences>["t"];
 }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      style={[styles.plan, selected && styles.selected]}
+      style={[
+        styles.plan,
+        { minHeight: scaleLength(66, fontScale) },
+        selected && styles.selected,
+      ]}
       onPress={onPress}
     >
       <Ionicons
@@ -287,10 +296,9 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
     },
     kicker: {
+      ...text.caption2Emphasized,
       color: c.muted,
-      fontSize: 11,
-      fontWeight: "900",
-      letterSpacing: 1.2,
+      letterSpacing: 1.1,
     },
     brandMark: { width: 27, height: 27 },
     close: {
@@ -300,14 +308,12 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     title: {
+      ...text.largeTitle,
       maxWidth: 320,
       color: c.ink,
       marginTop: 14,
-      fontSize: 32,
-      lineHeight: 37,
-      fontWeight: "900",
     },
-    subtitle: { color: c.muted, marginTop: 10, fontSize: 14, lineHeight: 21 },
+    subtitle: { ...text.subhead, color: c.muted, marginTop: 10 },
     benefits: { gap: 14, marginVertical: 26 },
     benefit: { flexDirection: "row", gap: 12, alignItems: "center" },
     benefitIcon: {
@@ -318,12 +324,11 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    benefitTitle: { color: c.ink, fontSize: 15, fontWeight: "800" },
+    benefitTitle: { ...text.subheadEmphasized, color: c.ink },
     benefitDetail: {
+      ...text.footnote,
       color: c.muted,
       marginTop: 2,
-      fontSize: 12,
-      lineHeight: 17,
     },
     flex: { flex: 1 },
     plans: { gap: 9, marginTop: 12 },
@@ -345,25 +350,23 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 6,
     },
-    planTitle: { color: c.ink, fontSize: 14, fontWeight: "900" },
+    planTitle: { ...text.subheadEmphasized, color: c.ink },
     best: {
+      ...text.caption2Emphasized,
       color: c.onPill,
       backgroundColor: c.buy,
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 5,
       overflow: "hidden",
-      fontSize: 10,
-      fontWeight: "900",
     },
-    trial: { color: c.buy, fontSize: 10, fontWeight: "800" },
-    planSub: { color: c.muted, marginTop: 3, fontSize: 11 },
+    trial: { ...text.caption2Emphasized, color: c.buy },
+    planSub: { ...text.caption1, color: c.muted, marginTop: 3 },
     price: {
+      ...text.calloutEmphasized,
       color: c.ink,
       fontFamily: typography.mono,
       fontVariant: typography.tabular,
-      fontSize: 16,
-      fontWeight: "900",
     },
     cta: {
       minHeight: 52,
@@ -375,7 +378,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       gap: 7,
     },
-    ctaText: { color: c.onPill, fontSize: 15, fontWeight: "900" },
+    ctaText: { ...text.headline, color: c.onPill },
     disabled: { opacity: 0.45 },
     restore: {
       minHeight: 44,
@@ -384,7 +387,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       gap: 7,
     },
-    restoreText: { color: c.ink, fontSize: 13, fontWeight: "800" },
+    restoreText: { ...text.footnoteEmphasized, color: c.ink },
     loading: {
       minHeight: 90,
       gap: 10,
@@ -394,9 +397,9 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.card,
       padding: 14,
     },
-    muted: { color: c.muted, textAlign: "center" },
+    muted: { ...text.subhead, color: c.muted, textAlign: "center" },
     retry: { minHeight: 44, justifyContent: "center", paddingHorizontal: 15 },
-    retryText: { color: c.ink, fontWeight: "800" },
+    retryText: { ...text.subheadEmphasized, color: c.ink },
     active: {
       minHeight: 58,
       flexDirection: "row",
@@ -406,19 +409,17 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12,
       backgroundColor: c.card,
     },
-    activeText: { color: c.buy, fontWeight: "900" },
+    activeText: { ...text.headline, color: c.buy },
     notice: {
+      ...text.footnoteEmphasized,
       color: c.buy,
       textAlign: "center",
-      fontSize: 12,
-      fontWeight: "800",
     },
     fine: {
+      ...text.caption1,
       color: c.muted,
       marginTop: 8,
       textAlign: "center",
-      fontSize: 11,
-      lineHeight: 16,
     },
     links: {
       minHeight: 44,
@@ -427,6 +428,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
       gap: 8,
     },
-    link: { color: c.ink2, textDecorationLine: "underline", fontSize: 12 },
+    link: { ...text.footnote, color: c.ink2, textDecorationLine: "underline" },
   });
 }

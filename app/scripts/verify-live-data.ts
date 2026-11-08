@@ -4,7 +4,7 @@ import { productCategory, SUPABASE_ANON, SUPABASE_URL, visibleProducts } from '.
 import { findCheaperAlternatives } from '../lib/cheaperAlternatives';
 import { fetchRateSnapshot } from '../lib/currency';
 import { availableDealRegions, DEFAULT_DEAL_FILTERS, filterDeals } from '../lib/deals';
-import { localizedCategory } from '../lib/i18n';
+import { hasLocalizedCategory, localizedCategory, localizedGender } from '../lib/i18n';
 import { loadCompleteHistory } from '../lib/historyData';
 import { INITIAL_PRODUCT_LIMIT, INITIAL_PRODUCT_REGION } from '../lib/productPreview';
 import { computeSignal, groupHistoryBySku } from '../lib/signals';
@@ -166,13 +166,25 @@ async function main() {
     `active deal categories must not leak untranslated Chinese labels: ${dealCategoryLocalizationGaps.join(', ')}`,
   );
   const yearbookCategories = [...new Set(yearbook.flatMap((product) => product.categories))].sort((left, right) => left.localeCompare(right));
+  // localizedCategory title-cases unknown slugs so the UI never shows `t-shirts`,
+  // which means string equality can no longer detect a missing translation.
   const yearbookCategoryLocalizationGaps = YEARBOOK_LOCALIZATION_LANGUAGES.flatMap((language) => yearbookCategories
-    .filter((category) => localizedCategory(language, category) === category)
+    .filter((category) => !hasLocalizedCategory(category) || localizedCategory(language, category) === category)
     .map((category) => `${language}:${category}`));
   assert.deepEqual(
     yearbookCategoryLocalizationGaps,
     [],
     `active Yearbook categories must have all five localized labels: ${yearbookCategoryLocalizationGaps.join(', ')}`,
+  );
+  const yearbookGenderLocalizationGaps = YEARBOOK_LOCALIZATION_LANGUAGES.flatMap((language) => [
+    ...new Set(yearbook.map((product) => product.gender)),
+  ]
+    .filter((gender) => localizedGender(language, gender) === gender)
+    .map((gender) => `${language}:${gender}`));
+  assert.deepEqual(
+    yearbookGenderLocalizationGaps,
+    [],
+    `active Yearbook genders must have all five localized labels: ${yearbookGenderLocalizationGaps.join(', ')}`,
   );
   const { data: previewRows } = await rest<ProductRow[]>(
     `products?select=*&status=eq.active&region=eq.${INITIAL_PRODUCT_REGION}&order=discount_pct.desc,sku_id.asc&limit=${INITIAL_PRODUCT_LIMIT}`,

@@ -4,7 +4,7 @@ import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { usePreferences } from '../contexts/PreferencesContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { radii, typography, type ThemeColors } from '../lib/theme';
+import { radii, text, typography, type ThemeColors } from '../lib/theme';
 import type { ChartPoint, Product } from '../lib/types';
 
 type Props = {
@@ -107,8 +107,8 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     borderColor: colors.hair,
   },
   emptyText: {
+    ...text.subhead,
     color: colors.muted,
-    fontWeight: '700',
   },
   legend: {
     flexDirection: 'row',
@@ -121,10 +121,9 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 9,
   },
   legendText: {
+    ...text.caption1Emphasized,
     flexShrink: 1,
     color: colors.muted,
-    fontSize: 11.5,
-    fontWeight: '700',
   },
   lowSwatch: {
     color: colors.faint,

@@ -23,7 +23,8 @@ import { convertAmount } from '../../lib/currency';
 import { emailAlertCopy, saveAlertAndSyncEmail } from '../../lib/emailAlertSync';
 import { computeSignal, historyToPoints, recentPoints } from '../../lib/signals';
 import { fetchPriceHistory, fetchProductFamilyBySku, insertPriceAlert } from '../../lib/supabase';
-import { radii, typography, type ThemeColors } from '../../lib/theme';
+import { radii, text, typography, type ThemeColors } from '../../lib/theme';
+import { scaleLength } from '../../lib/typeScale';
 import type { PriceHistoryRow, Product } from '../../lib/types';
 import type { AlertDraft } from '../../lib/watchlist';
 import { watchListCopy } from '../../lib/watchI18n';
@@ -35,6 +36,7 @@ export default function ProductDetailScreen() {
   const watchlist = useWatchlist();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   const emailCopy = emailAlertCopy(language);
   const watchCopy = watchListCopy(language);
   const { isPro } = usePro();
@@ -241,7 +243,7 @@ export default function ProductDetailScreen() {
                 const converted = alternativeCurrency !== item.currency && alternativeConversion.converted;
                 const source = PLATFORM[platformKey(item)]?.label || item.dealer;
                 const alternativeLabel = `${regionLabel(item.region)} · ${source} · ${formatMoney(item.sale_price, item.currency, item.symbol)}`;
-                return <Pressable accessibilityRole="button" accessibilityLabel={alternativeLabel} key={item.sku_id} style={styles.altPill} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
+                return <Pressable accessibilityRole="button" accessibilityLabel={alternativeLabel} key={item.sku_id} style={[styles.altPill, { minHeight: scaleLength(44, fontScale) }]} onPress={() => router.push({ pathname: '/product/[skuId]', params: { skuId: item.sku_id } })}>
                   <View style={styles.altInfo}><Text style={styles.altMeta}>{regionFlag(item.region)} {regionLabel(item.region)} · {source}</Text><Text style={styles.altText}>{formatMoney(item.sale_price, item.currency, item.symbol)}{converted ? ` · ${formatOriginalMoney(item.sale_price, item.currency, item.symbol)}` : ''}</Text></View>
                   <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                 </Pressable>;
@@ -259,7 +261,7 @@ export default function ProductDetailScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('product.alert')}
-            style={[styles.actionButton, styles.alertButton]}
+            style={[styles.actionButton, { minHeight: scaleLength(52, fontScale) }, styles.alertButton]}
             onPress={async () => {
               await softImpact();
               setAlertOpen(true);
@@ -268,7 +270,7 @@ export default function ProductDetailScreen() {
             <Ionicons name="notifications-outline" size={18} color={colors.ink} />
             <Text style={styles.alertText}>{t('product.alert')}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })} style={[styles.actionButton, styles.buyButton]} onPress={() => openBuyUrl(currentProduct.url)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })} style={[styles.actionButton, { minHeight: scaleLength(52, fontScale) }, styles.buyButton]} onPress={() => openBuyUrl(currentProduct.url)}>
             <Text style={styles.buyText} numberOfLines={2}>{t('product.buyFrom', { source: PLATFORM[platformKey(currentProduct)]?.label || currentProduct.dealer || currentBrand })}</Text>
             <Ionicons name="open-outline" size={18} color={colors.onPill} />
           </Pressable>
@@ -335,11 +337,10 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 3,
   },
   imageDiscountText: {
+    ...text.caption2Emphasized,
     color: colors.onPhotoDisc,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 11,
-    fontWeight: '900',
   },
   imageDots: {
     position: 'absolute',
@@ -366,24 +367,19 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingBottom: 0,
   },
   category: {
+    ...text.caption1Emphasized,
     color: colors.faint,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   title: {
+    ...text.title1,
     color: colors.ink,
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: '900',
     letterSpacing: 0,
   },
   meta: {
+    ...text.subhead,
     color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '700',
   },
   priceBlock: {
     flexDirection: 'row',
@@ -393,21 +389,19 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 11,
   },
-  originalCurrency: { color: colors.muted, marginHorizontal: 20, marginTop: 5, fontFamily: typography.mono, fontSize: 12, fontWeight: '700' },
+  originalCurrency: { ...text.caption1, color: colors.muted, marginHorizontal: 20, marginTop: 5, fontFamily: typography.mono },
   sale: {
+    ...text.largeTitle,
     color: colors.disc,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 34,
-    fontWeight: '900',
     letterSpacing: 0,
   },
   original: {
+    ...text.callout,
     color: colors.faint,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 16,
-    fontWeight: '700',
     textDecorationLine: 'line-through',
   },
   discount: {
@@ -419,10 +413,10 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 5,
   },
   discountText: {
+    ...text.footnoteEmphasized,
     color: colors.disc,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontWeight: '900',
   },
   lowBadge: {
     borderRadius: radii.sm,
@@ -433,8 +427,8 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 5,
   },
   lowBadgeText: {
+    ...text.footnoteEmphasized,
     color: colors.buy,
-    fontWeight: '900',
   },
   section: {
     gap: 10,
@@ -447,16 +441,14 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionTitle: {
+    ...text.headline,
     color: colors.ink,
-    fontSize: 16,
-    fontWeight: '900',
   },
   sectionMeta: {
+    ...text.caption1Emphasized,
     color: colors.muted,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 12,
-    fontWeight: '800',
   },
   chartWrap: {
     overflow: 'hidden',
@@ -482,10 +474,9 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     backgroundColor: colors.screen,
   },
   verdictText: {
+    ...text.footnoteEmphasized,
     flex: 1,
     color: colors.muted,
-    fontSize: 12.5,
-    fontWeight: '900',
   },
   verdictGoodText: {
     color: colors.buy,
@@ -499,9 +490,8 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingTop: 14,
   },
   regionLead: {
+    ...text.footnote,
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: '700',
   },
   alternatives: {
     width: '100%',
@@ -519,17 +509,16 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 8,
   },
   altInfo: { flex: 1, gap: 3 },
-  altMeta: { color: colors.muted, fontSize: 11.5, fontWeight: '700' },
+  altMeta: { ...text.caption1, color: colors.muted },
   altText: {
+    ...text.footnoteEmphasized,
     color: colors.ink,
     fontFamily: typography.mono,
     fontVariant: typography.tabular,
-    fontSize: 12,
-    fontWeight: '900',
   },
   muted: {
+    ...text.footnote,
     color: colors.muted,
-    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
@@ -558,11 +547,11 @@ function createStyles(colors: ThemeColors) { return StyleSheet.create({
     backgroundColor: colors.pill,
   },
   alertText: {
+    ...text.headline,
     color: colors.ink,
-    fontWeight: '900',
   },
   buyText: {
+    ...text.headline,
     color: colors.onPill,
-    fontWeight: '900',
   },
 }); }

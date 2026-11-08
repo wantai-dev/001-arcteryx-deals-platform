@@ -6,6 +6,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,7 +38,8 @@ import {
   marketCurrencyOptions,
   marketRegionOptions,
 } from "../../lib/marketOptions";
-import type { ThemeColors } from "../../lib/theme";
+import { text, type ThemeColors } from "../../lib/theme";
+import { gridColumns } from "../../lib/typeScale";
 import type { Product } from "../../lib/types";
 import { yearbookFreshnessLabel } from "../../lib/yearbook";
 
@@ -55,6 +57,8 @@ export default function DealsScreen() {
   const { region, currency, setMarket } = useMarket();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
+  const columns = gridColumns(fontScale);
   const watchlist = useWatchlist();
   const b = (
     key: Parameters<typeof browseText>[1],
@@ -190,10 +194,14 @@ export default function DealsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <FlatList
+        // A two-up grid cannot hold a product name at the accessibility text
+        // sizes, so it becomes a single column. FlatList needs a new key to
+        // accept a different column count.
+        key={`columns-${columns}`}
         data={data}
-        numColumns={2}
+        numColumns={columns}
         keyExtractor={(item) => item.sku_id}
-        columnWrapperStyle={styles.columns}
+        columnWrapperStyle={columns > 1 ? styles.columns : undefined}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -364,6 +372,8 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 10,
     },
     logoPlate: {
+      // Never let the market pill squeeze the brand lockup out of the row.
+      flexShrink: 0,
       minWidth: 122,
       height: 40,
       alignItems: "flex-start",
@@ -371,13 +381,12 @@ const makeStyles = (colors: ThemeColors) =>
     },
     logo: { width: 116, height: 34 },
     summary: {
-      color: colors.ink2,
-      fontSize: 11.5,
+      ...text.caption1Emphasized,
       lineHeight: 17,
-      fontWeight: "700",
+      color: colors.ink2,
     },
-    signalStrong: { color: colors.buy, fontWeight: "900" },
-    coverage: { color: colors.muted, fontSize: 10.5 },
+    signalStrong: { color: colors.buy, fontWeight: "700" },
+    coverage: { ...text.caption2, color: colors.muted },
     columns: { gap: 10 },
-    item: { minWidth: 0, flex: 1, maxWidth: "50%" },
+    item: { minWidth: 0, flex: 1 },
   });

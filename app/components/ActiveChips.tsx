@@ -1,21 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+} from "react-native";
 
 import { useTheme } from "../contexts/ThemeContext";
-import { radii, type ThemeColors } from "../lib/theme";
+import { radii, text, type ThemeColors } from "../lib/theme";
+import { scaleLength, TYPE_CAP } from "../lib/typeScale";
 
 export type ActiveChip = { key: string; label: string; onRemove: () => void };
 
 export function ActiveChips({ chips }: { chips: ActiveChip[] }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
+  const chipHeight = scaleLength(36, fontScale);
   if (!chips.length) return null;
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
+      contentContainerStyle={[styles.row, { minHeight: chipHeight }]}
     >
       {chips.map((chip) => (
         <Pressable
@@ -23,13 +32,21 @@ export function ActiveChips({ chips }: { chips: ActiveChip[] }) {
           accessibilityRole="button"
           accessibilityLabel={chip.label}
           hitSlop={4}
-          style={styles.chip}
+          style={[styles.chip, { minHeight: chipHeight }]}
           onPress={chip.onRemove}
         >
-          <Text style={styles.text} numberOfLines={1}>
+          <Text
+            style={styles.text}
+            numberOfLines={1}
+            maxFontSizeMultiplier={TYPE_CAP.compact}
+          >
             {chip.label}
           </Text>
-          <Ionicons name="close" size={13} color={colors.disc} />
+          <Ionicons
+            name="close"
+            size={scaleLength(13, fontScale, { max: 1.5 })}
+            color={colors.disc}
+          />
         </Pressable>
       ))}
     </ScrollView>
@@ -51,5 +68,5 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.discBg,
       paddingHorizontal: 9,
     },
-    text: { color: colors.disc, fontSize: 11.5, fontWeight: "800" },
+    text: { ...text.caption2Emphasized, color: colors.disc },
   });

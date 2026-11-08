@@ -448,7 +448,9 @@ const categories: Record<AppLanguage, Record<string, string>> = {
 
 const officialCategories = {
   '1-2-zip': { 'zh-Hans': '半拉链', de: 'Half-Zip', fr: 'Demi-zip', ja: 'ハーフジップ' },
+  '1-2-zips': { 'zh-Hans': '半拉链', de: 'Half-Zips', fr: 'Demi-zips', ja: 'ハーフジップ' },
   '1-4-zip': { 'zh-Hans': '四分之一拉链', de: 'Viertelzip', fr: 'Quart de zip', ja: 'クォータージップ' },
+  '1-4-zips': { 'zh-Hans': '四分之一拉链', de: 'Viertelzips', fr: 'Quarts de zip', ja: 'クォータージップ' },
   accessories: { 'zh-Hans': '配饰', de: 'Accessoires', fr: 'Accessoires', ja: 'アクセサリー' },
   apparel: { 'zh-Hans': '服装', de: 'Bekleidung', fr: 'Vêtements', ja: 'アパレル' },
   backpacks: { 'zh-Hans': '背包', de: 'Rucksäcke', fr: 'Sacs à dos', ja: 'バックパック' },
@@ -488,6 +490,7 @@ const officialCategories = {
   'front-zip': { 'zh-Hans': '前拉链', de: 'Front-Zip', fr: 'Zip frontal', ja: 'フロントジップ' },
   'full-suit': { 'zh-Hans': '全身冲浪服', de: 'Ganzkörper-Neoprenanzüge', fr: 'Combinaisons intégrales', ja: 'フルスーツ' },
   'full-zip': { 'zh-Hans': '全拉链', de: 'Durchgehender Reißverschluss', fr: 'Zip intégral', ja: 'フルジップ' },
+  'full-zips': { 'zh-Hans': '全拉链', de: 'Durchgehende Reißverschlüsse', fr: 'Zips intégraux', ja: 'フルジップ' },
   'gaiters-balaclavas': { 'zh-Hans': '雪套与巴拉克拉法帽', de: 'Gamaschen & Sturmhauben', fr: 'Guêtres et cagoules', ja: 'ゲイター・バラクラバ' },
   'gear-care': { 'zh-Hans': '装备护理', de: 'Ausrüstungspflege', fr: 'Entretien de l’équipement', ja: 'ギアケア' },
   gloves: { 'zh-Hans': '手套', de: 'Handschuhe', fr: 'Gants', ja: 'グローブ' },
@@ -508,6 +511,8 @@ const officialCategories = {
   lite: { 'zh-Hans': '轻量款', de: 'Lite', fr: 'Lite', ja: 'ライトウェイト' },
   'long-inseam': { 'zh-Hans': '长裤内长', de: 'Lange Innenbeinlänge', fr: 'Entrejambe long', ja: '股下ロング' },
   'long-sleeve': { 'zh-Hans': '长袖', de: 'Langarm', fr: 'Manches longues', ja: '長袖' },
+  'long-sleeve-shirts': { 'zh-Hans': '长袖衬衫', de: 'Langarmhemden', fr: 'Chemises à manches longues', ja: '長袖シャツ' },
+  'long-sleeve-t-shirts': { 'zh-Hans': '长袖 T 恤', de: 'Langarm-T-Shirts', fr: 'T-shirts à manches longues', ja: '長袖Tシャツ' },
   medium: { 'zh-Hans': '中厚款', de: 'Mittlere Stärke', fr: 'Épaisseur moyenne', ja: '中厚' },
   'mid-layer': { 'zh-Hans': '中间层', de: 'Zwischenschicht', fr: 'Couche intermédiaire', ja: 'ミッドレイヤー' },
   'mid-inseam': { 'zh-Hans': '中等裤内长', de: 'Mittlere Innenbeinlänge', fr: 'Entrejambe moyen', ja: '股下ミドル' },
@@ -539,6 +544,8 @@ const officialCategories = {
   'short-inseam': { 'zh-Hans': '短裤内长', de: 'Kurze Innenbeinlänge', fr: 'Entrejambe court', ja: '股下ショート' },
   'short-length': { 'zh-Hans': '短款', de: 'Kurze Länge', fr: 'Longueur courte', ja: 'ショート丈' },
   'short-sleeve': { 'zh-Hans': '短袖', de: 'Kurzarm', fr: 'Manches courtes', ja: '半袖' },
+  'short-sleeve-shirts': { 'zh-Hans': '短袖衬衫', de: 'Kurzarmhemden', fr: 'Chemises à manches courtes', ja: '半袖シャツ' },
+  'short-sleeve-t-shirts': { 'zh-Hans': '短袖 T 恤', de: 'Kurzarm-T-Shirts', fr: 'T-shirts à manches courtes', ja: '半袖Tシャツ' },
   shorts: { 'zh-Hans': '短裤', de: 'Shorts', fr: 'Shorts', ja: 'ショーツ' },
   sleeveless: { 'zh-Hans': '无袖', de: 'Ärmellos', fr: 'Sans manches', ja: 'ノースリーブ' },
   slings: { 'zh-Hans': '斜挎包', de: 'Slingbags', fr: 'Sacs bandoulière', ja: 'スリングバッグ' },
@@ -581,6 +588,7 @@ const officialCategories = {
   'casual-pants': { 'zh-Hans': '休闲长裤', de: 'Freizeithosen', fr: 'Pantalons décontractés', ja: 'カジュアルパンツ' },
   'casual-shorts': { 'zh-Hans': '休闲短裤', de: 'Freizeitshorts', fr: 'Shorts décontractés', ja: 'カジュアルショーツ' },
   'crew-neck': { 'zh-Hans': '圆领', de: 'Rundhals', fr: 'Col rond', ja: 'クルーネック' },
+  'crew-necks': { 'zh-Hans': '圆领', de: 'Rundhalsshirts', fr: 'Cols ronds', ja: 'クルーネック' },
   'crew-neck-sweatshirts': { 'zh-Hans': '圆领卫衣', de: 'Rundhals-Sweatshirts', fr: 'Sweats à col rond', ja: 'クルーネックスウェットシャツ' },
   flannel: { 'zh-Hans': '法兰绒', de: 'Flanell', fr: 'Flanelle', ja: 'フランネル' },
   'full-suits': { 'zh-Hans': '全身冲浪服', de: 'Ganzkörper-Neoprenanzüge', fr: 'Combinaisons intégrales', ja: 'フルスーツ' },
@@ -602,6 +610,7 @@ const officialCategories = {
   'performance-shorts': { 'zh-Hans': '高性能短裤', de: 'Performance-Shorts', fr: 'Shorts performance', ja: 'パフォーマンスショーツ' },
   'performance-t-shirts': { 'zh-Hans': '高性能 T 恤', de: 'Performance-T-Shirts', fr: 'T-shirts performance', ja: 'パフォーマンスTシャツ' },
   polo: { 'zh-Hans': 'Polo 衫', de: 'Poloshirts', fr: 'Polos', ja: 'ポロシャツ' },
+  'polo-shirts': { 'zh-Hans': 'Polo 衫', de: 'Poloshirts', fr: 'Polos', ja: 'ポロシャツ' },
   'puffer-jacket': { 'zh-Hans': '蓬松保暖夹克', de: 'Steppjacke', fr: 'Doudoune', ja: 'パファージャケット' },
   'puffer-jackets': { 'zh-Hans': '蓬松保暖夹克', de: 'Steppjacken', fr: 'Doudounes', ja: 'パファージャケット' },
   'skirts-skorts': { 'zh-Hans': '半身裙与裙裤', de: 'Röcke & Skorts', fr: 'Jupes et jupes-shorts', ja: 'スカート・スコート' },
@@ -621,6 +630,15 @@ const officialCategories = {
 } as const satisfies Record<string, Record<Exclude<AppLanguage, 'en'>, string>>;
 
 const officialCategoryEnglish: Partial<Record<keyof typeof officialCategories, string>> = {
+  '1-2-zips': 'Half-Zips',
+  '1-4-zips': 'Quarter-Zips',
+  'crew-necks': 'Crew Necks',
+  'full-zips': 'Full-Zips',
+  'long-sleeve-shirts': 'Long-Sleeve Shirts',
+  'long-sleeve-t-shirts': 'Long-Sleeve T-Shirts',
+  'polo-shirts': 'Polo Shirts',
+  'short-sleeve-shirts': 'Short-Sleeve Shirts',
+  'short-sleeve-t-shirts': 'Short-Sleeve T-Shirts',
   baselayers: 'Base Layers',
   'cubes-totes': 'Packing Cubes & Totes',
   'l-s-button-down-shirts': 'Long-Sleeve Button-Down Shirts',
@@ -679,11 +697,11 @@ const officialCategoryEnglish: Partial<Record<keyof typeof officialCategories, s
 };
 
 const genders: Record<AppLanguage, Record<string, string>> = {
-  en: { men: 'Men', women: 'Women', unisex: 'Unisex', unknown: 'Unisex' },
-  'zh-Hans': { men: '男款', women: '女款', unisex: '中性', unknown: '中性' },
-  de: { men: 'Herren', women: 'Damen', unisex: 'Unisex', unknown: 'Unisex' },
-  fr: { men: 'Homme', women: 'Femme', unisex: 'Unisexe', unknown: 'Unisexe' },
-  ja: { men: 'メンズ', women: 'ウィメンズ', unisex: 'ユニセックス', unknown: 'ユニセックス' },
+  en: { men: 'Men', women: 'Women', kids: 'Kids', unisex: 'Unisex', unknown: 'Unisex' },
+  'zh-Hans': { men: '男款', women: '女款', kids: '童款', unisex: '中性', unknown: '中性' },
+  de: { men: 'Herren', women: 'Damen', kids: 'Kinder', unisex: 'Unisex', unknown: 'Unisex' },
+  fr: { men: 'Homme', women: 'Femme', kids: 'Enfant', unisex: 'Unisexe', unknown: 'Unisexe' },
+  ja: { men: 'メンズ', women: 'ウィメンズ', kids: 'キッズ', unisex: 'ユニセックス', unknown: 'ユニセックス' },
 };
 
 const regions: Record<AppLanguage, Record<string, string>> = {
@@ -714,6 +732,18 @@ export function missingTranslationKeys(language: AppLanguage) {
   return Object.keys(en).filter((key) => !messages[language][key]);
 }
 
+const SLUG_CATEGORY = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
+
+function titleCaseSlug(value: string) {
+  return value.split(/[-.]/).map((word) => word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : '').join(' ');
+}
+
+export function hasLocalizedCategory(category: string) {
+  const normalized = category.trim().toLocaleLowerCase();
+  return Object.prototype.hasOwnProperty.call(officialCategories, normalized)
+    || Object.prototype.hasOwnProperty.call(categories.en, category);
+}
+
 export function localizedCategory(language: AppLanguage, category: string) {
   const normalized = category.trim().toLocaleLowerCase();
   const official = officialCategories[normalized as keyof typeof officialCategories];
@@ -723,12 +753,17 @@ export function localizedCategory(language: AppLanguage, category: string) {
       if (normalized === '1-4-zip') return 'Quarter-zip';
       const explicitEnglish = officialCategoryEnglish[normalized as keyof typeof officialCategories];
       if (explicitEnglish) return explicitEnglish;
-      return normalized.split('-').map((word) => word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : '').join(' ');
+      return titleCaseSlug(normalized);
     }
     return official[language];
   }
-  if (language === 'zh-Hans') return category;
-  return categories[language][category] || categories.en[category] || category;
+  const mapped = language === 'zh-Hans'
+    ? categories['zh-Hans'][category]
+    : categories[language][category] || categories.en[category];
+  if (mapped) return mapped;
+  // Deal categories arrive as Chinese labels and are already readable. A raw
+  // official slug never is, so it is title-cased rather than shown as `t-shirts`.
+  return SLUG_CATEGORY.test(normalized) ? titleCaseSlug(normalized) : category;
 }
 
 export function localizedGender(language: AppLanguage, gender: string) {

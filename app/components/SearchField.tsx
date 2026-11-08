@@ -1,9 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { useTheme } from "../contexts/ThemeContext";
-import type { ThemeColors } from "../lib/theme";
+import { text, type ThemeColors } from "../lib/theme";
+import { scaleLength } from "../lib/typeScale";
 
 type Props = {
   value: string;
@@ -22,8 +29,9 @@ export function SearchField({
 }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { minHeight: scaleLength(44, fontScale) }]}>
       <Ionicons name="search" size={18} color={colors.muted} />
       <TextInput
         value={value}
@@ -63,10 +71,10 @@ const makeStyles = (colors: ThemeColors) =>
       paddingLeft: 12,
     },
     input: {
+      ...text.body,
       minWidth: 0,
       flex: 1,
       color: colors.ink,
-      fontSize: 14,
       paddingVertical: 0,
     },
     clear: {

@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
+
+import { Sheet } from "./Sheet";
 
 import { usePreferences } from "../contexts/PreferencesContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -21,7 +22,8 @@ import {
 } from "../lib/catalog";
 import { browseText } from "../lib/browseI18n";
 import type { DealFilters } from "../lib/deals";
-import { radii, type ThemeColors } from "../lib/theme";
+import { radii, text, type ThemeColors } from "../lib/theme";
+import { scaleLength } from "../lib/typeScale";
 import { ControlRow } from "./ControlRow";
 import { ActiveChips } from "./ActiveChips";
 import { FilterSheet, type FilterSheetSection } from "./FilterSheet";
@@ -257,15 +259,15 @@ function SortSheet({
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType={Platform.OS === "web" ? "fade" : "slide"}
-      onRequestClose={onClose}
+      onClose={onClose}
+      closeAccessibilityLabel={closeLabel}
+      style={styles.sheet}
     >
-      <View style={styles.backdrop}>
-        <View style={styles.sortSheet}>
+      <View style={styles.sortSheet}>
           <View style={styles.sortHead}>
             <Text style={styles.sortTitle}>{title}</Text>
             <Pressable
@@ -283,7 +285,7 @@ function SortSheet({
               accessibilityRole="radio"
               accessibilityLabel={getLabel(option)}
               accessibilityState={{ checked: option === value }}
-              style={styles.sortOption}
+              style={[styles.sortOption, { minHeight: scaleLength(52, fontScale) }]}
               onPress={() => onSelect(option)}
             >
               <Text
@@ -299,35 +301,23 @@ function SortSheet({
               ) : null}
             </Pressable>
           ))}
-        </View>
       </View>
-    </Modal>
+    </Sheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrap: { gap: 7 },
-    backdrop: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(8,9,10,.42)",
-    },
-    sortSheet: {
-      gap: 2,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      backgroundColor: colors.card,
-      padding: 18,
-      paddingBottom: 30,
-    },
+    sheet: { backgroundColor: colors.card },
+    sortSheet: { gap: 2, padding: 18, paddingTop: 6, paddingBottom: 12 },
     sortHead: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 8,
     },
-    sortTitle: { color: colors.ink, fontSize: 20, fontWeight: "900" },
+    sortTitle: { ...text.title3, color: colors.ink },
     close: {
       width: 44,
       height: 44,
@@ -342,6 +332,6 @@ const makeStyles = (colors: ThemeColors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    sortOptionText: { color: colors.ink2, fontSize: 14, fontWeight: "700" },
-    sortOptionActive: { color: colors.ink, fontWeight: "900" },
+    sortOptionText: { ...text.body, color: colors.ink2 },
+    sortOptionActive: { color: colors.ink, fontWeight: "600" },
   });

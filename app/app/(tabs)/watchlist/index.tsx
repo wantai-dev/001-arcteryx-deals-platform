@@ -1,32 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useEffect } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { ProGate } from '../../components/ProGate';
-import { AlertModal } from '../../components/AlertModal';
-import { ScreenState } from '../../components/ScreenState';
-import { TopoPlaceholder } from '../../components/TopoPlaceholder';
-import { useProducts } from '../../contexts/ProductsContext';
-import { usePreferences } from '../../contexts/PreferencesContext';
-import { useWatchlist } from '../../contexts/WatchlistContext';
-import { usePro } from '../../contexts/ProContext';
-import { useTheme } from '../../contexts/ThemeContext';
-import { openBuyUrl } from '../../lib/actions';
-import { fetchPriceCandidates } from '../../lib/alertProductSource';
-import { BRAND, productName } from '../../lib/catalog';
-import { lowestComparableCandidate } from '../../lib/candidateComparison';
-import { emailAlertCopy, saveAlertAndSyncEmail } from '../../lib/emailAlertSync';
-import { watchAlertPriceReference } from '../../lib/alertPriceReference';
-import { insertPriceAlert } from '../../lib/supabase';
-import { radii, typography, type ThemeColors } from '../../lib/theme';
-import type { Product, WatchEntry } from '../../lib/types';
-import type { PriceCandidate } from '../../lib/priceMonitor';
-import type { AlertDraft } from '../../lib/watchlist';
-import { watchListCopy, watchCopy } from '../../lib/watchI18n';
+import { ProGate } from '../../../components/ProGate';
+import { AlertModal } from '../../../components/AlertModal';
+import { ScreenState } from '../../../components/ScreenState';
+import { TopoPlaceholder } from '../../../components/TopoPlaceholder';
+import { useProducts } from '../../../contexts/ProductsContext';
+import { usePreferences } from '../../../contexts/PreferencesContext';
+import { useWatchlist } from '../../../contexts/WatchlistContext';
+import { usePro } from '../../../contexts/ProContext';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { openBuyUrl } from '../../../lib/actions';
+import { fetchPriceCandidates } from '../../../lib/alertProductSource';
+import { BRAND, productName } from '../../../lib/catalog';
+import { lowestComparableCandidate } from '../../../lib/candidateComparison';
+import { emailAlertCopy, saveAlertAndSyncEmail } from '../../../lib/emailAlertSync';
+import { watchAlertPriceReference } from '../../../lib/alertPriceReference';
+import { insertPriceAlert } from '../../../lib/supabase';
+import { radii, text, typography, type ThemeColors } from '../../../lib/theme';
+import { scaleLength } from '../../../lib/typeScale';
+import type { Product, WatchEntry } from '../../../lib/types';
+import type { PriceCandidate } from '../../../lib/priceMonitor';
+import type { AlertDraft } from '../../../lib/watchlist';
+import { watchListCopy, watchCopy } from '../../../lib/watchI18n';
 
 type Row = { entry: WatchEntry; product?: Product };
 
@@ -55,18 +55,19 @@ export default function WatchlistScreen() {
   const modelCount = rows.filter((row) => row.entry.scope === 'model').length;
   const skuCount = rows.length - modelCount;
 
-  return <SafeAreaView style={styles.safe} edges={['top']}><FlatList
+  return <View style={styles.safe}><Stack.Screen options={{ title: copy.title }} /><FlatList
     data={rows}
     keyExtractor={(item) => item.entry.id || item.entry.skuId}
     contentContainerStyle={styles.content}
-    ListHeaderComponent={<View style={styles.header}><Text style={styles.title}>{copy.title}</Text><Text style={styles.subtitle}>{copy.summary(rows.length, watchlist.activeAlertCount)}</Text>{modelCount ? <Text style={styles.group}>{copy.models} · {modelCount}</Text> : null}</View>}
+    contentInsetAdjustmentBehavior="automatic"
+    ListHeaderComponent={<View style={styles.header}><Text style={styles.subtitle}>{copy.summary(rows.length, watchlist.activeAlertCount)}</Text>{modelCount ? <Text style={styles.group}>{copy.models} · {modelCount}</Text> : null}</View>}
     ListEmptyComponent={<View style={styles.empty}><ScreenState title={copy.emptyTitle} body={copy.emptyBody} /><View style={styles.emptyActions}><Pressable accessibilityRole="button" accessibilityLabel={copy.goDeals} style={styles.emptyButton} onPress={() => router.push('/(tabs)')}><Text style={styles.emptyButtonText}>{copy.goDeals}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={copy.goYearbook} style={styles.emptyButton} onPress={() => router.push('/(tabs)/yearbook')}><Text style={styles.emptyButtonText}>{copy.goYearbook}</Text></Pressable></View></View>}
     renderItem={({ item, index }) => <>
       {index === modelCount && skuCount && modelCount ? <Text style={styles.group}>{copy.items} · {skuCount}</Text> : null}
       <WatchRow row={item} styles={styles} palette={palette} onRemove={() => watchlist.removeEntry(item.entry.id!)} />
     </>}
     ListFooterComponent={<View style={styles.footer}>{!isPro ? <ProGate title={copy.freeLimit(watchlist.freeAlertLimit)} subtitle={copy.proUnlimited} action="Pro" /> : null}<Text style={styles.runtime}>{runtimeCopy.backgroundTiming} {runtimeCopy.killedWarning}</Text></View>}
-  /></SafeAreaView>;
+  /></View>;
 }
 
 function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCandidate?: PriceCandidate | null }; onRemove: () => Promise<void>; styles: ReturnType<typeof createStyles>; palette: ThemeColors }) {
@@ -75,6 +76,7 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
   const emailCopy = emailAlertCopy(preferences.language);
   const { entry, product } = row;
   const watchlist = useWatchlist();
+  const { fontScale } = useWindowDimensions();
   const [alertOpen, setAlertOpen] = useState(false);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -110,7 +112,7 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
       { text: copy.remove, style: 'destructive', onPress: () => { void removeEntry(); } },
     ]);
   };
-  return <Pressable style={styles.row} onPress={open} accessibilityRole="button">
+  return <Pressable style={[styles.row, { minHeight: scaleLength(102, fontScale) }]} onPress={open} accessibilityRole="button">
     <View style={styles.thumb}><TopoPlaceholder category={category} brand={brand} compact showLabel={false} />{image && !imageFailed ? <Image source={{ uri: image }} style={styles.image} contentFit="cover" onError={() => setImageFailed(true)} /> : null}</View>
     <View style={styles.body}><View style={styles.rowHead}><View style={styles.scope}><Text style={styles.scopeText}>{entry.scope === 'model' ? copy.model : copy.item}</Text></View><Text style={styles.name} numberOfLines={2}>{name}</Text><Pressable accessibilityRole="button" accessibilityLabel={copy.remove} disabled={removeBusy} style={[styles.remove, removeBusy && styles.disabled]} onPress={(event) => { event.stopPropagation(); requestRemove(); }}>{removeBusy ? <ActivityIndicator color={palette.muted} /> : <Ionicons name="close" size={18} color={palette.muted} />}</Pressable></View>
       {currentVerified ? <Text style={[styles.delta, delta !== null && delta < 0 && styles.down]}>{delta === null ? copy.cannotCompare : Math.abs(delta) < 0.01 ? copy.noChange : copy.changed(delta < 0 ? '↓' : '↑', preferences.formatOriginalMoney(Math.abs(delta), currency || '', symbol))}</Text> : <Text style={styles.legacy}>{copy.unavailableNow}</Text>}
@@ -130,7 +132,7 @@ function WatchRow({ row, onRemove, styles, palette }: { row: Row & { currentCand
 }
 
 function createStyles(c: ThemeColors) { return StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.screen }, content: { padding: 20, paddingBottom: 36 }, header: { gap: 3, marginBottom: 10 }, title: { color: c.ink, fontSize: 28, lineHeight: 34, fontWeight: '900' }, subtitle: { color: c.muted, fontSize: 13, fontWeight: '700' }, group: { color: c.ink2, marginTop: 15, marginBottom: 5, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: .6 },
-  row: { minHeight: 102, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hair }, thumb: { width: 62, aspectRatio: 4 / 5, overflow: 'hidden', borderRadius: 11, backgroundColor: c.photo }, image: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' }, body: { flex: 1 }, rowHead: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7 }, name: { flex: 1, color: c.ink, fontSize: 13.5, lineHeight: 18, fontWeight: '800' }, scope: { borderRadius: 5, backgroundColor: c.buyBg, paddingHorizontal: 5, paddingVertical: 3 }, scopeText: { color: c.buy, fontSize: 9, fontWeight: '900' }, remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  delta: { color: c.muted, fontSize: 11.5, fontWeight: '800' }, down: { color: c.buy }, alert: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }, alertButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }, alertText: { color: c.ink2, fontSize: 11.5, fontWeight: '800' }, mono: { fontFamily: typography.mono, fontVariant: typography.tabular }, legacy: { color: c.muted, marginTop: 3, fontSize: 10.5 }, price: { color: c.ink, marginTop: 3, fontFamily: typography.mono, fontWeight: '800' }, now: { color: c.muted, fontFamily: undefined, fontSize: 10.5 }, rowError: { color: c.danger, marginTop: 3, fontSize: 11.5, fontWeight: '700' }, disabled: { opacity: 0.45 }, footer: { gap: 10, marginTop: 16 }, runtime: { color: c.muted, fontSize: 11.5, lineHeight: 17 }, empty: { gap: 12 }, emptyActions: { flexDirection: 'row', gap: 10, justifyContent: 'center' }, emptyButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.pill }, emptyButtonText: { color: c.onPill, fontWeight: '900' },
+  safe: { flex: 1, backgroundColor: c.screen }, content: { padding: 20, paddingBottom: 36 }, header: { gap: 3, marginBottom: 10 }, subtitle: { ...text.footnote, color: c.muted }, group: { ...text.footnoteEmphasized, color: c.ink2, marginTop: 15, marginBottom: 5, textTransform: 'uppercase', letterSpacing: .6 },
+  row: { minHeight: 102, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hair }, thumb: { width: 62, aspectRatio: 4 / 5, overflow: 'hidden', borderRadius: 11, backgroundColor: c.photo }, image: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' }, body: { flex: 1 }, rowHead: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7 }, name: { ...text.subheadEmphasized, flex: 1, color: c.ink }, scope: { borderRadius: 5, backgroundColor: c.buyBg, paddingHorizontal: 5, paddingVertical: 3 }, scopeText: { ...text.caption2Emphasized, color: c.buy }, remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  delta: { ...text.caption1Emphasized, color: c.muted }, down: { color: c.buy }, alert: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }, alertButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }, alertText: { ...text.caption1Emphasized, color: c.ink2 }, mono: { fontFamily: typography.mono, fontVariant: typography.tabular }, legacy: { ...text.caption2, color: c.muted, marginTop: 3 }, price: { ...text.subheadEmphasized, color: c.ink, marginTop: 3, fontFamily: typography.mono }, now: { ...text.caption2, color: c.muted, fontFamily: undefined }, rowError: { ...text.caption1Emphasized, color: c.danger, marginTop: 3 }, disabled: { opacity: 0.45 }, footer: { gap: 10, marginTop: 16 }, runtime: { ...text.caption1, color: c.muted, lineHeight: 17 }, empty: { gap: 12 }, emptyActions: { flexDirection: 'row', gap: 10, justifyContent: 'center' }, emptyButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.pill }, emptyButtonText: { ...text.subheadEmphasized, color: c.onPill },
 }); }

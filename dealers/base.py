@@ -20,7 +20,9 @@
     }
 """
 from __future__ import annotations
-from scrapling.fetchers import Fetcher, StealthyFetcher
+# StealthyFetcher is imported lazily in DealerScraper.fetch: importing it
+# requires a downloaded camoufox browser, which plain parsing/tests do not need.
+from scrapling.fetchers import Fetcher
 from typing import Iterable
 import re, time, traceback, json
 
@@ -82,6 +84,7 @@ class DealerScraper:
         opts = {"headless": True, "network_idle": True, "timeout": 60000}
         if self.TIER == "cf":
             opts["solve_cloudflare"] = True
+        from scrapling.fetchers import StealthyFetcher
         return StealthyFetcher.fetch(url, **opts)
 
     def parse_list(self, body: str, page_url: str) -> list[dict]:

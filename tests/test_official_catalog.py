@@ -1,5 +1,7 @@
+import contextlib
 import copy
 import http.client
+import io
 import json
 import unittest
 from dataclasses import replace
@@ -199,6 +201,99 @@ class OfficialCatalogTests(unittest.TestCase):
             product["source_url"],
             "https://www.burton.com/en-us/products/mens-burton-custom-camber-snowboard-106881",
         )
+
+    def _burton_row(self, shopify_id, handle, tags, sku, title="Burton Board"):
+        return shopify_row(
+            shopify_id=shopify_id,
+            vendor="Burton",
+            title=title,
+            handle=handle,
+            product_type="BOARDS",
+            tags=tags,
+            color="Graphic",
+            price="649.95",
+            sku=sku,
+        )
+
+    def test_burton_recovers_missing_ygroup_from_handle_and_skus_and_skips_donation(self):
+        tagged = self._burton_row(
+            1, "mens-burton-custom-camber-snowboard-106881",
+            ["Base_Product", "Current", "YGroup_106881"], "106881-156",
+        )
+        untagged = self._burton_row(
+            2, "burton-pretty-good-company-camber-snowboard-311751",
+            ["Base_Product", "Current", "Wholesale"], "3117511E0ORG135",
+            title="Burton Pretty Good Company Camber Snowboard",
+        )
+        donation = self._burton_row(
+            3, "chill-foundation-donation", ["Current"], "DONATION",
+            title="CHILL Foundation Donation",
+        )
+        client = FakeShopifyClient({("burton", 1): [tagged, untagged, donation]})
+
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            products, complete = collect_shopify_catalog(
+                client, tiny_source("burton")
+            )
+
+        self.assertTrue(complete)
+        self.assertEqual(
+            [product["catalog_product_id"] for product in products],
+            ["burton:106881", "burton:311751"],
+        )
+        self.assertIn("skipped 1 full-price rows", stderr.getvalue())
+        self.assertIn("CHILL Foundation Donation", stderr.getvalue())
+
+    def test_burton_does_not_recover_style_when_skus_disagree_with_handle(self):
+        tagged = self._burton_row(
+            1, "mens-burton-custom-camber-snowboard-106881",
+            ["Current", "YGroup_106881"], "106881-156",
+        )
+        mismatched = self._burton_row(
+            2, "burton-mystery-board-311751", ["Current"], "999999-156",
+        )
+        client = FakeShopifyClient({("burton", 1): [tagged, mismatched]})
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            products, _complete = collect_shopify_catalog(
+                client, tiny_source("burton")
+            )
+
+        self.assertEqual(
+            [product["catalog_product_id"] for product in products],
+            ["burton:106881"],
+        )
+
+    def test_burton_fails_when_unidentifiable_rows_exceed_allowance(self):
+        tagged = self._burton_row(
+            1, "mens-burton-custom-camber-snowboard-106881",
+            ["Current", "YGroup_106881"], "106881-156",
+        )
+        first = self._burton_row(2, "gift-card", ["Current"], "GIFT")
+        second = self._burton_row(3, "donation", ["Current"], "DONATE")
+        client = FakeShopifyClient({("burton", 1): [tagged, first, second]})
+
+        with self.assertRaisesRegex(
+            CatalogSourceError, "2 full-price rows without a provable style ID"
+        ):
+            collect_shopify_catalog(client, tiny_source("burton"))
+
+    def test_patagonia_rows_without_style_tags_still_fail(self):
+        row = shopify_row(
+            shopify_id=1,
+            vendor="Patagonia",
+            title="Untagged Jacket",
+            handle="untagged-jacket-123456",
+            product_type="Jackets",
+            tags=["flag:Order"],
+            color="Black",
+            price="299.00",
+            sku="123456-BLK-M",
+        )
+        client = FakeShopifyClient({("patagonia", 1): [row]})
+
+        with self.assertRaisesRegex(CatalogSourceError, "invalid style IDs"):
+            collect_shopify_catalog(client, tiny_source("patagonia"))
 
     def test_patagonia_groups_colour_pages_by_official_style_and_uses_regular_price(self):
         green = shopify_row(

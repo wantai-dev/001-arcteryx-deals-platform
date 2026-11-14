@@ -79,6 +79,10 @@ ARCTERYX_CATEGORY_FEED_KEYS = {
 
 ARCTERYX_PRODUCT_ID_RE = re.compile(r"^X[0-9A-Z]{6,}$")
 SHOPIFY_STYLE_ID_RE = re.compile(r"^[0-9A-Z][0-9A-Z._-]{1,63}$")
+BURTON_HANDLE_STYLE_RE = re.compile(r"-(\d{6})$")
+# Rows whose style cannot be proven are skipped, but only up to this share of
+# the full-price rows; beyond it the source is treated as structurally broken.
+MAX_UNIDENTIFIED_STYLE_RATIO = 0.02
 CATALOG_PRODUCT_ID_RE = re.compile(
     r"^(?:arcteryx|burton|patagonia):[a-z0-9][a-z0-9._-]{1,63}$"
 )
@@ -612,7 +616,30 @@ SHOPIFY_SOURCES = {
 }
 
 
-def _shopify_style_id(source: ShopifySourceConfig, raw: Mapping[str, Any]) -> str:
+def _burton_style_id_from_handle_and_skus(raw: Mapping[str, Any]) -> str | None:
+    """Recover a Burton style ID when the official ``YGroup_`` tag is missing.
+
+    Burton handles end in the six-digit style number and every variant SKU
+    starts with it. Both signals must agree before the ID is accepted.
+    """
+    match = BURTON_HANDLE_STYLE_RE.search(_clean_text(raw.get("handle")))
+    if not match:
+        return None
+    style_id = match.group(1)
+    variants = raw.get("variants")
+    if not isinstance(variants, list) or not variants:
+        return None
+    for variant in variants:
+        sku = _clean_text(variant.get("sku")) if isinstance(variant, Mapping) else ""
+        if not sku.startswith(style_id):
+            return None
+    return style_id
+
+
+def _shopify_style_id(
+    source: ShopifySourceConfig, raw: Mapping[str, Any]
+) -> str | None:
+    """Return the official style ID, or ``None`` for an unidentifiable Burton row."""
     prefixes = ("YGroup_",) if source.brand_key == "burton" else ("group:", "YGroup_")
     values: list[str] = []
     for prefix in prefixes:
@@ -625,11 +652,13 @@ def _shopify_style_id(source: ShopifySourceConfig, raw: Mapping[str, Any]) -> st
             and SHOPIFY_STYLE_ID_RE.fullmatch(cleaned)
         }
     )
-    if len(normalized) != 1:
-        raise CatalogSourceError(
-            f"{source.label} product {raw.get('id')} has invalid style IDs: {normalized}"
-        )
-    return normalized[0]
+    if len(normalized) == 1:
+        return normalized[0]
+    if source.brand_key == "burton" and not normalized:
+        return _burton_style_id_from_handle_and_skus(raw)
+    raise CatalogSourceError(
+        f"{source.label} product {raw.get('id')} has invalid style IDs: {normalized}"
+    )
 
 
 def _shopify_product_url(source: ShopifySourceConfig, handle: Any) -> str:
@@ -860,9 +889,29 @@ def collect_shopify_catalog(
             f"(expected {source.min_full_price_rows}..{source.max_full_price_rows})"
         )
     grouped: dict[str, list[dict[str, Any]]] = {}
+    unidentified: list[Mapping[str, Any]] = []
     for raw in full_price_rows:
         official_id = _shopify_style_id(source, raw)
+        if official_id is None:
+            unidentified.append(raw)
+            continue
         grouped.setdefault(official_id, []).append(raw)
+    if unidentified:
+        allowed = max(1, int(len(full_price_rows) * MAX_UNIDENTIFIED_STYLE_RATIO))
+        details = "; ".join(
+            f"{_clean_text(raw.get('id'))} {_clean_text(raw.get('title'))!r}"
+            for raw in unidentified
+        )
+        if len(unidentified) > allowed:
+            raise CatalogSourceError(
+                f"{source.label} has {len(unidentified)} full-price rows without a "
+                f"provable style ID (allowed {allowed}): {details}"
+            )
+        print(
+            f"[catalog] WARN: {source.label} skipped {len(unidentified)} full-price "
+            f"rows without a provable style ID: {details}",
+            file=sys.stderr,
+        )
     if not source.min_styles <= len(grouped) <= source.max_styles:
         raise CatalogSourceError(
             f"implausible {source.label} full-price style count: {len(grouped)} "

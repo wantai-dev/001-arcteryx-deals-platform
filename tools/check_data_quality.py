@@ -60,7 +60,9 @@ PLATFORM_REGION_MIN_ROWS = {
     ("arcteryx_outlet", "us"): 250,
     ("arcteryx_outlet", "ca"): 100,
     ("arcteryx_outlet", "au"): 10,
-    **{("arcteryx_outlet", region): 250 for region in ("at", "be", "ch", "de", "dk", "es", "fi", "fr", "gb", "ie", "it", "nl", "se")},
+    # The European Outlet regions share one catalog (247 rows each on 2026-11-14).
+    # 200 keeps roughly the same ~80% headroom as the US floor.
+    **{("arcteryx_outlet", region): 200 for region in ("at", "be", "ch", "de", "dk", "es", "fi", "fr", "gb", "ie", "it", "nl", "se")},
     ("evo", "us"): 140,
     ("burton", "us"): 100,
     ("backcountry", "us"): 40,

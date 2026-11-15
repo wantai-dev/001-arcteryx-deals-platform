@@ -1,5 +1,6 @@
 """把 dealers/_partial/<key>.json 合并成 dealers/results.json (前端读取的格式)"""
 import json, time, os, glob
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dealers.source_registry import RETIRED_DEALERS
@@ -14,9 +15,36 @@ KEY_BY_NAME = {
     "Backcountry": "backcountry",
 }
 MIN_SNAPSHOT_RATIO = 0.70
+# A collapse guard compares against the last *accepted* snapshot. When a sale
+# genuinely ends, every later complete crawl is rejected against that old
+# baseline and the dealer stays frozen forever (Backcountry: 214 -> ~80 on
+# 2026-10-21, then rejected for 24 days). Once the retained baseline is older
+# than the production freshness limit it is no longer a trustworthy reference,
+# so a complete crawl may replace it. This applies only to scrapers whose
+# crawl_complete proves the raw item count equals the site's reported total.
+STALE_BASELINE_HOURS = 36.0
+TOTAL_VERIFIED_DEALERS = frozenset({"backcountry", "burton"})
 
 
-def snapshot_rejection_reason(items: list, partial: dict, previous: dict) -> str | None:
+def _baseline_age_hours(previous: dict, now: datetime) -> float | None:
+    """Age of the retained snapshot; refreshed_at is a naive UTC timestamp."""
+    raw = str(previous.get("refreshed_at") or "").strip()
+    if not raw:
+        return None
+    try:
+        refreshed = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (now - refreshed).total_seconds() / 3600
+
+
+def snapshot_rejection_reason(
+    items: list,
+    partial: dict,
+    previous: dict,
+    key: str = "",
+    now: datetime | None = None,
+) -> str | None:
     """Reject incomplete or implausibly collapsed dealer snapshots."""
     if not items:
         return "empty"
@@ -25,6 +53,13 @@ def snapshot_rejection_reason(items: list, partial: dict, previous: dict) -> str
     previous_items = previous.get("items") or []
     previous_count = len(previous_items) or int(previous.get("count") or 0)
     if previous_count >= 10 and len(items) < previous_count * MIN_SNAPSHOT_RATIO:
+        age = _baseline_age_hours(previous, now or datetime.now(timezone.utc))
+        if key in TOTAL_VERIFIED_DEALERS and age is not None and age > STALE_BASELINE_HOURS:
+            print(
+                f"  WARN {key}: accepting complete snapshot {previous_count}->{len(items)} "
+                f"because the retained baseline is {age:.0f}h old (> {STALE_BASELINE_HOURS:.0f}h)"
+            )
+            return None
         return (
             f"collapsed {previous_count}->{len(items)} "
             f"({len(items) / previous_count:.0%} < {MIN_SNAPSHOT_RATIO:.0%})"
@@ -72,7 +107,7 @@ def main():
             continue
         items = d.get("items") or []
         previous = out["dealers"].get(key, {})
-        rejection_reason = snapshot_rejection_reason(items, d, previous)
+        rejection_reason = snapshot_rejection_reason(items, d, previous, key=key)
         trusted = rejection_reason is None
         # 只有抓取器明确声明完整成功的非空范围才可驱动 freshness/lifecycle。
         # 空结果或部分结果保留上一轮快照，不能伪装成新鲜数据。

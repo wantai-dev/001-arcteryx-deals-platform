@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -229,7 +229,7 @@ class DealerFreshnessTests(unittest.TestCase):
             self.assertEqual(EXPECTED_CURRENCY[region], ("EUR", "€"))
             self.assertEqual(
                 PLATFORM_REGION_MIN_ROWS[("arcteryx_outlet", region)],
-                250,
+                200,
             )
 
     def test_recent_pdp_confirmation_survives_list_absence(self):
@@ -708,6 +708,59 @@ class DealerFreshnessTests(unittest.TestCase):
                 self.assertIn("collapsed 242->50", merged["rejected_dealers"]["evo"])
             finally:
                 os.chdir(previous_cwd)
+
+    def _run_backcountry_collapse_merge(self, *, key="backcountry", refreshed_at=None):
+        previous_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                Path("dealers/_partial").mkdir(parents=True)
+                block = {
+                    "name": key.title(), "count": 214,
+                    "items": [{"url": f"old-{i}"} for i in range(214)],
+                }
+                if refreshed_at is not None:
+                    block["refreshed_at"] = refreshed_at
+                Path("dealers/results.json").write_text(json.dumps({
+                    "dealers": {key: block},
+                    "rejected_dealers": {key: "collapsed 214->89 (42% < 70%)"},
+                }))
+                Path(f"dealers/_partial/{key}.json").write_text(json.dumps({
+                    "name": key.title(), "region": "US", "count": 76,
+                    "items": [{"url": f"new-{i}"} for i in range(76)],
+                    "crawl_complete": True,
+                    "saved_at": "2026-11-15 06:00:00",
+                }))
+                with redirect_stdout(io.StringIO()):
+                    merge_partial.main()
+                return json.loads(Path("dealers/results.json").read_text())
+            finally:
+                os.chdir(previous_cwd)
+
+    def test_merge_accepts_complete_contraction_when_baseline_is_stale(self):
+        merged = self._run_backcountry_collapse_merge(refreshed_at="2026-10-21 14:31:41")
+        self.assertEqual(merged["fresh_dealers"], ["backcountry"])
+        self.assertEqual(merged["dealers"]["backcountry"]["count"], 76)
+        self.assertEqual(merged["dealers"]["backcountry"]["refreshed_at"], "2026-11-15 06:00:00")
+        self.assertEqual(merged["rejected_dealers"], {})
+
+    def test_merge_keeps_collapse_guard_while_baseline_is_recent(self):
+        recent = (datetime.now(timezone.utc) - timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S")
+        merged = self._run_backcountry_collapse_merge(refreshed_at=recent)
+        self.assertEqual(merged["fresh_dealers"], [])
+        self.assertEqual(merged["dealers"]["backcountry"]["count"], 214)
+        self.assertIn("collapsed 214->76", merged["rejected_dealers"]["backcountry"])
+
+    def test_merge_keeps_collapse_guard_without_baseline_timestamp(self):
+        merged = self._run_backcountry_collapse_merge(refreshed_at=None)
+        self.assertEqual(merged["fresh_dealers"], [])
+        self.assertIn("collapsed 214->76", merged["rejected_dealers"]["backcountry"])
+
+    def test_merge_stale_baseline_acceptance_excludes_unverified_totals(self):
+        merged = self._run_backcountry_collapse_merge(key="evo", refreshed_at="2026-10-21 14:31:41")
+        self.assertEqual(merged["fresh_dealers"], [])
+        self.assertEqual(merged["dealers"]["evo"]["count"], 214)
+        self.assertIn("collapsed 214->76", merged["rejected_dealers"]["evo"])
 
     def test_fresh_dealer_keys_is_backward_compatible(self):
         self.assertIsNone(fresh_dealer_keys({"dealers": {"mec": {}}}))

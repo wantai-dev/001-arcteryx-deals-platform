@@ -109,6 +109,28 @@ class ProductLifecycleTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("dropped from 100 to 60", errors[0])
 
+    def test_verified_complete_empty_scope_retires_rows_without_count_guard(self):
+        url = "https://arcteryx.com.au/products/beta-sl-jacket-mens-x00000968101"
+        previous = [
+            {"url": f"https://arcteryx.com.au/products/item-{i}", "region": "au", "gender": "men", "status": "active"}
+            for i in range(16)
+        ]
+        manifest = {
+            "generated_at": "2026-11-16T00:00:00+00:00",
+            "scopes": {
+                ("au", "*"): {"region": "au", "gender": "*", "status": "success", "verified_complete": True, "urls": set()},
+            },
+        }
+        self.assertEqual(validate_scope_counts(manifest, previous), [])
+        unverified = {"scopes": {("au", "*"): {**manifest["scopes"][("au", "*")], "verified_complete": False}}}
+        self.assertEqual(len(validate_scope_counts(unverified, previous)), 1)
+
+        row = {"url": url, "region": "au", "gender": "men", "last_updated": "old"}
+        first = next_lifecycle({"status": "active", "missing_runs": 0}, row, manifest, present_in_snapshot=False)
+        self.assertEqual(first["status"], "missing")
+        second = next_lifecycle(first, row, manifest, present_in_snapshot=False)
+        self.assertEqual(second["status"], "inactive")
+
     def test_unisex_product_uses_region_unisex_scope(self):
         url = "https://outlet.arcteryx.com/gb/en/shop/mallow-toque"
         manifest = {

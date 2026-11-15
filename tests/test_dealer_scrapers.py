@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,6 +10,7 @@ from dealers.burton import Scraper as BurtonScraper
 from dealers.evo import Scraper as EvoScraper
 from dealers.mec import Scraper as MecScraper, _enrich_items
 from dealers.rei import Scraper as ReiScraper
+from tools.shopify_ucp import UcpError
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -460,64 +462,53 @@ class DealerScraperTests(unittest.TestCase):
         self.assertIsNone(confirmed)
         self.assertFalse(scraper.pdp_confirmation_failed)
 
+    @staticmethod
+    def _burton_ucp_product(product_id, title, variants):
+        return {
+            "id": f"gid://shopify/Product/{product_id}",
+            "title": title,
+            "handle": title.lower().replace(" ", "-"),
+            "variants": variants,
+        }
+
+    @staticmethod
+    def _burton_ucp_variant(color, size, available, amount=69995):
+        return {
+            "price": {"amount": amount, "currency": "USD"},
+            "list_price": {"amount": amount, "currency": "USD"},
+            "availability": {"available": available},
+            "options": [{"name": "Color", "label": color}, {"name": "Size", "label": size}],
+        }
+
+    def _burton_card(self, source_id, name, sale="$461.97", original="$659.95", colors=None):
+        slug = name.lower().replace(" ", "-").replace("'", "")
+        return {
+            "source_id": source_id,
+            "url": f"/en-us/products/{slug}",
+            "name": name,
+            "image": "//www.burton.com/cdn/shop/files/custom.jpg",
+            "sale_text": sale,
+            "original_text": original,
+            "colors": colors or [],
+        }
+
     def test_burton_rendered_parser_pairs_live_card_prices_with_catalog_identity(self):
         products = {
-            "9100998246657": {
-            "id": 9100998246657,
-            "vendor": "Burton",
-            "title": "Men's Burton Custom Camber Snowboard",
-            "handle": "mens-burton-custom-camber-snowboard-106881",
-            "product_type": "Snowboards",
-            "options": [
-                {"name": "Color", "position": 1},
-                {"name": "Size", "position": 2},
-            ],
-            "images": [{"id": 90, "src": "//www.burton.com/cdn/shop/files/custom.jpg"}],
-            "variants": [
-                {"available": True, "price": "699.95", "compare_at_price": None, "option1": "Black", "option2": "158"},
-                {"available": True, "price": "659.95", "compare_at_price": "659.95", "option1": "Graphic", "option2": "156", "image_id": 90},
-                {"available": False, "price": "199.95", "compare_at_price": "699.95", "option1": "Archive", "option2": "154"},
-            ],
-        }, "22": {
-            "id": 22,
-            "vendor": "Anon",
-            "title": "Anon M6 Goggles",
-            "handle": "anon-m6-goggles",
-            "variants": [{"available": True, "price": "200", "compare_at_price": "300"}],
-        }, "33": {
-            "id": 33,
-            "vendor": "Burton",
-            "title": "Burton Recycled VT Beanie",
-            "handle": "burton-recycled-vt-beanie-243101",
-            "variants": [{"available": True, "price": "29.95", "compare_at_price": "29.95"}],
-        }}
-        cards = [{
-            "source_id": "9100998246657",
-            "url": "/en-us/products/mens-burton-custom-camber-snowboard-106881",
-            "name": "Men's Burton Custom Camber Snowboard",
-            "image": "//www.burton.com/cdn/shop/files/custom.jpg",
-            "sale_text": "$461.97",
-            "original_text": "$659.95",
-            "colors": ["Graphic"],
-        }, {
-            "source_id": "22",
-            "url": "/en-us/products/anon-m6-goggles",
-            "name": "Anon M6 Goggles",
-            "image": "",
-            "sale_text": "$200.00",
-            "original_text": "$300.00",
-            "colors": [],
-        }, {
-            "source_id": "33",
-            "url": "/en-us/products/burton-recycled-vt-beanie-243101",
-            "name": "Burton Recycled VT Beanie",
-            "image": "",
-            "sale_text": "$29.95",
-            "original_text": "$29.95",
-            "colors": [],
-        }]
+            "9100998246657": self._burton_ucp_product(9100998246657, "Men's Burton Custom Camber Snowboard", [
+                self._burton_ucp_variant("Black", "158", True),
+                self._burton_ucp_variant("Graphic", "156", True),
+                self._burton_ucp_variant("Archive", "154", False),
+            ]),
+            "22": self._burton_ucp_product(22, "Anon M6 Goggles", [self._burton_ucp_variant("Black", "OS", True)]),
+            "33": self._burton_ucp_product(33, "Burton Recycled VT Beanie", [self._burton_ucp_variant("Black", "OS", True)]),
+        }
+        cards = [
+            self._burton_card("9100998246657", "Men's Burton Custom Camber Snowboard", colors=["Graphic"]),
+            self._burton_card("22", "Anon M6 Goggles", sale="$200.00", original="$300.00"),
+            self._burton_card("33", "Burton Recycled VT Beanie", sale="$29.95", original="$29.95"),
+        ]
 
-        items = BurtonScraper().parse_rendered_cards(cards, products)
+        items = BurtonScraper(ucp_client=MagicMock()).parse_rendered_cards(cards, products)
 
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["source_id"], "9100998246657")
@@ -528,6 +519,223 @@ class DealerScraperTests(unittest.TestCase):
         self.assertEqual(items[0]["colors"], ["Graphic"])
         self.assertEqual(items[0]["gender"], "men")
         self.assertEqual(items[0]["image"], "https://www.burton.com/cdn/shop/files/custom.jpg")
+
+    def test_burton_parser_rejects_card_missing_from_catalog(self):
+        with self.assertRaises(ValueError):
+            BurtonScraper(ucp_client=MagicMock()).parse_rendered_cards(
+                [self._burton_card("404", "Men's Burton Ghost Jacket")], {}
+            )
+
+    def _burton_snapshot_inputs(self, count):
+        cards = []
+        for i in range(count):
+            card = self._burton_card("", f"Men's Burton Jacket {i}")
+            card.pop("source_id")
+            card["variant_ids"] = [str(5000 + i), str(7000 + i)]
+            card["variant_id"] = card["variant_ids"][0]
+            cards.append(card)
+        products = {
+            str(1000 + i): self._burton_ucp_product(1000 + i, f"Men's Burton Jacket {i}", [
+                self._burton_ucp_variant("Black", "M", True),
+            ])
+            for i in range(count)
+        }
+        variant_map = {str(5000 + i): str(1000 + i) for i in range(count)}
+        client = MagicMock()
+        client.lookup_variant_products.side_effect = lambda ids: {
+            value: variant_map[value] for value in ids if value in variant_map
+        }
+        client.lookup.side_effect = lambda ids: {value: products[value] for value in ids if value in products}
+        client.search_all.return_value = ([], True)
+        return cards, products, client, variant_map
+
+    def _burton_snapshot(self, cards, client, *, min_items=1, sold_out=None, previous_results=None, **kwargs):
+        scraper = BurtonScraper(
+            ucp_client=client,
+            previous_results=previous_results or Path("/nonexistent/burton-results.json"),
+        )
+        scraper.MIN_ITEMS = min_items
+        options = {"expected_total": len(cards), "successful_pages": -(-len(cards) // 24), "terminated": True}
+        options.update(kwargs)
+        with patch.object(scraper, "_product_page_sold_out", side_effect=lambda path: (sold_out or {}).get(path)) as pdp:
+            items = scraper.build_snapshot(cards, **options)
+        return scraper, items, pdp
+
+    def test_burton_snapshot_is_complete_when_ucp_resolves_every_rendered_product(self):
+        cards, _, client, _ = self._burton_snapshot_inputs(30)
+
+        scraper, items, pdp = self._burton_snapshot(cards, client, min_items=30)
+
+        self.assertEqual(client.lookup_variant_products.call_count, 1)
+        client.lookup.assert_called_once_with([str(1000 + i) for i in range(30)])
+        pdp.assert_not_called()
+        self.assertEqual(len(items), 30)
+        self.assertEqual(items[0]["source_id"], "1000")
+        self.assertTrue(scraper.crawl_complete)
+
+    def _burton_previous_results(self, cards, ids):
+        handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump({"dealers": {"burton": {"items": [
+            {"source_id": f"burton:{product_id}", "url": "https://www.burton.com" + cards[index]["url"]}
+            for index, product_id in ids.items()
+        ]}}}, handle)
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        return Path(handle.name)
+
+    def test_burton_snapshot_looks_known_products_up_by_id_first(self):
+        cards, products, client, _ = self._burton_snapshot_inputs(30)
+        for index in range(30):
+            products[str(1000 + index)]["handle"] = cards[index]["url"].rsplit("/", 1)[-1]
+        previous = self._burton_previous_results(cards, {index: str(1000 + index) for index in range(28)})
+
+        scraper, items, _ = self._burton_snapshot(cards, client, min_items=30, previous_results=previous)
+
+        self.assertEqual(client.lookup.call_args_list[0].args[0], [str(1000 + i) for i in range(28)])
+        self.assertEqual(list(client.lookup_variant_products.call_args_list[0].args[0]), ["5028", "5029"])
+        self.assertEqual(client.lookup.call_args_list[1].args[0], ["1028", "1029"])
+        self.assertEqual(len(items), 30)
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_snapshot_resolves_cards_from_outlet_search_by_handle(self):
+        cards, products, client, _ = self._burton_snapshot_inputs(30)
+        for index in range(30):
+            products[str(1000 + index)]["handle"] = cards[index]["url"].rsplit("/", 1)[-1]
+        decoy = dict(products["1000"], id="gid://shopify/Product/999", handle=products["1000"]["handle"] + "-full-price")
+        client.search_all.return_value = ([products[str(1000 + i)] for i in range(29)] + [decoy], True)
+
+        scraper, items, _ = self._burton_snapshot(cards, client, min_items=30)
+
+        client.search_all.assert_called_once()
+        self.assertEqual(list(client.lookup_variant_products.call_args_list[0].args[0]), ["5029"])
+        self.assertEqual(client.lookup.call_args_list[0].args[0], ["1029"])
+        self.assertEqual({item["source_id"] for item in items}, {str(1000 + i) for i in range(30)})
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_known_id_with_different_handle_is_re_resolved(self):
+        cards, products, client, _ = self._burton_snapshot_inputs(30)
+        for index in range(30):
+            products[str(1000 + index)]["handle"] = cards[index]["url"].rsplit("/", 1)[-1]
+        previous = self._burton_previous_results(cards, {0: "1001"})
+
+        scraper, items, _ = self._burton_snapshot(cards, client, min_items=30, previous_results=previous)
+
+        self.assertIn("5000", list(client.lookup_variant_products.call_args_list[0].args[0]))
+        self.assertEqual({item["source_id"] for item in items}, {str(1000 + i) for i in range(30)})
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_single_price_card_is_full_price(self):
+        cards, _, client, _ = self._burton_snapshot_inputs(30)
+        cards[0].update({"sale_text": "", "original_text": "", "price_text": "$29.95"})
+
+        scraper, items, _ = self._burton_snapshot(cards, client, min_items=29)
+
+        self.assertEqual(len(items), 29)
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_snapshot_retries_sold_out_first_swatch_with_other_swatches(self):
+        cards, _, client, variant_map = self._burton_snapshot_inputs(30)
+        variant_map["7004"] = variant_map.pop("5004")
+
+        scraper, items, pdp = self._burton_snapshot(cards, client, min_items=30)
+
+        self.assertEqual(client.lookup_variant_products.call_count, 2)
+        self.assertEqual(list(client.lookup_variant_products.call_args_list[1].args[0]), ["7004"])
+        pdp.assert_not_called()
+        self.assertEqual(len(items), 30)
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_snapshot_skips_unresolved_card_confirmed_sold_out(self):
+        cards, _, client, variant_map = self._burton_snapshot_inputs(30)
+        del variant_map["5004"]
+
+        scraper, items, pdp = self._burton_snapshot(cards, client, sold_out={cards[4]["url"]: True})
+
+        pdp.assert_called_once_with(cards[4]["url"])
+        self.assertEqual(len(items), 29)
+        self.assertNotIn("1004", {item["source_id"] for item in items})
+        self.assertTrue(scraper.crawl_complete)
+
+    def test_burton_snapshot_rejects_unresolved_card_not_confirmed_sold_out(self):
+        for pdp_result in (False, None):
+            with self.subTest(pdp_result=pdp_result):
+                cards, _, client, variant_map = self._burton_snapshot_inputs(30)
+                del variant_map["5004"]
+
+                scraper, items, _ = self._burton_snapshot(cards, client, sold_out={cards[4]["url"]: pdp_result})
+
+                self.assertEqual(items, [])
+                self.assertFalse(scraper.crawl_complete)
+
+    def test_burton_snapshot_rejects_missing_product_or_duplicate_resolution(self):
+        for broken in ("product", "duplicate"):
+            with self.subTest(broken=broken):
+                cards, products, client, variant_map = self._burton_snapshot_inputs(30)
+                if broken == "product":
+                    products.pop("1007")
+                else:
+                    variant_map["5008"] = "1007"
+
+                scraper, items, _ = self._burton_snapshot(cards, client)
+
+                self.assertEqual(items, [])
+                self.assertFalse(scraper.crawl_complete)
+
+    def test_burton_snapshot_rejects_ucp_failure(self):
+        cards, _, client, _ = self._burton_snapshot_inputs(30)
+        client.lookup_variant_products.side_effect = UcpError("UCP lookup_catalog HTTP 429")
+
+        scraper, items, _ = self._burton_snapshot(cards, client)
+
+        self.assertEqual(items, [])
+        self.assertFalse(scraper.crawl_complete)
+
+    def test_burton_snapshot_requires_every_rendered_page_before_ucp_lookup(self):
+        cards, _, client, _ = self._burton_snapshot_inputs(30)
+        missing_variant = [dict(card) for card in cards]
+        missing_variant[3]["variant_id"] = ""
+        for card_list, kwargs in (
+            (cards, {"successful_pages": 1}),
+            (cards, {"terminated": False}),
+            (cards, {"expected_total": 31}),
+            (missing_variant, {}),
+        ):
+            with self.subTest(**kwargs):
+                scraper, items, _ = self._burton_snapshot(card_list, client, **kwargs)
+                self.assertEqual(items, [])
+                client.lookup_variant_products.assert_not_called()
+                self.assertFalse(scraper.crawl_complete)
+
+    def test_burton_snapshot_skips_full_price_cards_and_enforces_item_floor(self):
+        cards, _, client, _ = self._burton_snapshot_inputs(30)
+        cards[0]["sale_text"] = ""
+        cards[0]["original_text"] = "$659.95"
+
+        scraper, items, _ = self._burton_snapshot(cards, client, min_items=30)
+
+        self.assertEqual(len(items), 29)
+        self.assertFalse(scraper.crawl_complete)
+
+    def test_burton_product_page_sold_out_reads_variant_data(self):
+        def page(variants):
+            response = MagicMock()
+            response.__enter__.return_value = response
+            response.read.return_value = (
+                '<html><script type="application/json" data-product-options-el="variant-data">'
+                + json.dumps(variants) + "</script></html>"
+            ).encode()
+            return response
+
+        scraper = BurtonScraper(ucp_client=MagicMock())
+        scraper._pdp_pause = 0
+        path = "/en-us/products/kids-burton-ascutney-2l-jacket-2431210-o"
+        with patch("dealers.burton.urllib.request.urlopen", return_value=page([{"available": False}, {"available": False}])):
+            self.assertTrue(scraper._product_page_sold_out(path))
+        with patch("dealers.burton.urllib.request.urlopen", return_value=page([{"available": False}, {"available": True}])):
+            self.assertFalse(scraper._product_page_sold_out(path))
+        with patch("dealers.burton.urllib.request.urlopen", return_value=page([])):
+            self.assertIsNone(scraper._product_page_sold_out(path))
+        self.assertIsNone(scraper._product_page_sold_out("https://evil.example/x"))
 
     def test_backcountry_graphql_parser_uses_conservative_price_pair(self):
         payload = {

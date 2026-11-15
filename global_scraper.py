@@ -33,6 +33,15 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 
+from tools.shopify_ucp import (
+    UcpCatalogClient,
+    UcpError,
+    media_urls,
+    money,
+    variant_available,
+    variant_option,
+)
+
 # ========== 配置 ==========
 PROJECT   = Path(__file__).parent
 DATA_FILE = PROJECT / "global_data.json"
@@ -70,7 +79,12 @@ SCROLL_PAUSE = 1.0
 MAX_SCROLL_ROUNDS = 80
 # 两个地区之间间隔
 REGION_PAUSE = 3.0
-AU_SHOPIFY_SALE_API = "https://arcteryx.com.au/collections/sale/products.json"
+AU_STOREFRONT = "https://arcteryx.com.au"
+AU_UCP_ENDPOINT = "https://arcteryx-au.myshopify.com/api/ucp/mcp"
+AU_SALE_COLLECTION_HANDLES = {"sale", "outlet", "mens-outlet", "womens-outlet"}
+# The AU catalog listed ~890 products through UCP on 2026-11-16; 18 pages of 50.
+AU_UCP_MAX_PAGES = 60
+AU_UCP_MIN_CATALOG_PRODUCTS = 300
 
 
 # ========== 工具函数 ==========
@@ -159,24 +173,6 @@ def clean_html(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def to_float(value) -> float:
-    try:
-        return float(str(value).replace(",", ""))
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def option_value(product: dict, variant: dict, names: tuple[str, ...]) -> str:
-    options = product.get("options") or []
-    for opt in options:
-        opt_name = str(opt.get("name", "")).lower()
-        if any(name in opt_name for name in names):
-            pos = opt.get("position")
-            if pos in (1, 2, 3):
-                return str(variant.get(f"option{pos}") or "").strip()
-    return ""
-
-
 def infer_shopify_gender(product: dict) -> str:
     tags = {str(t).lower() for t in product.get("tags") or []}
     if "gender:women" in tags and "gender:men" not in tags:
@@ -251,35 +247,39 @@ def fetch_json(
     raise RuntimeError("official JSON retry loop exhausted")
 
 
-def shopify_product_records(product: dict, region: dict, now: str) -> list[dict]:
-    """Map Arc'teryx Australia Shopify sale products into our color-level schema."""
+def ucp_product_in_sale_collection(product: dict) -> bool:
+    return any(
+        str((collection or {}).get("handle") or "") in AU_SALE_COLLECTION_HANDLES
+        for collection in product.get("collections") or []
+    )
+
+
+def ucp_product_records(product: dict, region: dict, now: str) -> list[dict]:
+    """Map one Arc'teryx Australia UCP catalog product into color-level sale rows.
+
+    Only variants whose current price is below the official compare-at/list
+    price become rows, so full-price products yield nothing.
+    """
     handle = product.get("handle") or ""
     if not handle:
         return []
 
+    currency = region["currency"]
     title = product.get("title") or handle.replace("-", " ").title()
     gender = infer_shopify_gender(product)
     product_url = f"https://arcteryx.com.au/products/{handle}"
-    description = clean_html(product.get("body_html", ""))
-    product_images = [
-        img.get("src")
-        for img in (product.get("images") or [])
-        if isinstance(img, dict) and img.get("src")
-    ]
+    description = clean_html((product.get("description") or {}).get("html", ""))
+    product_images = media_urls(product.get("media"))
 
     by_color: dict[str, dict] = {}
     for variant in product.get("variants") or []:
-        sale = to_float(variant.get("price"))
-        orig = to_float(variant.get("compare_at_price"))
-        if sale <= 0 or orig <= 0 or sale >= orig:
+        sale = money(variant.get("price"), currency)
+        orig = money(variant.get("compare_at_price"), currency) or money(variant.get("list_price"), currency)
+        if not sale or not orig or sale >= orig:
             continue
 
-        color = (
-            option_value(product, variant, ("colour", "color"))
-            or str(variant.get("option1") or "").strip()
-            or "Default"
-        )
-        size = option_value(product, variant, ("size",)) or str(variant.get("option2") or "").strip()
+        color = variant_option(variant, "colour", "color") or "Default"
+        size = variant_option(variant, "size")
         if not size or size == color:
             size = str(variant.get("title") or "One Size").split(" / ")[-1].strip() or "One Size"
 
@@ -293,17 +293,16 @@ def shopify_product_records(product: dict, region: dict, now: str) -> list[dict]
                 "images": list(product_images),
             },
         )
-        if sale < group["sale_price"] or group["original_price"] <= 0:
+        if sale < group["sale_price"]:
             group["sale_price"] = sale
             group["original_price"] = orig
 
         if size not in group["sizes"]:
             group["sizes"].append(size)
-        group["size_stock"][size] = "in_stock" if variant.get("available") else "out_of_stock"
+        group["size_stock"][size] = "in_stock" if variant_available(variant) else "out_of_stock"
 
-        featured = variant.get("featured_image") or {}
-        if featured.get("src"):
-            group["images"].insert(0, featured["src"])
+        for url in reversed(media_urls(variant.get("media"))):
+            group["images"].insert(0, url)
 
     records = []
     model = re.sub(r"\s+(?:Men|Women)'?s$", "", title, flags=re.IGNORECASE).strip() or title
@@ -329,7 +328,7 @@ def shopify_product_records(product: dict, region: dict, now: str) -> list[dict]
             "sale_price": sale_price,
             "sale_price_max": sale_price,
             "discount_pct": round((1 - sale_price / original_price) * 100) if original_price else 0,
-            "category": infer_category(title, f"{product_url} {product.get('product_type', '')}"),
+            "category": infer_category(title, product_url),
             "outlet_category": "Sale",
             "image_url": image_url,
             "colors": [color],
@@ -342,35 +341,62 @@ def shopify_product_records(product: dict, region: dict, now: str) -> list[dict]
             "release_year": release_year,
             "release_season": release_season,
             "last_updated": now,
+            # Kept from the former products.json path: sku_scraper keys
+            # pre-hydrated AU rows on this source value.
             "source": "arcteryx_au_shopify_sale",
         })
     return records
 
 
-def scrape_au_shopify_sale(region: dict) -> list[dict]:
-    """Fetch Australia from the official local Shopify sale collection.
+def scrape_au_ucp_sale(region: dict, client: UcpCatalogClient | None = None) -> tuple[list[dict], bool]:
+    """Fetch Australia's official sale prices through Shopify UCP.
 
-    outlet.arcteryx.com does not expose AU as a SWAG country, while Arc'teryx's
-    own support page routes Australian shoppers to arcteryx.com.au. Use the
-    public Shopify collection JSON and only keep rows with real sale prices.
+    outlet.arcteryx.com does not expose AU as a SWAG country, and since
+    2026-11-11 arcteryx.com.au answers 429 on every /collections route for all
+    clients. Its UCP catalog endpoint still serves the full catalog, so walk it
+    completely and keep variants priced below their compare-at price. A
+    complete walk is authoritative even when it finds no discounted rows: that
+    means Australia has no sale running and existing AU rows should retire.
+
+    Returns ``(rows, complete)``. Raises when the sale collection has members
+    but UCP exposes no discount for any of them, which would otherwise read as
+    "no sale" and wrongly retire every AU row.
     """
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    products = []
-    page = 1
-    while True:
-        url = f"{AU_SHOPIFY_SALE_API}?{urllib.parse.urlencode({'limit': 250, 'page': page})}"
-        payload = fetch_json(url)
-        batch = payload.get("products") or []
-        if not batch:
-            break
-        for product in batch:
-            products.extend(shopify_product_records(product, region, now))
-        if len(batch) < 250:
-            break
-        page += 1
+    client = client or UcpCatalogClient(
+        AU_UCP_ENDPOINT,
+        AU_STOREFRONT,
+        context={"address_country": "AU", "language": "en-AU", "currency": region["currency"]},
+    )
+    products, complete = client.search_all("", max_pages=AU_UCP_MAX_PAGES)
+    if not complete:
+        print(f"    ⚠ AU UCP catalog walk ended early after {len(products)} products", flush=True)
+        return [], False
+    if len(products) < AU_UCP_MIN_CATALOG_PRODUCTS:
+        print(
+            f"    ⚠ AU UCP catalog has only {len(products)} products "
+            f"(< {AU_UCP_MIN_CATALOG_PRODUCTS}); treating the walk as incomplete",
+            flush=True,
+        )
+        return [], False
 
-    print(f"    ✓ AU Shopify sale: {len(products)} 个颜色级折扣商品", flush=True)
-    return products
+    rows = []
+    sale_members = 0
+    for product in products:
+        rows.extend(ucp_product_records(product, region, now))
+        if ucp_product_in_sale_collection(product):
+            sale_members += 1
+    if sale_members and not rows:
+        raise UcpError(
+            f"AU sale collections list {sale_members} products but UCP exposed no discounted price"
+        )
+
+    print(
+        f"    ✓ AU UCP: {len(products)} 个商品，{sale_members} 个在折扣分类，"
+        f"{len(rows)} 个颜色级折扣商品",
+        flush=True,
+    )
+    return rows, True
 
 
 # ========== 主抓取逻辑 ==========
@@ -666,12 +692,15 @@ async def extract_tiles(page, region: dict, gender: str) -> list:
 async def scrape_region(browser, region: dict, genders: list, dry_run: bool) -> tuple[list, bool, list[dict]]:
     """抓取单个地区的所有性别分类页"""
     if region["code"] == "au":
-        products = await asyncio.to_thread(scrape_au_shopify_sale, region)
+        products, complete = await asyncio.to_thread(scrape_au_ucp_sale, region)
         urls = sorted({p.get("url") for p in products if p.get("url")})
         return products, False, [{
             "region": region["code"],
             "gender": "*",
-            "status": "success" if len(urls) >= 10 else "failed",
+            "status": "success" if complete else "failed",
+            # A complete UCP walk is authoritative even when AU has few or no
+            # sale rows, so the scope count guards must not reject it.
+            "verified_complete": complete,
             "product_count": len(urls),
             "urls": urls,
         }]

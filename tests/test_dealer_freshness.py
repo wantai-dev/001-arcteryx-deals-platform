@@ -524,10 +524,15 @@ class DealerFreshnessTests(unittest.TestCase):
         rc = validate(rows, 36, 72, 5000, required_dealers=None, forbidden_regions=None)
         self.assertEqual(rc, 0)
 
+    def test_au_sale_feed_has_no_region_floor(self):
+        # AU can legitimately have no discounts; the passing full-gate fixture
+        # above therefore contains no AU rows at all.
+        self.assertNotIn(("arcteryx_outlet", "au"), PLATFORM_REGION_MIN_ROWS)
+
     def test_validate_full_gate_identifies_collapsed_platform_region(self):
         rows = []
         for (dealer, region), count in PLATFORM_REGION_MIN_ROWS.items():
-            if (dealer, region) == ("arcteryx_outlet", "au"):
+            if (dealer, region) == ("arcteryx_outlet", "ca"):
                 count -= 1
             currency, symbol = EXPECTED_CURRENCY[region]
             for i in range(count):

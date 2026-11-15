@@ -110,6 +110,10 @@ def validate_scope_counts(manifest: dict, existing_rows: list[dict]) -> list[str
     for key, scope in (manifest.get("scopes") or {}).items():
         if scope.get("status") != "success":
             continue
+        # A source-verified complete walk (AU via Shopify UCP) is authoritative
+        # even when a seasonal sale shrinks to a handful of rows or none.
+        if scope.get("verified_complete") is True:
+            continue
         current_count = len(scope.get("urls") or set())
         # Unisex scopes are derived from completed gender pages and may legitimately be small.
         if current_count < MIN_SCOPE_PRODUCTS and key[1] != "unisex":

@@ -2,7 +2,8 @@
 from __future__ import annotations
 from .base import discount_pct
 from .brands import BRAND_LABELS, vendor_matches_brand
-import json, urllib.parse, urllib.request, ssl, os, re, time
+from tools.shopify_ucp import variant_available, variant_option
+import json, random, urllib.parse, urllib.request, ssl, os, re, time
 from collections import Counter, defaultdict
 
 try:
@@ -22,6 +23,7 @@ _CTX.verify_mode = ssl.CERT_NONE
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 _MONEY_RE = re.compile(r"\$([\d,]+(?:\.\d{1,2})?)")
 _UCP_TRANSIENT_STATUSES = {408, 429, 500, 502, 503, 504}
+_PDP_META_RE = re.compile(r"var meta = (\{.*?\});", re.S)
 
 
 class Scraper:
@@ -53,6 +55,7 @@ class Scraper:
         self.http_blocked = False
         self.pdp_confirmation_failed = False
         self.last_fetch_status = None
+        self._rng = random.Random()
 
     @staticmethod
     def _ucp_agent_profile() -> str:
@@ -184,6 +187,13 @@ class Scraper:
         print("[evo] official UCP discovery has no trusted MCP endpoint", flush=True)
         return None
 
+    # UCP throttles bursts (~2 requests/minute once exceeded); the bounded
+    # 15/30/45/60s backoff gives each catalog page up to ~2.5 minutes.
+    UCP_RETRIES = 4
+    UCP_MIN_PAGE_SIZE = 12
+    # search_catalog returns at most this many variants per product.
+    UCP_VARIANT_CAP = 10
+
     def _ucp_call(self, endpoint: str, tool_name: str, arguments: dict) -> dict:
         response = self._post_ucp_json(
             endpoint,
@@ -193,6 +203,7 @@ class Scraper:
                 "method": "tools/call",
                 "params": {"name": tool_name, "arguments": arguments},
             },
+            retries=self.UCP_RETRIES,
         )
         return self._decode_ucp_result(response)
 
@@ -213,19 +224,27 @@ class Scraper:
         return handle if re.fullmatch(r"[a-z0-9][a-z0-9-]*", handle) else None
 
     def _scrape_ucp(self) -> tuple[list[dict], bool]:
-        """Discover complete brand scopes through EVO's official UCP catalog.
+        """Read complete brand scopes and prices from EVO's official UCP catalog.
 
-        Search results are used only as the product index: live evidence showed
-        that UCP search/lookup prices can lag the current PDP. Every handle is
-        therefore confirmed against product JSON before publication.
+        Since 2026-11-15 evo.com answers 429 on ``/products/*.js`` for every
+        crawler egress, so per-item ``.js`` confirmation is gone. UCP variant
+        prices match the live PDP, but search returns at most ten variants per
+        product. Products whose UCP variants are complete, or provably contain
+        the product-wide price pair, are priced from UCP; the rest (about a
+        third on 2026-11-16) are read from their rendered PDP page. A random
+        spot check of UCP-priced items against the rendered PDP guards the
+        rest: any mismatch, or too few verifiable samples, refuses publication.
         """
         endpoint = self._discover_ucp_endpoint()
         if not endpoint:
             return [], False
 
         try:
-            page_size = min(max(int(os.environ.get("EVO_UCP_PAGE_SIZE", "250")), 1), 250)
-            max_pages = min(max(int(os.environ.get("EVO_UCP_MAX_PAGES", "20")), 1), 50)
+            # EVO's UCP search answers HTTP 500 once a page's response nears
+            # ~2 MB (about 25 KB per product, so 100 Burton or Patagonia
+            # products fail since 2026-11-15); 50 per page stays near 1.2 MB.
+            page_size = min(max(int(os.environ.get("EVO_UCP_PAGE_SIZE", "50")), 1), 100)
+            max_pages = min(max(int(os.environ.get("EVO_UCP_MAX_PAGES", "50")), 1), 80)
         except ValueError:
             print("[evo] invalid UCP pagination environment", flush=True)
             return [], False
@@ -236,33 +255,47 @@ class Scraper:
             seen_cursors = set()
             products_by_handle = {}
             complete = False
+            brand_page_size = page_size
             for page_number in range(1, max_pages + 1):
-                pagination = {"limit": page_size}
-                if cursor:
-                    pagination["cursor"] = cursor
-                try:
-                    payload = self._ucp_call(
-                        endpoint,
-                        "search_catalog",
-                        {
-                            "meta": {
-                                "ucp-agent": {"profile": self._ucp_agent_profile()}
-                            },
-                            "catalog": {
-                                "query": BRAND_LABELS[brand],
-                                "context": {
-                                    "address_country": "US",
-                                    "language": "en-US",
-                                    "currency": "USD",
+                while True:
+                    pagination = {"limit": brand_page_size}
+                    if cursor:
+                        pagination["cursor"] = cursor
+                    try:
+                        payload = self._ucp_call(
+                            endpoint,
+                            "search_catalog",
+                            {
+                                "meta": {
+                                    "ucp-agent": {"profile": self._ucp_agent_profile()}
                                 },
-                                "filters": {"available": True},
-                                "pagination": pagination,
+                                "catalog": {
+                                    "query": BRAND_LABELS[brand],
+                                    "context": {
+                                        "address_country": "US",
+                                        "language": "en-US",
+                                        "currency": "USD",
+                                    },
+                                    "filters": {"available": True},
+                                    "pagination": pagination,
+                                },
                             },
-                        },
-                    )
-                except (TypeError, ValueError) as exc:
-                    print(f"[evo] UCP {brand} page {page_number} failed: {exc}", flush=True)
-                    return [], False
+                        )
+                        break
+                    except (TypeError, ValueError) as exc:
+                        # Oversized pages (~2 MB) fail with a persistent HTTP
+                        # 500, so retry the same cursor with a smaller page.
+                        # A 429 is throttling, not size, and must not shrink it.
+                        if self.last_fetch_status == 500 and brand_page_size > self.UCP_MIN_PAGE_SIZE:
+                            brand_page_size = max(self.UCP_MIN_PAGE_SIZE, brand_page_size // 2)
+                            print(
+                                f"[evo] UCP {brand} page {page_number} failed; "
+                                f"retrying with limit {brand_page_size}",
+                                flush=True,
+                            )
+                            continue
+                        print(f"[evo] UCP {brand} page {page_number} failed: {exc}", flush=True)
+                        return [], False
 
                 products = payload.get("products")
                 page = payload.get("pagination")
@@ -316,13 +349,12 @@ class Scraper:
             if len(images) == 1
         }
         try:
-            pdp_delay = max(
-                0,
-                int(os.environ.get("EVO_UCP_INTER_PDP_DELAY_MS", "500")),
-            ) / 1000
+            html_delay = max(0, int(os.environ.get("EVO_PDP_HTML_DELAY_MS", "1000"))) / 1000
+            html_limit = max(0, int(os.environ.get("EVO_PDP_HTML_MAX", "900")))
         except ValueError:
-            print("[evo] invalid EVO_UCP_INTER_PDP_DELAY_MS", flush=True)
+            print("[evo] invalid PDP page environment", flush=True)
             return [], False
+        html_pages = 0
         for brand, products in discovered.items():
             for product in products:
                 handle = self._ucp_product_handle(product)
@@ -343,19 +375,81 @@ class Scraper:
                     "region": self.REGION,
                     "category": "",
                 }
-                confirmed = self._confirm_browser_item_with_pdp(item)
+                if self._ucp_variants_authoritative(product):
+                    pdp = self._ucp_pdp(product, handle)
+                    quality = "ucp"
+                    if pdp is None:
+                        print(f"[evo] UCP product {handle} has malformed prices; refusing to publish", flush=True)
+                        return [], False
+                else:
+                    html_pages += 1
+                    if html_pages > html_limit:
+                        print(f"[evo] more than {html_limit} products need PDP pages; refusing to publish", flush=True)
+                        return [], False
+                    if html_pages > 1 and html_delay:
+                        time.sleep(html_delay)
+                    pdp = self._pdp_from_html(handle)
+                    quality = "pdp"
+                    if pdp is None:
+                        self.pdp_confirmation_failed = True
+                        print(
+                            f"[evo] PDP page for truncated UCP product {handle} could not be read; "
+                            "preserving the previous snapshot",
+                            flush=True,
+                        )
+                        return [], False
+                    if html_pages % 50 == 0:
+                        print(f"[evo] read {html_pages} PDP pages for truncated UCP products", flush=True)
+                built = self._item_from_pdp(item, pdp, quality=quality)
                 if self.pdp_confirmation_failed:
-                    print(
-                        "[evo] UCP discovery could not be PDP-confirmed; "
-                        "preserving the previous snapshot",
-                        flush=True,
-                    )
                     return [], False
-                if confirmed is not None:
-                    out.append(confirmed)
-                if pdp_delay:
-                    time.sleep(pdp_delay)
-        return out, self._meets_brand_minimums(out)
+                if built is not None:
+                    out.append(built)
+
+        print(
+            f"[evo] UCP snapshot: {len(out)} items; {html_pages} truncated products read from PDP pages",
+            flush=True,
+        )
+        if not self._meets_brand_minimums(out):
+            return out, False
+        if not self._spot_check_ucp_prices(out):
+            return [], False
+        return out, True
+
+    @staticmethod
+    def _ucp_pdp(product: dict, handle: str) -> dict | None:
+        """Shape a UCP catalog product like Shopify's product ``.js`` JSON."""
+        variants = []
+        for variant in product.get("variants") or []:
+            if not isinstance(variant, dict):
+                continue
+            price = variant.get("price") or {}
+            compare = variant.get("compare_at_price") or variant.get("list_price") or {}
+            if price.get("currency") not in (None, "USD") or compare.get("currency") not in (None, "USD"):
+                return None
+            amount = price.get("amount")
+            if not isinstance(amount, int) or isinstance(amount, bool):
+                return None
+            compare_amount = compare.get("amount")
+            options = [
+                str((option or {}).get("label") or "").strip()
+                for option in variant.get("options") or []
+            ]
+            color = variant_option(variant, "color", "colour") or (options[0] if options else "")
+            size = variant_option(variant, "size") or (options[1] if len(options) > 1 else "")
+            variants.append({
+                "available": variant_available(variant),
+                "price": amount,
+                "compare_at_price": compare_amount if isinstance(compare_amount, int) and compare_amount > 0 else None,
+                "option1": color,
+                "option2": size,
+            })
+        return {
+            "handle": handle,
+            "title": product.get("title"),
+            "media": product.get("media"),
+            "variants": variants,
+        }
 
     @staticmethod
     def _ucp_title_key(title: object) -> str:
@@ -711,6 +805,49 @@ class Scraper:
             return False
         return True
 
+    @classmethod
+    def _ucp_variants_authoritative(cls, product: dict) -> bool:
+        """True when UCP's variant list is enough to price the product exactly.
+
+        UCP search returns at most ten variants per product. A shorter list is
+        complete. A truncated list is still exact when one of its available
+        variants carries the product-wide minimum price and the available
+        compare-at maximum equals the product-wide list maximum.
+        """
+        variants = [variant for variant in product.get("variants") or [] if isinstance(variant, dict)]
+        if len(variants) < cls.UCP_VARIANT_CAP:
+            return True
+        available = [variant for variant in variants if variant_available(variant)]
+        if not available:
+            return False
+
+        def amount(value) -> int | None:
+            value = (value or {}).get("amount") if isinstance(value, dict) else None
+            return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+        prices = [amount(variant.get("price")) for variant in available]
+        if any(price is None for price in prices):
+            return False
+        price_min = amount(((product.get("price_range") or {}).get("min")))
+        if price_min is None or min(prices) != price_min:
+            return False
+        list_max = amount(((product.get("list_price_range") or {}).get("max")))
+        compares = [
+            amount(variant.get("compare_at_price") or variant.get("list_price")) or 0
+            for variant in available
+        ]
+        return not list_max or max(compares) == list_max
+
+    def _pdp_from_html(self, handle: str) -> dict | None:
+        """Read ``.js``-shaped product data from the rendered PDP, with retries."""
+        for attempt in range(1, 4):
+            pdp = self.parse_pdp_html(self._fetch_pdp_html(handle) or "")
+            if pdp is not None:
+                return pdp
+            if attempt < 3:
+                time.sleep(10 * attempt)
+        return None
+
     def _confirm_browser_item_with_pdp(self, item: dict) -> dict | None:
         """Replace rendered list prices with prices from the current product PDP."""
         url = item.get("url") or ""
@@ -721,8 +858,7 @@ class Scraper:
             return None
 
         pdp = self._fetch_pdp_json(handle)
-        parsed_pdp = self.parse_pdp_product(pdp)
-        if parsed_pdp is None:
+        if self.parse_pdp_product(pdp) is None:
             if self.last_fetch_status in {404, 410}:
                 print(f"[evo] PDP {self.last_fetch_status} for browser item {handle}; skipping unavailable item", flush=True)
                 return None
@@ -731,6 +867,17 @@ class Scraper:
                 f"[evo] PDP confirmation failed for browser item {handle}; refusing to publish list price",
                 flush=True,
             )
+            return None
+        return self._item_from_pdp(item, pdp, quality="pdp")
+
+    def _item_from_pdp(self, item: dict, pdp: dict, quality: str) -> dict | None:
+        """Build a publishable item from ``.js``-shaped product data."""
+        url = item.get("url") or ""
+        handle = url.split("/products/")[-1].split("?", 1)[0]
+        parsed_pdp = self.parse_pdp_product(pdp)
+        if parsed_pdp is None:
+            self.pdp_confirmation_failed = True
+            print(f"[evo] product data for {handle} is malformed; refusing to publish", flush=True)
             return None
         if not parsed_pdp["available"]:
             return None
@@ -770,9 +917,111 @@ class Scraper:
             "colors": sorted(colors),
             "discount_pct": discount_pct(parsed_pdp["original_price"], parsed_pdp["sale_price"]),
             "category": (pdp.get("type") if isinstance(pdp, dict) else None) or item.get("category") or "",
-            "price_source_quality": "pdp",
+            "price_source_quality": quality,
         })
         return confirmed
+
+    @staticmethod
+    def parse_pdp_html(html: str) -> dict | None:
+        """Recover ``.js``-shaped product data from a rendered EVO PDP.
+
+        ``var meta`` lists this product's own variant ids; each id's embedded
+        variant object carries availability, price and compare-at price, so
+        recommendation widgets on the page cannot leak into the result.
+        """
+        match = _PDP_META_RE.search(html or "")
+        if not match:
+            return None
+        try:
+            product = json.loads(match.group(1))["product"]
+            variant_ids = [int(variant["id"]) for variant in product["variants"]]
+        except (ValueError, KeyError, TypeError):
+            return None
+        decoder = json.JSONDecoder()
+        variants = []
+        for variant_id in variant_ids:
+            parsed = None
+            for found in re.finditer(r'\{"id":%d,"title":' % variant_id, html):
+                try:
+                    candidate, _ = decoder.raw_decode(html, found.start())
+                except ValueError:
+                    continue
+                if "available" in candidate and "price" in candidate:
+                    parsed = candidate
+                    break
+            if parsed is None:
+                return None
+            variants.append(parsed)
+        if not variants:
+            return None
+        return {"handle": product.get("handle"), "vendor": product.get("vendor"), "variants": variants}
+
+    def _fetch_pdp_html(self, handle: str) -> str | None:
+        url = f"{HOST}/products/{handle}"
+        try:
+            if curl_requests is not None:
+                response = curl_requests.get(url, impersonate="chrome124", timeout=45)
+                return response.text if response.status_code == 200 else None
+            request = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "text/html"})
+            with urllib.request.urlopen(request, context=_CTX, timeout=45) as response:
+                return response.read().decode("utf-8", "replace")
+        except Exception as exc:
+            print(f"[evo] PDP page fetch failed for {handle}: {str(exc)[:120]}", flush=True)
+            return None
+
+    def _spot_check_ucp_prices(self, items: list[dict]) -> bool:
+        """Compare a random sample of UCP prices with the rendered PDP.
+
+        Any disagreement refuses publication; so does verifying fewer than
+        ``EVO_UCP_SPOT_MIN`` items (e.g. when the PDP is throttled).
+        """
+        try:
+            target = max(0, int(os.environ.get("EVO_UCP_SPOT_CHECKS", "20")))
+            minimum = max(0, int(os.environ.get("EVO_UCP_SPOT_MIN", "10")))
+            delay = max(0, int(os.environ.get("EVO_UCP_SPOT_DELAY_MS", "2000"))) / 1000
+        except ValueError:
+            print("[evo] invalid UCP spot-check environment", flush=True)
+            return False
+        candidates = [
+            item for item in items
+            if item.get("price_source_quality") == "ucp"
+            and item["original_price"] > item["sale_price"] + 0.01
+        ]
+        self._rng.shuffle(candidates)
+        target = min(target, len(candidates))
+        minimum = min(minimum, target)
+        verified = 0
+        attempts = 0
+        for item in candidates:
+            if verified >= target or attempts >= target * 2:
+                break
+            attempts += 1
+            handle = item["url"].split("/products/")[-1]
+            if attempts > 1 and delay:
+                time.sleep(delay)
+            parsed = self.parse_pdp_product(self.parse_pdp_html(self._fetch_pdp_html(handle) or ""))
+            if parsed is None:
+                continue
+            if (
+                not parsed["available"]
+                or abs(parsed["sale_price"] - item["sale_price"]) > 0.01
+                or abs(parsed["original_price"] - item["original_price"]) > 0.01
+            ):
+                self.pdp_confirmation_failed = True
+                print(
+                    f"[evo] UCP price mismatch for {handle}: UCP {item['sale_price']}/{item['original_price']} "
+                    f"vs PDP {parsed.get('sale_price')}/{parsed.get('original_price')} "
+                    f"(available={parsed['available']}); preserving the previous snapshot",
+                    flush=True,
+                )
+                return False
+            verified += 1
+        print(f"[evo] UCP price spot check: {verified}/{target} matched the live PDP", flush=True)
+        if verified < minimum:
+            self.pdp_confirmation_failed = True
+            print(f"[evo] UCP price spot check verified fewer than {minimum} items; preserving the previous snapshot", flush=True)
+            return False
+        return True
 
     def _scrape_browser(self) -> tuple[list[dict], bool]:
         from camoufox.sync_api import Camoufox

@@ -57,7 +57,7 @@ class DealerScraperTests(unittest.TestCase):
 
         self.assertEqual(endpoint, "https://store-id.myshopify.com/api/ucp/mcp")
 
-    def test_evo_ucp_paginates_then_confirms_each_product_with_pdp(self):
+    def test_evo_ucp_paginates_and_publishes_ucp_prices(self):
         scraper = EvoScraper()
         scraper.MIN_ITEMS_BY_BRAND = {"patagonia": 2}
         pages = [
@@ -117,23 +117,25 @@ class DealerScraperTests(unittest.TestCase):
                 }],
             }
 
-        with patch.dict(os.environ, {"EVO_UCP_INTER_PDP_DELAY_MS": "0"}), patch.object(
+        with patch.object(
             scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
         ), patch.object(scraper, "_ucp_call", side_effect=pages) as ucp_call, patch.object(
             scraper, "_fetch_pdp_json", side_effect=pdp
-        ) as fetch_pdp:
+        ) as fetch_pdp, patch.object(scraper, "_spot_check_ucp_prices", return_value=True) as spot:
             items, complete = scraper._scrape_ucp()
 
         self.assertTrue(complete)
         self.assertEqual(len(items), 2)
-        self.assertEqual([item["price_source_quality"] for item in items], ["pdp", "pdp"])
+        self.assertEqual([item["price_source_quality"] for item in items], ["ucp", "ucp"])
         self.assertEqual([item["gender"] for item in items], ["women", "men"])
         self.assertEqual(items[0]["sale_price"], 120.0)
         self.assertEqual(items[0]["original_price"], 200.0)
         self.assertEqual(items[0]["sizes"], ["M"])
         self.assertEqual(items[0]["image"], "https://cdn.example/first.jpg")
-        self.assertEqual(fetch_pdp.call_count, 2)
+        fetch_pdp.assert_not_called()
+        spot.assert_called_once_with(items)
         first_args = ucp_call.call_args_list[0].args[2]
+        self.assertEqual(first_args["catalog"]["pagination"]["limit"], 50)
         second_args = ucp_call.call_args_list[1].args[2]
         self.assertNotIn("cursor", first_args["catalog"]["pagination"])
         self.assertEqual(second_args["catalog"]["pagination"]["cursor"], "next-page")
@@ -147,11 +149,21 @@ class DealerScraperTests(unittest.TestCase):
                 "title": "Burton Fish 3D Splitboard + Step On Splitboard Bindings 2026",
                 "handle": "burton-fish-bundle-2026",
                 "tags": ["type:custom-bundle"],
+                "variants": [{
+                    "availability": {"available": True},
+                    "price": {"amount": 97643, "currency": "USD"},
+                    "list_price": {"amount": 154990, "currency": "USD"},
+                }],
             }, {
                 "title": "Burton Fish 3D Splitboard + Step On Splitboard Bindings",
                 "handle": "burton-fish-bundle",
                 "tags": ["type:custom-bundle"],
-                "variants": [{"media": [{"type": "image", "url": image_url}]}],
+                "variants": [{
+                    "availability": {"available": True},
+                    "price": {"amount": 97643, "currency": "USD"},
+                    "list_price": {"amount": 154990, "currency": "USD"},
+                    "media": [{"type": "image", "url": image_url}],
+                }],
             }],
             "pagination": {"has_next_page": False, "cursor": None},
         }
@@ -169,11 +181,11 @@ class DealerScraperTests(unittest.TestCase):
                 }],
             }
 
-        with patch.dict(os.environ, {"EVO_UCP_INTER_PDP_DELAY_MS": "0"}), patch.object(
+        with patch.object(
             scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
         ), patch.object(scraper, "_ucp_call", return_value=page), patch.object(
             scraper, "_fetch_pdp_json", side_effect=pdp
-        ):
+        ), patch.object(scraper, "_spot_check_ucp_prices", return_value=True):
             items, complete = scraper._scrape_ucp()
 
         self.assertTrue(complete)
@@ -198,6 +210,243 @@ class DealerScraperTests(unittest.TestCase):
         self.assertEqual(items, [])
         self.assertFalse(complete)
         fetch_pdp.assert_not_called()
+
+    @staticmethod
+    def _evo_pdp_html(handle, variants, decoy=None):
+        meta = {"product": {"id": 1, "vendor": "Arc'teryx", "handle": handle,
+                            "variants": [{"id": v["id"], "price": v["price"]} for v in variants]}}
+        objects = [dict({"id": v["id"], "title": "Black / M", "option1": "Black", "option2": "M"}, **v) for v in variants]
+        parts = ["<script>var meta = " + json.dumps(meta, separators=(",", ":")) + ";</script>"]
+        parts += ["<script>x(" + json.dumps(obj, separators=(",", ":")) + ")</script>" for obj in objects]
+        if decoy:
+            parts.append("<script>" + json.dumps(dict({"title": "Other"}, **decoy), separators=(",", ":")) + "</script>")
+        return "<html>" + "".join(parts) + "</html>"
+
+    def test_evo_pdp_html_parser_reads_only_this_products_variants(self):
+        html = self._evo_pdp_html(
+            "241512-arc-teryx-atom-jacket-men-s",
+            [
+                {"id": 11, "available": True, "price": 16800, "compare_at_price": 28000},
+                {"id": 12, "available": False, "price": 9900, "compare_at_price": 28000},
+            ],
+            decoy={"id": 99, "available": True, "price": 100, "compare_at_price": 99900},
+        )
+
+        pdp = EvoScraper.parse_pdp_html(html)
+
+        self.assertEqual([variant["id"] for variant in pdp["variants"]], [11, 12])
+        parsed = EvoScraper.parse_pdp_product(pdp)
+        self.assertEqual((parsed["sale_price"], parsed["original_price"]), (168.0, 280.0))
+        self.assertIsNone(EvoScraper.parse_pdp_html("<html>no meta</html>"))
+
+    def _evo_spot_items(self, count):
+        return [{
+            "url": f"https://www.evo.com/products/item-{i}",
+            "sale_price": 168.0,
+            "original_price": 280.0,
+            "price_source_quality": "ucp",
+        } for i in range(count)]
+
+    def _evo_spot_check(self, items, pages, env=None):
+        scraper = EvoScraper()
+        scraper._rng = __import__("random").Random(0)
+        environment = {"EVO_UCP_SPOT_DELAY_MS": "0", "EVO_UCP_SPOT_CHECKS": "5", "EVO_UCP_SPOT_MIN": "3"}
+        environment.update(env or {})
+        with patch.dict(os.environ, environment), patch.object(scraper, "_fetch_pdp_html", side_effect=pages) as fetch:
+            result = scraper._spot_check_ucp_prices(items)
+        return scraper, result, fetch
+
+    def test_evo_spot_check_passes_when_sampled_pdps_match(self):
+        page = self._evo_pdp_html("x", [{"id": 1, "available": True, "price": 16800, "compare_at_price": 28000}])
+        scraper, result, fetch = self._evo_spot_check(self._evo_spot_items(10), lambda handle: page)
+        self.assertTrue(result)
+        self.assertEqual(fetch.call_count, 5)
+        self.assertFalse(scraper.pdp_confirmation_failed)
+
+    def test_evo_spot_check_refuses_on_any_mismatch(self):
+        good = self._evo_pdp_html("x", [{"id": 1, "available": True, "price": 16800, "compare_at_price": 28000}])
+        bad = self._evo_pdp_html("x", [{"id": 1, "available": True, "price": 15000, "compare_at_price": 28000}])
+        sold_out = self._evo_pdp_html("x", [{"id": 1, "available": False, "price": 16800, "compare_at_price": 28000}])
+        for odd in (bad, sold_out):
+            with self.subTest(odd=odd[-80:]):
+                pages = iter([good, good, odd, good, good])
+                scraper, result, _ = self._evo_spot_check(self._evo_spot_items(10), lambda handle: next(pages))
+                self.assertFalse(result)
+                self.assertTrue(scraper.pdp_confirmation_failed)
+
+    def test_evo_spot_check_requires_minimum_verified_samples(self):
+        good = self._evo_pdp_html("x", [{"id": 1, "available": True, "price": 16800, "compare_at_price": 28000}])
+        pages = iter([good, None, None, good, None, None, None, None, None, None])
+        scraper, result, fetch = self._evo_spot_check(self._evo_spot_items(10), lambda handle: next(pages))
+        self.assertFalse(result)
+        self.assertTrue(scraper.pdp_confirmation_failed)
+        self.assertEqual(fetch.call_count, 10)
+
+    def test_evo_ucp_halves_page_size_when_a_page_keeps_failing(self):
+        scraper = EvoScraper()
+        scraper.MIN_ITEMS_BY_BRAND = {"burton": 1}
+        page = {
+            "products": [{
+                "title": "Burton Test Board",
+                "handle": "burton-test-board",
+                "variants": [{
+                    "availability": {"available": True},
+                    "price": {"amount": 30000, "currency": "USD"},
+                    "list_price": {"amount": 50000, "currency": "USD"},
+                }],
+            }],
+            "pagination": {"has_next_page": False, "cursor": None},
+        }
+        def responses(statuses):
+            remaining = list(statuses)
+
+            def call(*args):
+                status = remaining.pop(0)
+                scraper.last_fetch_status = status
+                if status != 200:
+                    raise ValueError(f"HTTP {status}")
+                return page
+            return call
+
+        with patch.object(
+            scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
+        ), patch.object(
+            scraper, "_ucp_call", side_effect=responses([500, 500, 200])
+        ) as ucp_call, patch.object(scraper, "_spot_check_ucp_prices", return_value=True):
+            items, complete = scraper._scrape_ucp()
+
+        self.assertTrue(complete)
+        self.assertEqual(len(items), 1)
+        limits = [call.args[2]["catalog"]["pagination"]["limit"] for call in ucp_call.call_args_list]
+        self.assertEqual(limits, [50, 25, 12])
+
+        scraper = EvoScraper()
+        scraper.MIN_ITEMS_BY_BRAND = {"burton": 1}
+        with patch.object(
+            scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
+        ), patch.object(scraper, "_ucp_call", side_effect=responses([429])) as ucp_call:
+            items, complete = scraper._scrape_ucp()
+
+        self.assertEqual((items, complete), ([], False))
+        self.assertEqual(ucp_call.call_count, 1)
+
+    @staticmethod
+    def _evo_ucp_variant(price, compare, available=True, size="M"):
+        return {
+            "availability": {"available": available},
+            "price": {"amount": price, "currency": "USD"},
+            "list_price": {"amount": compare, "currency": "USD"},
+            "options": [{"name": "Color", "label": "Black"}, {"name": "Size", "label": size}],
+        }
+
+    def _evo_truncated_product(self, handle, variants, price_min, list_max):
+        return {
+            "title": "Arc'teryx Sentinel Tall Pants - Women's",
+            "handle": handle,
+            "variants": variants,
+            "price_range": {"min": {"amount": price_min, "currency": "USD"}},
+            "list_price_range": {"max": {"amount": list_max, "currency": "USD"}},
+        }
+
+    def test_evo_ucp_variant_list_authority(self):
+        full = [self._evo_ucp_variant(42000, 60000, available=False, size=str(i)) for i in range(8)]
+        provable = full + [self._evo_ucp_variant(33695, 60000, size="L"), self._evo_ucp_variant(35999, 60000, size="XL")]
+        cases = {
+            "complete": (self._evo_truncated_product("a", full[:3], 33695, 60000), True),
+            "truncated provable": (self._evo_truncated_product("b", provable, 33695, 60000), True),
+            "cheaper variant truncated": (self._evo_truncated_product("c", provable, 30000, 60000), False),
+            "higher list price truncated": (self._evo_truncated_product("d", provable, 33695, 70000), False),
+            "no available variant returned": (self._evo_truncated_product("e", full + full[:2], 33695, 60000), False),
+        }
+        for name, (product, expected) in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(EvoScraper._ucp_variants_authoritative(product), expected)
+
+    def test_evo_truncated_unprovable_product_is_read_from_pdp_page(self):
+        scraper = EvoScraper()
+        scraper.MIN_ITEMS_BY_BRAND = {"arcteryx": 1}
+        handle = "254412-arc-teryx-sentinel-tall-pants-women-s"
+        variants = [self._evo_ucp_variant(42000, 60000, available=False, size=str(i)) for i in range(8)]
+        variants += [self._evo_ucp_variant(35999, 60000, size="12"), self._evo_ucp_variant(35999, 60000, size="14")]
+        page = {
+            "products": [self._evo_truncated_product(handle, variants, 33695, 60000)],
+            "pagination": {"has_next_page": False, "cursor": None},
+        }
+        pdp_page = {
+            "handle": handle,
+            "vendor": "Arc'teryx",
+            "variants": [
+                {"available": True, "price": 33695, "compare_at_price": 60000, "option1": "Blaze", "option2": "6"},
+                {"available": True, "price": 35999, "compare_at_price": 60000, "option1": "Stratus", "option2": "12"},
+            ],
+        }
+        with patch.dict(os.environ, {"EVO_PDP_HTML_DELAY_MS": "0"}), patch.object(
+            scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
+        ), patch.object(scraper, "_ucp_call", return_value=page), patch.object(
+            scraper, "_pdp_from_html", return_value=pdp_page
+        ) as pdp_from_html, patch.object(scraper, "_spot_check_ucp_prices", return_value=True):
+            items, complete = scraper._scrape_ucp()
+
+        pdp_from_html.assert_called_once_with(handle)
+        self.assertTrue(complete)
+        self.assertEqual(len(items), 1)
+        self.assertEqual((items[0]["sale_price"], items[0]["original_price"]), (336.95, 600.0))
+        self.assertEqual(items[0]["price_source_quality"], "pdp")
+        self.assertEqual(items[0]["sizes"], ["6", "12"])
+
+    def test_evo_unreadable_pdp_page_refuses_snapshot(self):
+        scraper = EvoScraper()
+        scraper.MIN_ITEMS_BY_BRAND = {"arcteryx": 1}
+        variants = [self._evo_ucp_variant(42000, 60000, available=False, size=str(i)) for i in range(10)]
+        page = {
+            "products": [self._evo_truncated_product("x-pants", variants, 33695, 60000)],
+            "pagination": {"has_next_page": False, "cursor": None},
+        }
+        with patch.dict(os.environ, {"EVO_PDP_HTML_DELAY_MS": "0"}), patch.object(
+            scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
+        ), patch.object(scraper, "_ucp_call", return_value=page), patch.object(
+            scraper, "_pdp_from_html", return_value=None
+        ), patch.object(scraper, "_spot_check_ucp_prices") as spot:
+            items, complete = scraper._scrape_ucp()
+
+        self.assertEqual(items, [])
+        self.assertFalse(complete)
+        self.assertTrue(scraper.pdp_confirmation_failed)
+        spot.assert_not_called()
+
+    def test_evo_spot_check_only_samples_ucp_priced_items(self):
+        page = self._evo_pdp_html("x", [{"id": 1, "available": True, "price": 16800, "compare_at_price": 28000}])
+        items = self._evo_spot_items(6)
+        for item in items[:4]:
+            item["price_source_quality"] = "pdp"
+        scraper, result, fetch = self._evo_spot_check(items, lambda handle: page, env={"EVO_UCP_SPOT_MIN": "2"})
+        self.assertTrue(result)
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_evo_ucp_snapshot_is_refused_when_spot_check_fails(self):
+        scraper = EvoScraper()
+        scraper.MIN_ITEMS_BY_BRAND = {"burton": 1}
+        page = {
+            "products": [{
+                "title": "Burton Test Board",
+                "handle": "burton-test-board",
+                "variants": [{
+                    "availability": {"available": True},
+                    "price": {"amount": 30000, "currency": "USD"},
+                    "list_price": {"amount": 50000, "currency": "USD"},
+                }],
+            }],
+            "pagination": {"has_next_page": False, "cursor": None},
+        }
+        with patch.object(
+            scraper, "_discover_ucp_endpoint", return_value="https://store.myshopify.com/api/ucp/mcp"
+        ), patch.object(scraper, "_ucp_call", return_value=page), patch.object(
+            scraper, "_spot_check_ucp_prices", return_value=False
+        ):
+            items, complete = scraper._scrape_ucp()
+
+        self.assertEqual(items, [])
+        self.assertFalse(complete)
 
     def test_evo_scrape_prefers_complete_ucp_snapshot(self):
         scraper = EvoScraper()

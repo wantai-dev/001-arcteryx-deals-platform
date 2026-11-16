@@ -59,7 +59,10 @@ EXPECTED_CURRENCY = {
 PLATFORM_REGION_MIN_ROWS = {
     ("arcteryx_outlet", "us"): 250,
     ("arcteryx_outlet", "ca"): 100,
-    ("arcteryx_outlet", "au"): 10,
+    # Australia is a seasonal sale feed: it can legitimately be empty (no AU
+    # discounts on 2026-11-16). Its completeness is enforced at crawl time by
+    # the verified UCP catalog walk, and stale AU rows still fail the 72h
+    # per-product freshness check, so it has no row floor here.
     # The European Outlet regions share one catalog (247 rows each on 2026-11-14).
     # 200 keeps roughly the same ~80% headroom as the US floor.
     **{("arcteryx_outlet", region): 200 for region in ("at", "be", "ch", "de", "dk", "es", "fi", "fr", "gb", "ie", "it", "nl", "se")},

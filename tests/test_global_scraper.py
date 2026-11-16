@@ -2,9 +2,12 @@ import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
 
+from tools.shopify_ucp import UcpError
 from global_scraper import (
     REGIONS,
     fetch_json,
+    scrape_au_ucp_sale,
+    ucp_product_records,
     next_stable_bottom_rounds,
     outlet_link_gender,
     unisex_scope_result,
@@ -156,3 +159,95 @@ class OfficialJsonRetryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+AU_REGION = next(region for region in REGIONS if region["code"] == "au")
+
+
+def au_money(amount):
+    return {"amount": amount, "currency": "AUD"}
+
+
+def au_variant(color, size, price, compare_at=None, available=True, list_price=None):
+    variant = {
+        "title": f"{color} / {size}",
+        "price": au_money(price),
+        "availability": {"available": available},
+        "options": [{"name": "Color", "label": color}, {"name": "Size", "label": size}],
+        "media": [{"type": "image", "url": f"https://cdn.example/{color}.jpg"}],
+    }
+    if compare_at is not None:
+        variant["compare_at_price"] = au_money(compare_at)
+    if list_price is not None:
+        variant["list_price"] = au_money(list_price)
+    return variant
+
+
+def au_product(handle, title, variants, collections=("mens",)):
+    return {
+        "id": f"gid://shopify/Product/{abs(hash(handle)) % 10**9}",
+        "handle": handle,
+        "title": title,
+        "description": {"html": "<p>Shell jacket</p>"},
+        "tags": ["gender:men"],
+        "media": [{"type": "image", "url": "https://cdn.example/product.jpg"}],
+        "collections": [{"handle": handle_} for handle_ in collections],
+        "variants": variants,
+    }
+
+
+class AuUcpSaleTests(unittest.TestCase):
+    def test_maps_discounted_variants_to_color_rows(self):
+        product = au_product("beta-sl-jacket-mens-x00000968101", "Beta SL Jacket Men's", [
+            au_variant("Black", "S", 59500, compare_at=82000),
+            au_variant("Black", "M", 59500, compare_at=82000, available=False),
+            au_variant("Blue", "M", 82000, compare_at=82000),
+            au_variant("Green", "L", 61500, list_price=82000, available=False),
+        ], collections=("mens", "sale"))
+
+        rows = ucp_product_records(product, AU_REGION, "2026-11-16 00:00:00")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["sku_id"], "beta-sl-jacket-mens-x00000968101_Black_au")
+        self.assertEqual(row["url"], "https://arcteryx.com.au/products/beta-sl-jacket-mens-x00000968101")
+        self.assertEqual((row["sale_price"], row["original_price"], row["discount_pct"]), (595.0, 820.0, 27))
+        self.assertEqual(row["sizes"], ["S", "M"])
+        self.assertEqual(row["size_stock"], {"S": "in_stock", "M": "out_of_stock"})
+        self.assertEqual(row["gender"], "men")
+        self.assertEqual(row["currency"], "AUD")
+        self.assertEqual(row["image_url"], "https://cdn.example/Black.jpg")
+        self.assertEqual(row["source"], "arcteryx_au_shopify_sale")
+
+    def walk(self, products, complete=True):
+        client = MagicMock()
+        client.search_all.return_value = (products, complete)
+        return scrape_au_ucp_sale(AU_REGION, client=client)
+
+    def full_price_catalog(self, count=400):
+        return [
+            au_product(f"product-{i}", f"Product {i} Men's", [au_variant("Black", "M", 50000)])
+            for i in range(count)
+        ]
+
+    def test_complete_walk_without_discounts_is_an_authoritative_empty_sale(self):
+        rows, complete = self.walk(self.full_price_catalog())
+        self.assertEqual(rows, [])
+        self.assertTrue(complete)
+
+    def test_incomplete_or_tiny_walk_is_not_authoritative(self):
+        self.assertEqual(self.walk(self.full_price_catalog(), complete=False), ([], False))
+        self.assertEqual(self.walk(self.full_price_catalog(count=20)), ([], False))
+
+    def test_sale_members_without_any_price_pair_fail_closed(self):
+        catalog = self.full_price_catalog()
+        catalog[0]["collections"] = [{"handle": "sale"}]
+        with self.assertRaises(UcpError):
+            self.walk(catalog)
+
+    def test_complete_walk_returns_discounted_rows(self):
+        catalog = self.full_price_catalog()
+        catalog[0]["variants"] = [au_variant("Black", "M", 40000, compare_at=50000)]
+        rows, complete = self.walk(catalog)
+        self.assertTrue(complete)
+        self.assertEqual([row["sku_id"] for row in rows], ["product-0_Black_au"])

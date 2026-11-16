@@ -168,6 +168,25 @@ export type CatalogProductRow = {
   last_changed_at: string | null;
 };
 
+export type CatalogRegionalPriceRow = {
+  catalog_product_id: string | null;
+  country: string | null;
+  currency: string | null;
+  list_price: number | string | null;
+  list_price_max: number | string | null;
+  source_url: string | null;
+  status: string | null;
+};
+
+export type CatalogRegionalPrice = {
+  catalog_product_id: string;
+  country: string;
+  currency: string;
+  list_price: number;
+  list_price_max: number;
+  source_url: string;
+};
+
 export type CatalogProduct = {
   catalog_product_id: string;
   brand_key: CatalogBrandKey;

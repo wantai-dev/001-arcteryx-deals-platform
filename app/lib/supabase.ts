@@ -6,8 +6,16 @@ import { SUPABASE_ANON, SUPABASE_URL, visibleProducts } from './catalog';
 import { postPriceAlert } from './priceAlerts';
 import { INITIAL_PRODUCT_LIMIT, INITIAL_PRODUCT_REGION } from './productPreview';
 import { loadCompleteHistory } from './historyData';
-import type { CatalogProduct, CatalogProductRow, PriceAlertRequest, PriceHistoryRow, ProductRow } from './types';
-import { normalizeCatalogProduct } from './yearbook';
+import type {
+  CatalogProduct,
+  CatalogProductRow,
+  CatalogRegionalPrice,
+  CatalogRegionalPriceRow,
+  PriceAlertRequest,
+  PriceHistoryRow,
+  ProductRow,
+} from './types';
+import { normalizeCatalogProduct, normalizeRegionalPrice } from './yearbook';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: {
@@ -135,4 +143,25 @@ export async function fetchYearbookProducts() {
   return rows
     .map(normalizeCatalogProduct)
     .filter((product): product is CatalogProduct => product !== null);
+}
+
+export async function fetchYearbookRegionalPrices() {
+  const pageSize = 1000;
+  const rows: CatalogRegionalPriceRow[] = [];
+  for (let offset = 0; offset <= 30000; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('catalog_product_prices')
+      .select('catalog_product_id,country,currency,list_price,list_price_max,source_url,status')
+      .eq('status', 'active')
+      .order('country', { ascending: true })
+      .order('catalog_product_id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = (data || []) as unknown as CatalogRegionalPriceRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows
+    .map(normalizeRegionalPrice)
+    .filter((price): price is CatalogRegionalPrice => price !== null);
 }

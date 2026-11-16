@@ -16,6 +16,8 @@ import requests
 
 BRAND_KEYS = ("arcteryx", "burton", "patagonia")
 DEFAULT_MINIMUMS = {"arcteryx": 200, "burton": 350, "patagonia": 350}
+# Each Outlet country priced ~420 Arc'teryx styles on 2026-11-17.
+MIN_REGIONAL_PRICES_PER_COUNTRY = 200
 
 
 class CatalogReadbackError(RuntimeError):
@@ -43,18 +45,22 @@ def public_config(template: Path) -> tuple[str, str]:
 
 
 def fetch_public_rows(
-    url: str, anon: str, *, session: Any = requests, page_size: int = 1000
+    url: str,
+    anon: str,
+    *,
+    session: Any = requests,
+    page_size: int = 1000,
+    table: str = "catalog_products",
+    select: str = "catalog_product_id,brand_key,status,last_seen_at",
+    order: str = "catalog_product_id.asc",
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     headers = {"apikey": anon, "Authorization": f"Bearer {anon}"}
     for offset in range(0, 50_001, page_size):
         response = session.get(
-            f"{url}/rest/v1/catalog_products",
+            f"{url}/rest/v1/{table}",
             headers={**headers, "Range": f"{offset}-{offset + page_size - 1}"},
-            params={
-                "select": "catalog_product_id,brand_key,status,last_seen_at",
-                "order": "catalog_product_id.asc",
-            },
+            params={"select": select, "order": order},
             timeout=30,
         )
         response.raise_for_status()
@@ -122,6 +128,54 @@ def verify_rows(
     return {"rows": len(rows), "by_brand": dict(sorted(counts.items()))}
 
 
+def verify_regional_rows(
+    rows: Sequence[Mapping[str, Any]],
+    expected_state: Mapping[str, Any],
+    *,
+    after: datetime,
+    minimum: int = MIN_REGIONAL_PRICES_PER_COUNTRY,
+) -> dict[str, int] | None:
+    """Check public Arc'teryx regional prices against the completed run."""
+    regional = expected_state.get("regional_prices")
+    if not regional:
+        return None
+    report = regional.get("report") or {}
+    incomplete = sorted(country for country, entry in report.items() if not entry.get("complete"))
+    if incomplete:
+        raise CatalogReadbackError(f"regional prices incomplete for: {','.join(incomplete)}")
+    expected: dict[str, set[str]] = {}
+    for row in regional.get("rows") or ():
+        expected.setdefault(str(row.get("country")), set()).add(str(row.get("catalog_product_id")))
+    actual: dict[str, set[str]] = {}
+    for row in rows:
+        if row.get("status") != "active":
+            raise CatalogReadbackError(f"public regional prices contain a non-active row: {row}")
+        key = (str(row.get("catalog_product_id")), str(row.get("country")))
+        bucket = actual.setdefault(key[1], set())
+        if key[0] in bucket:
+            raise CatalogReadbackError(f"duplicate public regional price: {key}")
+        bucket.add(key[0])
+        if not row.get("last_seen_at") or parse_timestamp(str(row["last_seen_at"])) < after:
+            raise CatalogReadbackError(f"public regional price is older than the sync: {key}")
+    counts: dict[str, int] = {}
+    for country in regional.get("complete_countries") or ():
+        if actual.get(country, set()) != expected.get(country, set()):
+            missing = sorted(expected.get(country, set()) - actual.get(country, set()))[:5]
+            unexpected = sorted(actual.get(country, set()) - expected.get(country, set()))[:5]
+            raise CatalogReadbackError(
+                f"public {country} prices differ from completed run: missing={missing} unexpected={unexpected}"
+            )
+        counts[country] = len(actual[country])
+        if counts[country] < minimum:
+            raise CatalogReadbackError(
+                f"public {country} regional prices {counts[country]} below minimum {minimum}"
+            )
+    extra = sorted(set(actual) - set(counts))
+    if extra:
+        raise CatalogReadbackError(f"public regional prices for unexpected countries: {extra}")
+    return counts
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--expected-state", type=Path, required=True)
@@ -138,11 +192,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         expected = json.loads(args.expected_state.read_text(encoding="utf-8"))
         url, anon = public_config(args.config_template)
-        result = verify_rows(fetch_public_rows(url, anon), expected, after=parse_timestamp(args.after))
+        after = parse_timestamp(args.after)
+        result = verify_rows(fetch_public_rows(url, anon), expected, after=after)
+        regional = None
+        if expected.get("regional_prices"):
+            regional = verify_regional_rows(
+                fetch_public_rows(
+                    url,
+                    anon,
+                    table="catalog_product_prices",
+                    select="catalog_product_id,country,status,last_seen_at",
+                    order="country.asc,catalog_product_id.asc",
+                ),
+                expected,
+                after=after,
+            )
     except (OSError, ValueError, requests.RequestException, CatalogReadbackError) as exc:
         print(f"[catalog-readback] ERROR: {exc}")
         return 1
     print(f"[catalog-readback] OK rows={result['rows']} by_brand={result['by_brand']}")
+    if regional is not None:
+        print(f"[catalog-readback] OK regional_prices={sum(regional.values())} by_country={regional}")
     return 0
 
 

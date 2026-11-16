@@ -8,15 +8,19 @@ import {
   filterYearbookProducts,
   formatCatalogPrice,
   groupYearbookArchive,
+  indexRegionalPrices,
   indexYearbookDeals,
   normalizeCatalogProduct,
+  normalizeRegionalPrice,
+  officialPriceFor,
+  otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
   yearbookFreshnessLabel,
   yearbookYear,
   yearbookYears,
 } from '../lib/yearbook';
-import type { CatalogProductRow, Product } from '../lib/types';
+import type { CatalogProductRow, CatalogRegionalPriceRow, Product } from '../lib/types';
 
 function arcRow(overrides: Partial<CatalogProductRow> = {}): CatalogProductRow {
   return {
@@ -371,4 +375,62 @@ test('keeps one lowest offer per currency and groups unmatched colors into archi
   assert.equal(archive[0]!.official_product_id, '200000');
   assert.equal(archive[0]!.offers.length, 3);
   assert.deepEqual(archive[0]!.colors, ['Black', 'Blue']);
+});
+
+
+function regionalRow(country: string, currency: string, price: number, overrides: Partial<CatalogRegionalPriceRow> = {}): CatalogRegionalPriceRow {
+  return {
+    catalog_product_id: 'arcteryx:x000009715',
+    country,
+    currency,
+    list_price: price,
+    list_price_max: price,
+    source_url: `https://arcteryx.com/${country}/en/shop/mens/vertex-speed-low-shoe-9715`,
+    status: 'active',
+    ...overrides,
+  };
+}
+
+test('normalizes regional official prices and rejects mismatched currencies or shops', () => {
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))?.list_price, 150);
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'EUR', 150)), null);
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'GBP', 150, { source_url: 'https://arcteryx.com/us/en/shop/x' })), null);
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'GBP', 150, { status: 'missing' })), null);
+  assert.equal(normalizeRegionalPrice(regionalRow('jp', 'JPY', 150)), null);
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'GBP', 150, { catalog_product_id: 'burton:x' })), null);
+});
+
+test('shows the shopper region official price and falls back to the canonical market', () => {
+  const product = normalizeCatalogProduct(arcRow())!;
+  const index = indexRegionalPrices([
+    normalizeRegionalPrice(regionalRow('us', 'USD', 180))!,
+    normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))!,
+  ]);
+  assert.equal(officialPriceFor(product, index, 'gb').currency, 'GBP');
+  assert.equal(officialPriceFor(product, index, 'GB').list_price, 150);
+  for (const region of ['all', 'au', 'de']) {
+    const fallback = officialPriceFor(product, index, region);
+    assert.equal(fallback.country, 'us');
+    assert.equal(fallback.source_url, product.source_url);
+  }
+});
+
+test('orders other regions cheapest first after conversion and excludes the shown region', () => {
+  const product = normalizeCatalogProduct(arcRow())!;
+  const index = indexRegionalPrices([
+    normalizeRegionalPrice(regionalRow('us', 'USD', 180))!,
+    normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))!,
+    normalizeRegionalPrice(regionalRow('ca', 'CAD', 230))!,
+    normalizeRegionalPrice(regionalRow('de', 'EUR', 180))!,
+  ]);
+  const snapshot = { base: 'USD', date: '2026-11-17', rates: { USD: 1, GBP: 0.79, CAD: 1.4, EUR: 0.93 } };
+  const shown = officialPriceFor(product, index, 'gb');
+  const rows = otherOfficialPrices(product, index, shown, 'GBP', snapshot as never);
+  // C$230 ≈ £130, US$180 ≈ £142, €180 ≈ £153.
+  assert.deepEqual(rows.map((row) => row.price.country), ['ca', 'us', 'de']);
+  assert.equal(rows[0]!.converted.currency, 'GBP');
+  assert.equal(Math.round(rows[0]!.converted.value), Math.round((230 / 1.4) * 0.79));
+  const original = otherOfficialPrices(product, index, shown, 'original', null);
+  assert.deepEqual(original.map((row) => row.price.country), ['ca', 'de', 'us']);
+  assert.ok(original.every((row) => !row.converted.converted));
 });

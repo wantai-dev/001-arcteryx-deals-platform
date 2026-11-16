@@ -29,6 +29,7 @@
         "**/*.py",
         ".github/workflows/**",
         "server_run_*.sh",
+        "supabase/migrations/**",
         "requirements.txt"
       ],
       "command": [

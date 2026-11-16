@@ -67,3 +67,34 @@ class CatalogMigrationGuardTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+REGIONAL_MIGRATION = MIGRATION.with_name("20261117090000_arcteryx_regional_official_prices.sql")
+
+
+class RegionalPriceMigrationGuardTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.sql = REGIONAL_MIGRATION.read_text(encoding="utf-8").lower()
+
+    def test_regional_prices_hang_off_the_canonical_catalog_without_touching_it(self):
+        self.assertIn("create table if not exists public.catalog_product_prices", self.sql)
+        self.assertIn("references public.catalog_products (catalog_product_id)", self.sql)
+        self.assertIn("primary key (catalog_product_id, country)", self.sql)
+        self.assertNotIn("alter table public.catalog_products", self.sql)
+        self.assertNotIn("public.products", self.sql)
+        self.assertNotIn("public.price_history", self.sql)
+
+    def test_country_currency_and_official_url_contracts_are_enforced(self):
+        self.assertIn("brand_key = 'arcteryx'", self.sql)
+        self.assertIn("country = 'gb' and currency = 'gbp'", self.sql)
+        self.assertIn("currency = 'eur'", self.sql)
+        self.assertIn("^https://arcteryx[.]com/' || country", self.sql)
+        self.assertNotIn("'jp'", self.sql)
+
+    def test_regional_prices_are_public_read_only(self):
+        self.assertIn("alter table public.catalog_product_prices enable row level security", self.sql)
+        self.assertIn("using (status = 'active')", self.sql)
+        self.assertIn("grant select on table public.catalog_product_prices to anon, authenticated", self.sql)
+        self.assertNotIn("grant insert on table public.catalog_product_prices to anon", self.sql)
+

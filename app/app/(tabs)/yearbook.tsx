@@ -45,12 +45,16 @@ import {
   marketCurrencyOptions,
   marketRegionOptions,
 } from "../../lib/marketOptions";
-import { fetchYearbookProducts } from "../../lib/supabase";
+import {
+  fetchYearbookProducts,
+  fetchYearbookRegionalPrices,
+} from "../../lib/supabase";
 import { radii, typography, type ThemeColors } from "../../lib/theme";
 import type {
   CatalogBrandKey,
   CatalogGender,
   CatalogProduct,
+  CatalogRegionalPrice,
   Product,
 } from "../../lib/types";
 import {
@@ -60,11 +64,16 @@ import {
   filterYearbookArchive,
   filterYearbookProducts,
   groupYearbookArchive,
+  indexRegionalPrices,
   indexYearbookDeals,
+  officialPriceFor,
+  otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
   yearbookYear,
   yearbookYears,
+  type ComparedOfficialPrice,
+  type RegionalPriceIndex,
   type YearbookArchiveStyle,
 } from "../../lib/yearbook";
 
@@ -90,6 +99,9 @@ export default function YearbookScreen() {
     params?: Record<string, string | number>,
   ) => browseText(prefs.language, key, params);
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+  const [regionalPrices, setRegionalPrices] = useState<RegionalPriceIndex>(
+    () => new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [scope, setScope] = useState<Scope>("current");
@@ -130,7 +142,14 @@ export default function YearbookScreen() {
     setLoading(true);
     setUnavailable(false);
     try {
-      setCatalog(await fetchYearbookProducts());
+      const [products, prices] = await Promise.all([
+        fetchYearbookProducts(),
+        // Regional prices are an enhancement: without them every card keeps
+        // its canonical market price.
+        fetchYearbookRegionalPrices().catch(() => []),
+      ]);
+      setCatalog(products);
+      setRegionalPrices(indexRegionalPrices(prices));
     } catch {
       setUnavailable(true);
     } finally {
@@ -173,6 +192,7 @@ export default function YearbookScreen() {
         sort,
         currency,
         prefs.rateSnapshot,
+        (product) => officialPriceFor(product, regionalPrices, region),
       ).map((value) => ({ kind: "current", value }));
     return sortArchive(archiveFiltered, sort, currency, prefs.rateSnapshot).map(
       (value) => ({ kind: "archive", value }),
@@ -182,6 +202,8 @@ export default function YearbookScreen() {
     currency,
     currentFiltered,
     prefs.rateSnapshot,
+    region,
+    regionalPrices,
     scope,
     sort,
   ]);
@@ -368,6 +390,7 @@ export default function YearbookScreen() {
             {item.kind === "current" ? (
               <CurrentCard
                 product={item.value}
+                official={officialPriceFor(item.value, regionalPrices, region)}
                 offers={
                   dealIndex.byCatalogId[item.value.catalog_product_id] || []
                 }
@@ -446,6 +469,14 @@ export default function YearbookScreen() {
       {selectedProduct ? (
         <CatalogDetailSheet
           product={selectedProduct}
+          official={officialPriceFor(selectedProduct, regionalPrices, region)}
+          others={otherOfficialPrices(
+            selectedProduct,
+            regionalPrices,
+            officialPriceFor(selectedProduct, regionalPrices, region),
+            currency,
+            prefs.rateSnapshot,
+          )}
           offers={
             dealIndex.byCatalogId[selectedProduct.catalog_product_id] || []
           }
@@ -490,12 +521,14 @@ export default function YearbookScreen() {
 
 function CurrentCard({
   product,
+  official,
   offers,
   saved,
   onOpen,
   onToggleSave,
 }: {
   product: CatalogProduct;
+  official: CatalogRegionalPrice;
   offers: Product[];
   saved: boolean;
   onOpen: () => void;
@@ -504,8 +537,10 @@ function CurrentCard({
   const prefs = usePreferences();
   const { currency } = useMarket();
   const { colors, styles } = useBrowseStyles();
-  const b = (key: Parameters<typeof browseText>[1]) =>
-    browseText(prefs.language, key);
+  const b = (
+    key: Parameters<typeof browseText>[1],
+    params?: Record<string, string | number>,
+  ) => browseText(prefs.language, key, params);
   const selection = comparableYearbookOffer(
     offers,
     currency,
@@ -564,12 +599,15 @@ function CurrentCard({
       <Text style={styles.price}>
         {best
           ? offerPriceLabel(offers, selection.comparableAcrossCurrencies, prefs)
-          : formatRange(product, prefs)}
+          : formatRange(official, prefs)}
       </Text>
       <Text style={styles.marketMeta}>
         {best
           ? `${best.region.toUpperCase()} · ${PLATFORM[best._platform]?.label || best._platform}`
-          : `${product.country.toUpperCase()} · ${product.currency}`}
+          : b("officialPriceMeta", {
+              code: official.country.toUpperCase(),
+              region: prefs.regionLabel(official.country),
+            })}
       </Text>
     </Pressable>
   );
@@ -631,12 +669,16 @@ function ArchiveCard({ product }: { product: YearbookArchiveStyle }) {
 
 function CatalogDetailSheet({
   product,
+  official,
+  others,
   offers,
   onClose,
   onAlert,
   onToggleSave,
 }: {
   product: CatalogProduct;
+  official: CatalogRegionalPrice;
+  others: ComparedOfficialPrice[];
   offers: Product[];
   onClose: () => void;
   onAlert: () => void;
@@ -646,8 +688,10 @@ function CatalogDetailSheet({
   const { currency } = useMarket();
   const watchlist = useWatchlist();
   const { colors, styles } = useBrowseStyles();
-  const b = (key: Parameters<typeof browseText>[1]) =>
-    browseText(prefs.language, key);
+  const b = (
+    key: Parameters<typeof browseText>[1],
+    params?: Record<string, string | number>,
+  ) => browseText(prefs.language, key, params);
   const selection = comparableYearbookOffer(
     offers,
     currency,
@@ -655,6 +699,10 @@ function CatalogDetailSheet({
   );
   const best = selection.offer;
   const saved = watchlist.isModelSaved(product);
+  const [showAllRegions, setShowAllRegions] = useState(false);
+  const officialRegion = prefs.regionLabel(official.country);
+  const visibleOthers = showAllRegions ? others : others.slice(0, 3);
+  const anyConverted = others.some((row) => row.converted.converted);
 
   function openAlert() {
     onAlert();
@@ -697,11 +745,68 @@ function CatalogDetailSheet({
             {prefs.categoryLabel(product.categories[0] || "other")}
           </Text>
           <Text style={styles.detailName}>{product.name}</Text>
-          <Text style={styles.detailLabel}>{b("officialPrice")}</Text>
-          <Text style={styles.detailPrice}>{formatRange(product, prefs)}</Text>
-          <Text style={styles.detailMeta}>
-            {product.country.toUpperCase()} · {product.currency}
+          <Text style={styles.detailLabel}>
+            {b("officialPriceIn", { region: officialRegion })}
           </Text>
+          <Text style={styles.detailPrice}>{formatRange(official, prefs)}</Text>
+          <Text style={styles.detailMeta}>
+            {official.country.toUpperCase()} · {official.currency}
+          </Text>
+          {others.length ? (
+            <View style={styles.regionalBlock}>
+              <Text style={styles.detailLabel}>{b("otherRegionalPrices")}</Text>
+              {anyConverted ? (
+                <Text style={styles.regionalNote}>
+                  {b("convertedForReference", { currency })}
+                </Text>
+              ) : null}
+              {visibleOthers.map((row, position) => (
+                <View key={row.price.country} style={styles.regionalRow}>
+                  <Text style={styles.regionalName}>
+                    {prefs.regionLabel(row.price.country)}{" "}
+                    {formatRange(row.price, prefs)}
+                  </Text>
+                  {row.converted.converted ? (
+                    <Text
+                      style={[
+                        styles.regionalConverted,
+                        position === 0 ? styles.regionalCheapest : null,
+                      ]}
+                    >
+                      ≈{" "}
+                      {prefs.formatMoney(
+                        row.converted.value,
+                        row.converted.currency,
+                      )}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+              {others.length > 3 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showAllRegions
+                      ? b("showFewerRegions")
+                      : b("showAllRegions", { count: others.length + 1 })
+                  }
+                  style={styles.regionalToggle}
+                  onPress={() => setShowAllRegions((value) => !value)}
+                >
+                  <Text style={styles.regionalToggleText}>
+                    {showAllRegions
+                      ? b("showFewerRegions")
+                      : b("showAllRegions", { count: others.length + 1 })}
+                  </Text>
+                  <Ionicons
+                    name={showAllRegions ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
           {best ? (
             <Pressable
               accessibilityRole="button"
@@ -721,11 +826,13 @@ function CatalogDetailSheet({
           ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={b("openOfficial")}
+            accessibilityLabel={b("openOfficialIn", { region: officialRegion })}
             style={styles.detailSecondary}
-            onPress={() => void Linking.openURL(product.source_url)}
+            onPress={() => void Linking.openURL(official.source_url)}
           >
-            <Text style={styles.detailSecondaryText}>{b("openOfficial")}</Text>
+            <Text style={styles.detailSecondaryText}>
+              {b("openOfficialIn", { region: officialRegion })}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -842,7 +949,7 @@ function Segment({
   );
 }
 function formatRange(
-  product: CatalogProduct,
+  product: Pick<CatalogRegionalPrice, "list_price" | "list_price_max" | "currency">,
   prefs: ReturnType<typeof usePreferences>,
 ) {
   const min = prefs.formatMoney(product.list_price, product.currency);
@@ -874,20 +981,22 @@ function sortCurrent(
   sort: Sort,
   currency: CurrencyPreference,
   snapshot: RateSnapshot | null,
+  officialPrice: (product: CatalogProduct) => CatalogRegionalPrice,
 ) {
+  const price = (product: CatalogProduct) => {
+    const official = officialPrice(product);
+    return {
+      value: sortablePrice(official.list_price, official.currency, currency, snapshot),
+      currency: official.currency,
+    };
+  };
   return [...rows].sort((a, b) =>
     sort === "price_asc"
-      ? comparePrice(
-          sortablePrice(a.list_price, a.currency, currency, snapshot),
-          sortablePrice(b.list_price, b.currency, currency, snapshot),
-          1,
-        ) || a.currency.localeCompare(b.currency)
+      ? comparePrice(price(a).value, price(b).value, 1) ||
+        price(a).currency.localeCompare(price(b).currency)
       : sort === "price_desc"
-        ? comparePrice(
-            sortablePrice(a.list_price, a.currency, currency, snapshot),
-            sortablePrice(b.list_price, b.currency, currency, snapshot),
-            -1,
-          ) || a.currency.localeCompare(b.currency)
+        ? comparePrice(price(a).value, price(b).value, -1) ||
+          price(a).currency.localeCompare(price(b).currency)
         : sort === "newest"
           ? yearbookYear(b) - yearbookYear(a)
           : a.name.localeCompare(b.name),
@@ -1141,6 +1250,33 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "900",
     },
     detailMeta: { color: colors.muted, fontSize: 11 },
+    regionalBlock: { gap: 2, marginTop: 4 },
+    regionalNote: { color: colors.muted, fontSize: 11, marginBottom: 2 },
+    regionalRow: {
+      minHeight: 36,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    regionalName: { flex: 1, color: colors.ink, fontSize: 13 },
+    regionalConverted: {
+      color: colors.muted,
+      fontFamily: typography.mono,
+      fontSize: 13,
+    },
+    regionalCheapest: { color: colors.buy },
+    regionalToggle: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    regionalToggleText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
     detailPrimary: {
       minHeight: 52,
       alignItems: "center",

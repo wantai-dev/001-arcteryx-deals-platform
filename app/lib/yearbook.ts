@@ -3,6 +3,8 @@ import type {
   CatalogGender,
   CatalogProduct,
   CatalogProductRow,
+  CatalogRegionalPrice,
+  CatalogRegionalPriceRow,
   Product,
 } from './types';
 import { productCategory, productName } from './catalog';
@@ -255,6 +257,103 @@ export function formatCatalogPrice(product: CatalogProduct, locale = product.cou
   return product.list_price_max > product.list_price
     ? `${minimum}–${formatter.format(product.list_price_max)}`
     : minimum;
+}
+
+export const REGIONAL_PRICE_CURRENCIES: Record<string, string> = {
+  us: 'USD', ca: 'CAD', gb: 'GBP', de: 'EUR', fr: 'EUR', nl: 'EUR', fi: 'EUR', ie: 'EUR',
+  se: 'SEK', at: 'EUR', ch: 'CHF', it: 'EUR', es: 'EUR', dk: 'DKK', be: 'EUR',
+};
+
+export type RegionalPriceIndex = Map<string, Map<string, CatalogRegionalPrice>>;
+
+export function normalizeRegionalPrice(row: CatalogRegionalPriceRow): CatalogRegionalPrice | null {
+  const country = String(row.country || '').toLowerCase();
+  const currency = String(row.currency || '').toUpperCase();
+  const catalogId = String(row.catalog_product_id || '');
+  const listPrice = finiteNumber(row.list_price);
+  const listPriceMax = finiteNumber(row.list_price_max);
+  if (
+    row.status !== 'active'
+    || !catalogId.startsWith('arcteryx:')
+    || REGIONAL_PRICE_CURRENCIES[country] !== currency
+    || listPrice === null || listPriceMax === null
+    || listPrice < 0 || listPriceMax < listPrice
+  ) return null;
+  let url: URL;
+  try {
+    url = new URL(String(row.source_url || ''));
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' || url.hostname !== 'arcteryx.com' || !url.pathname.startsWith(`/${country}/`)) return null;
+  return {
+    catalog_product_id: catalogId,
+    country,
+    currency,
+    list_price: listPrice,
+    list_price_max: listPriceMax,
+    source_url: url.toString(),
+  };
+}
+
+export function indexRegionalPrices(prices: CatalogRegionalPrice[]): RegionalPriceIndex {
+  const index: RegionalPriceIndex = new Map();
+  for (const price of prices) {
+    const byCountry = index.get(price.catalog_product_id) ?? new Map<string, CatalogRegionalPrice>();
+    byCountry.set(price.country, price);
+    index.set(price.catalog_product_id, byCountry);
+  }
+  return index;
+}
+
+function canonicalOfficialPrice(product: CatalogProduct): CatalogRegionalPrice {
+  return {
+    catalog_product_id: product.catalog_product_id,
+    country: product.country,
+    currency: product.currency,
+    list_price: product.list_price,
+    list_price_max: product.list_price_max,
+    source_url: product.source_url,
+  };
+}
+
+/** The official price for the shopper's region, falling back to the canonical market. */
+export function officialPriceFor(
+  product: CatalogProduct,
+  index: RegionalPriceIndex,
+  region: string,
+): CatalogRegionalPrice {
+  return index.get(product.catalog_product_id)?.get(region.toLowerCase()) ?? canonicalOfficialPrice(product);
+}
+
+export type ComparedOfficialPrice = {
+  price: CatalogRegionalPrice;
+  converted: { value: number; currency: string; converted: boolean };
+};
+
+/** Other regions' official prices, cheapest first once converted to a common currency. */
+export function otherOfficialPrices(
+  product: CatalogProduct,
+  index: RegionalPriceIndex,
+  shown: CatalogRegionalPrice,
+  target: CurrencyPreference,
+  snapshot: RateSnapshot | null,
+): ComparedOfficialPrice[] {
+  const comparison = target === 'original' ? 'EUR' : target;
+  const rows = [...(index.get(product.catalog_product_id)?.values() ?? [])]
+    .filter((price) => price.country !== shown.country)
+    .map((price) => ({
+      price,
+      sortable: convertAmount(price.list_price, price.currency, comparison, snapshot),
+      converted: convertAmount(price.list_price, price.currency, target, snapshot),
+    }));
+  // Rank by price only when every row converts; a partial ranking would
+  // float whichever currencies happen to have rates.
+  const comparable = rows.every((row) => row.sortable.currency === comparison);
+  rows.sort((left, right) =>
+    (comparable ? left.sortable.value - right.sortable.value : 0)
+    || left.price.country.localeCompare(right.price.country));
+  return rows.map(({ price, converted }) => ({ price, converted }));
 }
 
 export function yearbookFreshnessLabel(lastUpdated: string | null | undefined, locale: string, now = Date.now()): string {

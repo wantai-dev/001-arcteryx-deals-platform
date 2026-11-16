@@ -268,16 +268,20 @@ class CatalogClient:
                 self._sleep(min(2**attempt, 15))
         raise AssertionError("unreachable")
 
-    def fetch_feed(self, gender: str, category: str = "") -> list[dict[str, Any]]:
+    def fetch_feed(
+        self, gender: str, category: str = "", country: str = "us"
+    ) -> list[dict[str, Any]]:
         if gender not in ARCTERYX_GENDERS:
             raise ValueError(f"unsupported Arc'teryx gender query: {gender}")
         if category and category not in ARCTERYX_PRIMARY_CATEGORIES:
             raise ValueError(f"unsupported Arc'teryx category: {category}")
+        if not re.fullmatch(r"[a-z]{2}", country):
+            raise ValueError(f"unsupported Arc'teryx country: {country!r}")
         params = urllib.parse.urlencode(
             {
                 "market": "outdoor",
                 "language": "en",
-                "country": "us",
+                "country": country,
                 "gender": gender,
                 "category": ARCTERYX_CATEGORY_FEED_KEYS.get(category, category),
                 "subCategory": "",
@@ -286,7 +290,7 @@ class CatalogClient:
         )
         payload = self._fetch_json(
             f"{ARCTERYX_FEED_URL}?{params}",
-            scope=f"Arc'teryx feed {gender}/{category or 'all'}",
+            scope=f"Arc'teryx {country} feed {gender}/{category or 'all'}",
             missing_is_empty=bool(category),
         )
         if not isinstance(payload, list):
@@ -1238,11 +1242,21 @@ def sync_to_supabase(
             on_conflict="catalog_product_id,source_hash",
             ignore_duplicates=True,
         ).execute()
-    return {
+    result = {
         "current_upserted": len(current_rows),
         "snapshots_inserted_or_skipped": len(snapshot_rows),
         "existing_loaded": len(existing_rows),
     }
+    regional = state.get("regional_prices")
+    if regional:
+        from catalog.regional_prices import sync_regional_prices
+
+        result.update(
+            sync_regional_prices(
+                client, regional, observed_at=observed_at, batch_size=batch_size
+            )
+        )
+    return result
 
 
 def _parse_scoped_product_ids(values: Sequence[str]) -> dict[str, list[str]]:
@@ -1298,6 +1312,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="repeat to override Arc'teryx category enrichment",
     )
     parser.add_argument("--skip-category-enrichment", action="store_true")
+    parser.add_argument(
+        "--skip-regional-prices",
+        action="store_true",
+        help="skip Arc'teryx official prices for the other Outlet countries",
+    )
     parser.add_argument("--delay", type=float, default=0.25)
     parser.add_argument("--retries", type=int, default=4)
     parser.add_argument("--timeout", type=float, default=60.0)
@@ -1348,6 +1367,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             requested_brands=brands,
             complete_brands=complete_brands,
         )
+        if "arcteryx" in complete_brands and not args.skip_regional_prices:
+            from catalog.regional_prices import collect_regional_prices
+
+            regional_rows, complete_countries, regional_report = collect_regional_prices(
+                client,
+                (
+                    product["catalog_product_id"]
+                    for product in products
+                    if product["brand_key"] == "arcteryx"
+                ),
+            )
+            state["regional_prices"] = {
+                "observed_at": observed_at,
+                "complete_countries": sorted(complete_countries),
+                "report": regional_report,
+                "rows": regional_rows,
+            }
     except (CatalogSourceError, ValueError) as exc:
         print(f"[catalog] ERROR: {exc}", file=sys.stderr)
         return 1
@@ -1360,6 +1396,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"complete_brands={','.join(sorted(complete_brands)) or 'none'} "
         f"authoritative={str(authoritative).lower()}"
     )
+    regional = state.get("regional_prices")
+    if regional:
+        report = regional["report"]
+        incomplete = sorted(country for country, entry in report.items() if not entry["complete"])
+        priced = ",".join(
+            f"{country}:{entry['priced']}"
+            for country, entry in sorted(report.items())
+            if entry["complete"]
+        )
+        print(
+            f"[catalog] regional_prices={len(regional['rows'])} "
+            f"complete_countries={','.join(regional['complete_countries']) or 'none'} "
+            f"incomplete={','.join(incomplete) or 'none'} priced={priced or 'none'}"
+        )
+        for country in incomplete:
+            print(f"[catalog] regional {country} skipped: {report[country]['error']}")
     if args.dry_run:
         print("[catalog] dry-run: no files or remote tables changed")
         return 0

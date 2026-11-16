@@ -82,10 +82,16 @@ mkdir -p dealers/_partial
 rm -f dealers/_partial/*.json
 for d in burton backcountry evo rei; do
     log "→ dealers.$d"
-    if timeout 1800 $PYTHON -m dealers.$d >> "$LOG" 2>&1; then
+    dealer_timeout=1800
+    # EVO reads roughly 550 rendered PDP pages for products whose UCP variant
+    # list is truncated, which needs more than 30 minutes (matches GitHub).
+    if [ "$d" = "evo" ]; then
+        dealer_timeout=3600
+    fi
+    if timeout "$dealer_timeout" $PYTHON -m dealers.$d >> "$LOG" 2>&1; then
         log "  ✓ $d done"
     else
-        log "  ✗ $d failed (timeout 30 min or error)"
+        log "  ✗ $d failed (timeout ${dealer_timeout}s or error)"
     fi
 done
 

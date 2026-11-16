@@ -28,6 +28,7 @@
       "paths": [
         "**/*.py",
         ".github/workflows/**",
+        "server_run_*.sh",
         "requirements.txt"
       ],
       "command": [

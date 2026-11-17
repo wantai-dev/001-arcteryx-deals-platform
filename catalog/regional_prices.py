@@ -7,6 +7,11 @@ Australia with local-currency prices under the same style IDs, and its
 collects one price row per (style, country) for styles present in the US
 catalog and syncs them to ``catalog_product_prices``.
 
+Australia is not in that feed. arcteryx.com.au is a Shopify store, so its
+prices come from the store's UCP catalog instead (see ``collect_au_prices``).
+It sells some previous-generation styles under older style IDs; only styles
+whose ID matches the US catalog exactly are priced, never by name.
+
 Each country is judged on its own: a failed or implausible country is reported
 and skipped, never aged out, so one flaky market cannot retire another
 market's prices.
@@ -19,6 +24,8 @@ import json
 import re
 import urllib.parse
 from typing import Any, Iterable, Mapping, Sequence
+
+from tools.shopify_ucp import UcpCatalogClient, UcpError, money
 
 from catalog.official_catalog import (
     ARCTERYX_GENDERS,
@@ -53,6 +60,26 @@ REGIONAL_CURRENCIES = {
     "be": "EUR",
 }
 REGIONAL_COUNTRIES = tuple(REGIONAL_CURRENCIES)
+
+# Australia (Shopify UCP). Endpoint/storefront match global_scraper's AU sale
+# crawl; they are repeated here so the catalog job never imports Playwright.
+AU_COUNTRY = "au"
+AU_CURRENCY = "AUD"
+AU_SOURCE_NAME = "arcteryx_au_shopify_ucp"
+AU_STOREFRONT = "https://arcteryx.com.au"
+AU_UCP_ENDPOINT = "https://arcteryx-au.myshopify.com/api/ucp/mcp"
+AU_UCP_MAX_PAGES = 60
+# The AU catalog listed 869 products on 2026-11-18; a short walk is a failure.
+AU_MIN_CATALOG_PRODUCTS = 300
+# 175 AU styles shared an ID with the US catalog on 2026-11-18.
+AU_MIN_PRICED_STYLES = 120
+AU_SALE_COLLECTION_HANDLES = frozenset({"sale", "outlet", "mens-outlet", "womens-outlet"})
+# AU variant SKUs are the style ID plus a two-digit colour code.
+AU_STYLE_SKU_RE = re.compile(r"^(X[0-9]{9})[0-9]{2}$")
+AU_HANDLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# Countries whose failure is reported but does not fail the whole readback:
+# UCP is rate limited, while the official feed countries are not.
+OPTIONAL_REGIONAL_COUNTRIES = frozenset({AU_COUNTRY})
 # European feeds list ~200 styles per gender, North America ~230 (2026-11-17).
 MIN_REGIONAL_PRODUCTS_PER_GENDER = 120
 MAX_REGIONAL_PRODUCTS_PER_GENDER = 2_000
@@ -176,6 +203,107 @@ def collect_regional_prices(
             "not_in_us_catalog": len(by_id) - len(priced),
         }
     return rows, complete, report
+
+
+def _au_list_price(product: Mapping[str, Any], variant: Mapping[str, Any]) -> float | None:
+    """Full list price of one AU variant, or None when it cannot be proven.
+
+    Outside a sale UCP exposes only ``price``. A discounted variant carries its
+    compare-at/list price; if a product looks discounted (sale collection or a
+    non-zero list range) but the variant lacks one, the current price may be a
+    sale price, so it is not used as the official list price.
+    """
+    price = money(variant.get("price"), AU_CURRENCY)
+    if price is None:
+        return None
+    listed = money(variant.get("compare_at_price"), AU_CURRENCY) or money(
+        variant.get("list_price"), AU_CURRENCY
+    )
+    if listed is not None and listed > price:
+        return listed
+    range_max = money(((product.get("list_price_range") or {}).get("max")), AU_CURRENCY)
+    on_sale = any(
+        str((collection or {}).get("handle") or "") in AU_SALE_COLLECTION_HANDLES
+        for collection in product.get("collections") or []
+    )
+    if (range_max is not None and range_max > price) or on_sale:
+        return None
+    return price
+
+
+def collect_au_prices(
+    known_catalog_ids: Iterable[str],
+    *,
+    client: Any | None = None,
+) -> tuple[list[dict[str, Any]], bool, dict[str, Any]]:
+    """Return (AU price rows, complete, report entry) from arcteryx.com.au UCP."""
+    known = set(known_catalog_ids)
+    if not known:
+        raise ValueError("regional prices need the US catalog IDs")
+    client = client or UcpCatalogClient(
+        AU_UCP_ENDPOINT,
+        AU_STOREFRONT,
+        context={"address_country": "AU", "language": "en-AU", "currency": AU_CURRENCY},
+    )
+    try:
+        products, walked = client.search_all("", max_pages=AU_UCP_MAX_PAGES)
+        if not walked:
+            raise CatalogSourceError(f"AU UCP walk ended early after {len(products)} products")
+        if len(products) < AU_MIN_CATALOG_PRODUCTS:
+            raise CatalogSourceError(f"AU UCP catalog has only {len(products)} products")
+        styles: dict[str, dict[str, Any]] = {}
+        unproven: set[str] = set()
+        for product in products:
+            handle = _clean_text(product.get("handle"))
+            if not AU_HANDLE_RE.fullmatch(handle):
+                continue
+            for variant in product.get("variants") or ():
+                match = AU_STYLE_SKU_RE.fullmatch(_clean_text(variant.get("sku")).upper())
+                if not match:
+                    continue
+                catalog_id = _catalog_product_id("arcteryx", match.group(1))
+                if catalog_id not in known:
+                    continue
+                listed = _au_list_price(product, variant)
+                if listed is None:
+                    unproven.add(catalog_id)
+                    continue
+                style = styles.setdefault(catalog_id, {"prices": set(), "handles": set()})
+                style["prices"].add(listed)
+                style["handles"].add(handle)
+        # A style with any unprovable variant is left out rather than priced
+        # from a partial (possibly discounted) set of colours.
+        for catalog_id in unproven:
+            styles.pop(catalog_id, None)
+        if len(styles) < AU_MIN_PRICED_STYLES:
+            raise CatalogSourceError(
+                f"AU prices only {len(styles)} US catalog styles (< {AU_MIN_PRICED_STYLES})"
+            )
+    except (CatalogSourceError, UcpError) as exc:
+        return [], False, {"complete": False, "optional": True, "error": str(exc)[:240]}
+
+    rows = []
+    for catalog_id in sorted(styles):
+        style = styles[catalog_id]
+        row = {
+            "catalog_product_id": catalog_id,
+            "country": AU_COUNTRY,
+            "brand_key": "arcteryx",
+            "currency": AU_CURRENCY,
+            "list_price": min(style["prices"]),
+            "list_price_max": max(style["prices"]),
+            "source_name": AU_SOURCE_NAME,
+            "source_url": f"{AU_STOREFRONT}/products/{min(style['handles'])}",
+        }
+        row["source_hash"] = _price_hash(row)
+        rows.append(row)
+    return rows, True, {
+        "complete": True,
+        "optional": True,
+        "priced": len(rows),
+        "catalog_products": len(products),
+        "unproven_styles": len(unproven),
+    }
 
 
 def sync_regional_prices(

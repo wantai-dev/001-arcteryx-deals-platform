@@ -98,3 +98,39 @@ class RegionalPriceMigrationGuardTests(unittest.TestCase):
         self.assertIn("grant select on table public.catalog_product_prices to anon, authenticated", self.sql)
         self.assertNotIn("grant insert on table public.catalog_product_prices to anon", self.sql)
 
+
+
+AU_REGIONAL_MIGRATION = MIGRATION.with_name("20261118030000_arcteryx_au_regional_price.sql")
+
+
+class AustraliaRegionalPriceMigrationGuardTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.sql = AU_REGIONAL_MIGRATION.read_text(encoding="utf-8").lower()
+
+    def test_only_relaxes_the_regional_contracts_it_replaces(self):
+        for name in (
+            "catalog_product_prices_country_check",
+            "catalog_product_prices_check1",
+            "catalog_product_prices_check2",
+            "catalog_product_prices_source_name_check",
+            # Its own constraints too, so a re-run is idempotent.
+            "catalog_product_prices_country_currency_check",
+            "catalog_product_prices_source_check",
+        ):
+            self.assertIn(f"drop constraint if exists {name}", self.sql)
+        self.assertNotIn("drop table", self.sql)
+        self.assertNotIn("alter table public.catalog_products ", self.sql)
+        self.assertNotIn("public.products", self.sql)
+        self.assertNotIn("policy", self.sql)
+        self.assertNotIn("grant", self.sql)
+
+    def test_australia_is_bound_to_aud_its_ucp_source_and_store_urls(self):
+        self.assertIn("'be', 'au')", self.sql)
+        self.assertIn("country = 'au' and currency = 'aud'", self.sql)
+        self.assertIn("source_name = 'arcteryx_au_shopify_ucp'", self.sql)
+        self.assertIn("^https://arcteryx[.]com[.]au/products/", self.sql)
+        # Feed countries keep the exact official feed source and shop URL contract.
+        self.assertIn("country <> 'au'", self.sql)
+        self.assertIn("source_name = 'arcteryx_official_product_feed'", self.sql)
+        self.assertIn("^https://arcteryx[.]com/' || country || '/[a-z]{2}/shop/'", self.sql)

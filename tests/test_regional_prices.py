@@ -2,12 +2,15 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+import catalog.regional_prices as regional_prices
 from catalog.official_catalog import CatalogSourceError
 from catalog.regional_prices import (
+    collect_au_prices,
     collect_regional_prices,
     normalize_regional_price,
     sync_regional_prices,
 )
+from tools.shopify_ucp import UcpError
 from tools.check_official_catalog import CatalogReadbackError, verify_regional_rows
 
 CURRENCY = {"us": "USD", "gb": "GBP", "de": "EUR"}
@@ -181,6 +184,86 @@ class RegionalPriceTests(unittest.TestCase):
             sync_regional_prices(FakeSupabase([]), {"complete_countries": [], "rows": rows}, observed_at="t")
 
 
+def au_variant(sku, cents, *, compare_at=None):
+    variant = {"sku": sku, "price": {"amount": cents, "currency": "AUD"}}
+    if compare_at is not None:
+        variant["compare_at_price"] = {"amount": compare_at, "currency": "AUD"}
+    return variant
+
+
+def au_product(handle, *variants, collections=(), list_max=0):
+    return {
+        "id": f"gid://shopify/Product/{abs(hash(handle))}",
+        "handle": handle,
+        "variants": list(variants),
+        "collections": [{"handle": value} for value in collections],
+        "list_price_range": {"max": {"amount": list_max, "currency": "AUD"}},
+    }
+
+
+class FakeUcp:
+    def __init__(self, products=None, *, walked=True, error=None):
+        self.products, self.walked, self.error = products or [], walked, error
+
+    def search_all(self, query, *, max_pages):
+        if self.error:
+            raise self.error
+        return list(self.products), self.walked
+
+
+@patch.object(regional_prices, "AU_MIN_CATALOG_PRODUCTS", 2)
+@patch.object(regional_prices, "AU_MIN_PRICED_STYLES", 1)
+class AustraliaPriceTests(unittest.TestCase):
+    known = ["arcteryx:x000010521", "arcteryx:x000009239", "arcteryx:x000010735"]
+
+    def test_prices_exact_us_style_ids_only_with_colour_range(self):
+        rows, complete, report = collect_au_prices(self.known, client=FakeUcp([
+            au_product("cerium-hoody-mens-x00001052101", au_variant("X00001052101", 50000)),
+            au_product("cerium-hoody-mens-x00001052106", au_variant("X00001052106", 52000)),
+            # Previous-generation style shares the name but not the ID.
+            au_product("cerium-hoody-mens-x00000731301", au_variant("X00000731301", 45000)),
+            au_product("rho-glove", au_variant("L07880800", 9000)),
+        ]))
+        self.assertTrue(complete)
+        self.assertEqual(report["priced"], 1)
+        (row,) = rows
+        self.assertEqual(row["catalog_product_id"], "arcteryx:x000010521")
+        self.assertEqual((row["list_price"], row["list_price_max"]), (500.0, 520.0))
+        self.assertEqual(row["currency"], "AUD")
+        self.assertEqual(row["source_name"], "arcteryx_au_shopify_ucp")
+        self.assertEqual(row["source_url"], "https://arcteryx.com.au/products/cerium-hoody-mens-x00001052101")
+        self.assertRegex(row["source_hash"], r"^[0-9a-f]{64}$")
+
+    def test_discounted_variant_uses_compare_at_and_unproven_sale_style_is_dropped(self):
+        rows, complete, report = collect_au_prices(self.known, client=FakeUcp([
+            au_product("beta-jacket-womens-x00000923901",
+                       au_variant("X00000923901", 30000, compare_at=60000),
+                       collections=("sale",), list_max=60000),
+            # In the sale collection but no list price exposed: may be a sale price.
+            au_product("covert-x00001073501", au_variant("X00001073501", 20000), collections=("outlet",)),
+            au_product("covert-x00001073506", au_variant("X00001073506", 30000)),
+        ]))
+        self.assertTrue(complete)
+        self.assertEqual([(row["catalog_product_id"], row["list_price"]) for row in rows],
+                         [("arcteryx:x000009239", 600.0)])
+        self.assertEqual(report["unproven_styles"], 1)
+
+    def test_failed_short_or_thin_walk_is_an_optional_incomplete_country(self):
+        cases = {
+            "error": FakeUcp(error=UcpError("UCP search_catalog HTTP 429")),
+            "early": FakeUcp([au_product("a-x00001052101", au_variant("X00001052101", 1000))] * 3, walked=False),
+            "short": FakeUcp([au_product("a-x00001052101", au_variant("X00001052101", 1000))]),
+            "unmatched": FakeUcp([au_product("a", au_variant("X00000000101", 1000))] * 3),
+        }
+        for name, client in cases.items():
+            with self.subTest(name):
+                rows, complete, report = collect_au_prices(self.known, client=client)
+                self.assertEqual(rows, [])
+                self.assertFalse(complete)
+                self.assertTrue(report["optional"])
+                self.assertIn("error", report)
+
+
 class RegionalReadbackTests(unittest.TestCase):
     after = datetime(2026, 11, 17, 9, 59, tzinfo=timezone.utc)
 
@@ -216,6 +299,26 @@ class RegionalReadbackTests(unittest.TestCase):
         for public, expected in cases:
             with self.subTest(expected=list(expected["regional_prices"]["report"])), self.assertRaises(CatalogReadbackError):
                 verify_regional_rows(public, expected, after=self.after, minimum=3)
+
+    def test_incomplete_australia_keeps_old_rows_without_failing(self):
+        expected = self.expected(report={"gb": {"complete": True}, "us": {"complete": True},
+                                         "au": {"complete": False, "optional": True, "error": "HTTP 429"}})
+        old_au = {"catalog_product_id": "arcteryx:x9", "country": "au", "status": "active",
+                  "last_seen_at": "2026-11-16T10:00:00+00:00"}
+        self.assertEqual(
+            verify_regional_rows(self.public() + [old_au], expected, after=self.after, minimum=3),
+            {"gb": 3, "us": 3},
+        )
+
+    def test_complete_australia_uses_its_own_minimum(self):
+        expected = self.expected(report={"gb": {"complete": True}, "us": {"complete": True},
+                                         "au": {"complete": True, "optional": True}})
+        expected["regional_prices"]["complete_countries"].append("au")
+        expected["regional_prices"]["rows"].append({"catalog_product_id": "arcteryx:x1", "country": "au"})
+        au_row = {"catalog_product_id": "arcteryx:x1", "country": "au", "status": "active",
+                  "last_seen_at": "2026-11-17T10:00:00+00:00"}
+        with self.assertRaisesRegex(CatalogReadbackError, "au regional prices 1 below minimum 120"):
+            verify_regional_rows(self.public() + [au_row], expected, after=self.after, minimum=3)
 
     def test_runs_without_regional_state_skip_the_check(self):
         self.assertIsNone(verify_regional_rows([], {}, after=self.after))

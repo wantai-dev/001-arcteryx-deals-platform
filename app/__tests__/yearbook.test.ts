@@ -13,6 +13,8 @@ import {
   normalizeCatalogProduct,
   normalizeRegionalPrice,
   officialPriceFor,
+  formatOfficialPrice,
+  otherOfficialPriceLabels,
   otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
@@ -433,4 +435,27 @@ test('orders other regions cheapest first after conversion and excludes the show
   const original = otherOfficialPrices(product, index, shown, 'original', null);
   assert.deepEqual(original.map((row) => row.price.country), ['ca', 'de', 'us']);
   assert.ok(original.every((row) => !row.converted.converted));
+});
+
+test('other-region rows keep the local price and show conversion only as a hint', () => {
+  const product = normalizeCatalogProduct(arcRow())!;
+  const index = indexRegionalPrices([
+    normalizeRegionalPrice(regionalRow('us', 'USD', 180))!,
+    normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))!,
+    normalizeRegionalPrice(regionalRow('ca', 'CAD', 230))!,
+  ]);
+  const snapshot = { base: 'USD', date: '2026-11-17', rates: { USD: 1, GBP: 0.79, CAD: 1.4, CNY: 7.2 } };
+  const shown = officialPriceFor(product, index, 'gb');
+  const formatOriginal = (value: number, currency: string) => `${currency} ${value.toFixed(0)}`;
+  const [canada] = otherOfficialPrices(product, index, shown, 'CNY', snapshot as never);
+  const labels = otherOfficialPriceLabels(canada!, formatOriginal);
+  // The local column must stay in CAD even though the shopper picked CNY.
+  assert.equal(labels.local, 'CAD 230');
+  assert.equal(labels.converted, `≈ CNY ${((230 / 1.4) * 7.2).toFixed(0)}`);
+  const [local] = otherOfficialPrices(product, index, shown, 'original', snapshot as never);
+  assert.deepEqual(otherOfficialPriceLabels(local!, formatOriginal), { local: 'CAD 230', converted: null });
+  assert.equal(
+    formatOfficialPrice({ list_price: 100, list_price_max: 140, currency: 'EUR' }, formatOriginal),
+    'EUR 100–EUR 140',
+  );
 });

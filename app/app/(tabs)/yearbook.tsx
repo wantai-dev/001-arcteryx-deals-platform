@@ -63,10 +63,12 @@ import {
   comparableYearbookOffer,
   filterYearbookArchive,
   filterYearbookProducts,
+  formatOfficialPrice,
   groupYearbookArchive,
   indexRegionalPrices,
   indexYearbookDeals,
   officialPriceFor,
+  otherOfficialPriceLabels,
   otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
@@ -760,28 +762,29 @@ function CatalogDetailSheet({
                   {b("convertedForReference", { currency })}
                 </Text>
               ) : null}
-              {visibleOthers.map((row, position) => (
-                <View key={row.price.country} style={styles.regionalRow}>
-                  <Text style={styles.regionalName}>
-                    {prefs.regionLabel(row.price.country)}{" "}
-                    {formatRange(row.price, prefs)}
-                  </Text>
-                  {row.converted.converted ? (
-                    <Text
-                      style={[
-                        styles.regionalConverted,
-                        position === 0 ? styles.regionalCheapest : null,
-                      ]}
-                    >
-                      ≈{" "}
-                      {prefs.formatMoney(
-                        row.converted.value,
-                        row.converted.currency,
-                      )}
+              {visibleOthers.map((row, position) => {
+                const labels = otherOfficialPriceLabels(
+                  row,
+                  prefs.formatOriginalMoney,
+                );
+                return (
+                  <View key={row.price.country} style={styles.regionalRow}>
+                    <Text style={styles.regionalName}>
+                      {prefs.regionLabel(row.price.country)} {labels.local}
                     </Text>
-                  ) : null}
-                </View>
-              ))}
+                    {labels.converted ? (
+                      <Text
+                        style={[
+                          styles.regionalConverted,
+                          position === 0 ? styles.regionalCheapest : null,
+                        ]}
+                      >
+                        {labels.converted}
+                      </Text>
+                    ) : null}
+                  </View>
+                );
+              })}
               {others.length > 3 ? (
                 <Pressable
                   accessibilityRole="button"
@@ -952,9 +955,7 @@ function formatRange(
   product: Pick<CatalogRegionalPrice, "list_price" | "list_price_max" | "currency">,
   prefs: ReturnType<typeof usePreferences>,
 ) {
-  const min = prefs.formatMoney(product.list_price, product.currency);
-  const max = prefs.formatMoney(product.list_price_max, product.currency);
-  return product.list_price_max > product.list_price ? `${min}–${max}` : min;
+  return formatOfficialPrice(product, prefs.formatMoney);
 }
 function sortablePrice(
   value: number,

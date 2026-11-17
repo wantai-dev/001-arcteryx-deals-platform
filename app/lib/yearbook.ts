@@ -331,6 +331,37 @@ export type ComparedOfficialPrice = {
   converted: { value: number; currency: string; converted: boolean };
 };
 
+export type MoneyFormatter = (value: number, currency: string) => string;
+
+/** Formats an official price, or its min–max range, with the given formatter. */
+export function formatOfficialPrice(
+  price: Pick<CatalogRegionalPrice, 'list_price' | 'list_price_max' | 'currency'>,
+  format: MoneyFormatter,
+): string {
+  const min = format(price.list_price, price.currency);
+  return price.list_price_max > price.list_price
+    ? `${min}–${format(price.list_price_max, price.currency)}`
+    : min;
+}
+
+/**
+ * Text for one "other regions" row. `local` stays in the region's own
+ * currency so the shopper sees what that store charges; `converted` is the
+ * optional reference amount already expressed in the shopper's currency.
+ * Pass a formatter that never converts (formatOriginalMoney).
+ */
+export function otherOfficialPriceLabels(
+  row: ComparedOfficialPrice,
+  formatOriginal: MoneyFormatter,
+): { local: string; converted: string | null } {
+  return {
+    local: formatOfficialPrice(row.price, formatOriginal),
+    converted: row.converted.converted
+      ? `≈ ${formatOriginal(row.converted.value, row.converted.currency)}`
+      : null,
+  };
+}
+
 /** Other regions' official prices, cheapest first once converted to a common currency. */
 export function otherOfficialPrices(
   product: CatalogProduct,

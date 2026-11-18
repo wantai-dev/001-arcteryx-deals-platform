@@ -1,8 +1,16 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { useTheme } from '../contexts/ThemeContext';
-import { ThemeColors } from '../lib/theme';
+import { text, type ThemeColors } from '../lib/theme';
+import { scaleLength } from '../lib/typeScale';
 
 type Props = {
   title?: string;
@@ -15,13 +23,14 @@ type Props = {
 export function ScreenState({ title = 'Loading', body, loading = false, actionLabel, onAction }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   return (
     <View style={styles.wrap}>
       {loading ? <ActivityIndicator color={colors.accent} /> : null}
       <Text style={styles.title}>{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
       {actionLabel && onAction ? (
-        <Pressable style={({ pressed }) => [styles.action, pressed && styles.actionPressed]} onPress={onAction} accessibilityRole="button">
+        <Pressable style={({ pressed }) => [styles.action, { minHeight: scaleLength(44, fontScale) }, pressed && styles.actionPressed]} onPress={onAction} accessibilityRole="button">
           <Text style={styles.actionText}>{actionLabel}</Text>
         </Pressable>
       ) : null}
@@ -39,15 +48,13 @@ function makeStyles(colors: ThemeColors) { return StyleSheet.create({
     backgroundColor: colors.bg,
   },
   title: {
+    ...text.headline,
     color: colors.ink,
-    fontSize: 17,
-    fontWeight: '700',
     textAlign: 'center',
   },
   body: {
+    ...text.subhead,
     color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
     textAlign: 'center',
   },
   action: {
@@ -61,5 +68,5 @@ function makeStyles(colors: ThemeColors) { return StyleSheet.create({
     paddingVertical: 10,
   },
   actionPressed: { opacity: 0.78 },
-  actionText: { color: colors.surface, fontSize: 14, fontWeight: '800' },
+  actionText: { ...text.subheadEmphasized, color: colors.surface },
 }); }

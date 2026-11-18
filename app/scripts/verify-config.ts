@@ -89,10 +89,10 @@ const proContextSource = readFileSync(join(root, 'contexts/ProContext.tsx'), 'ut
 const currencySource = readFileSync(join(root, 'lib/currency.ts'), 'utf8');
 const iapSource = readFileSync(join(root, 'lib/iap.ts'), 'utf8');
 const i18nSource = readFileSync(join(root, 'lib/i18n.ts'), 'utf8');
-const meSource = readFileSync(join(root, 'app/(tabs)/me.tsx'), 'utf8');
+const meSource = readFileSync(join(root, 'app/(tabs)/me/index.tsx'), 'utf8');
 const dealsSource = readFileSync(join(root, 'app/(tabs)/index.tsx'), 'utf8');
 const tabsLayoutSource = readFileSync(join(root, 'app/(tabs)/_layout.tsx'), 'utf8');
-const yearbookScreenSource = readFileSync(join(root, 'app/(tabs)/yearbook.tsx'), 'utf8');
+const yearbookScreenSource = readFileSync(join(root, 'app/(tabs)/yearbook/index.tsx'), 'utf8');
 const yearbookSource = readFileSync(join(root, 'lib/yearbook.ts'), 'utf8');
 const catalogSource = readFileSync(join(root, 'lib/catalog.ts'), 'utf8');
 const dealsFilterSource = readFileSync(join(root, 'lib/deals.ts'), 'utf8');
@@ -103,7 +103,7 @@ const dealCardSource = readFileSync(join(root, 'components/DealCard.tsx'), 'utf8
 const filterChipsSource = readFileSync(join(root, 'components/FilterChips.tsx'), 'utf8');
 const controlRowSource = readFileSync(join(root, 'components/ControlRow.tsx'), 'utf8');
 const filterSheetSource = readFileSync(join(root, 'components/FilterSheet.tsx'), 'utf8');
-const watchlistSource = readFileSync(join(root, 'app/(tabs)/watchlist.tsx'), 'utf8');
+const watchlistSource = readFileSync(join(root, 'app/(tabs)/watchlist/index.tsx'), 'utf8');
 const watchlistLibSource = readFileSync(join(root, 'lib/watchlist.ts'), 'utf8');
 const productDetailSource = readFileSync(join(root, 'app/product/[skuId].tsx'), 'utf8');
 const alertModalSource = readFileSync(join(root, 'components/AlertModal.tsx'), 'utf8');
@@ -233,7 +233,10 @@ assert.ok(currencySource.includes("target === 'original'"), 'currency conversion
 assert.ok(i18nSource.includes("'zh-Hans'") && i18nSource.includes("'ja'"), 'translation catalog must include supported non-English languages');
 assert.ok(dealsSource.includes('useMarket()'), 'Deals must consume the paired global market context');
 assert.ok(!dealsSource.includes("region: 'us'"), 'Deals must not own a local default region filter');
-assert.ok(dealsSource.includes('numColumns={2}'), 'Deals must render as a 2-column grid');
+assert.ok(
+  dealsSource.includes('numColumns={columns}') && dealsSource.includes('gridColumns(fontScale)'),
+  'Deals must render as a 2-column grid that drops to one column only at accessibility text sizes',
+);
 assert.ok(
   dealsSource.includes('keyboardShouldPersistTaps="handled"'),
   'Deals must let the first product tap through while the search keyboard is open',

@@ -7,7 +7,7 @@ import type {
   CatalogRegionalPriceRow,
   Product,
 } from './types';
-import { productCategory, productName } from './catalog';
+import { productCategory, productName, REGION_OPTIONS } from './catalog';
 import { convertAmount, type CurrencyPreference, type RateSnapshot } from './currency';
 import { normalizeSearchText } from './search';
 
@@ -53,9 +53,20 @@ export type YearbookFilters = {
   query?: string;
   brand?: CatalogBrandKey | 'all';
   gender?: CatalogGender | 'all';
-  category?: string | 'all';
+  /**
+   * A single official slug, or the set of slugs that share one localized label.
+   * The feeds ship singular and plural spellings of the same concept
+   * (`base-layer` / `baselayers`), which must filter as one option.
+   */
+  category?: string | string[] | 'all';
   year?: number | 'all';
 };
+
+function matchesCategory(categories: string[], filter: YearbookFilters['category']) {
+  if (!filter || filter === 'all') return true;
+  const wanted = Array.isArray(filter) ? filter : [filter];
+  return wanted.some((value) => categories.includes(value));
+}
 
 export type YearbookMatchCounts = {
   official_id: number;
@@ -209,7 +220,7 @@ export function filterYearbookProducts(products: CatalogProduct[], filters: Year
   return products.filter((product) => {
     if (filters.brand && filters.brand !== 'all' && product.brand_key !== filters.brand) return false;
     if (filters.gender && filters.gender !== 'all' && product.gender !== filters.gender) return false;
-    if (filters.category && filters.category !== 'all' && !product.categories.includes(filters.category)) return false;
+    if (!matchesCategory(product.categories, filters.category)) return false;
     if (filters.year && filters.year !== 'all' && yearbookYear(product) !== filters.year) return false;
     if (!query) return true;
     const searchable = [
@@ -302,6 +313,23 @@ export function normalizeRegionalPrice(row: CatalogRegionalPriceRow): CatalogReg
     list_price_max: listPriceMax,
     source_url: url.toString(),
   };
+}
+
+/**
+ * Market options for the Yearbook: regions with live deals plus every country
+ * that publishes an official regional price. A market with no sale running
+ * (Australia on 2026-11-18) would otherwise vanish from the picker even though
+ * its official prices are available.
+ */
+export function yearbookRegionOptions(dealRegions: readonly string[], index: RegionalPriceIndex): string[] {
+  const present = new Set(dealRegions.filter((region) => region !== 'all'));
+  for (const byCountry of index.values()) {
+    for (const country of byCountry.keys()) present.add(country);
+  }
+  const preferred = REGION_OPTIONS.filter((region) => region !== 'all' && present.has(region));
+  const fromDeals = dealRegions.filter((region) => region !== 'all' && !preferred.includes(region));
+  const rest = [...present].filter((region) => !preferred.includes(region) && !fromDeals.includes(region)).sort();
+  return ['all', ...preferred, ...fromDeals, ...rest];
 }
 
 export function indexRegionalPrices(prices: CatalogRegionalPrice[]): RegionalPriceIndex {
@@ -552,6 +580,22 @@ export function indexYearbookDeals(catalog: CatalogProduct[], deals: Product[]):
   return { byCatalogId, unmatched, matchCounts };
 }
 
+/**
+ * Merchant artwork for a Yearbook style. The official catalog deliberately
+ * stores no image URLs, so the linked deal listings are the only first-party
+ * photo source the app already ships.
+ */
+export function offerImageUris(offers: Product[]): string[] {
+  const uris: string[] = [];
+  for (const offer of offers) {
+    for (const value of [offer.image_url, ...offer.images]) {
+      const uri = String(value || '').trim();
+      if (uri.startsWith('https://') && !uris.includes(uri)) uris.push(uri);
+    }
+  }
+  return uris;
+}
+
 export function bestYearbookOffers(offers: Product[], preferredCurrency?: string): Product[] {
   const byCurrency = new Map<string, Product>();
   for (const offer of offers.filter(isDiscounted)) {
@@ -638,7 +682,7 @@ export function filterYearbookArchive(
   return products.filter((product) => {
     if (filters.brand && filters.brand !== 'all' && product.brand_key !== filters.brand) return false;
     if (filters.gender && filters.gender !== 'all' && product.gender !== filters.gender) return false;
-    if (filters.category && filters.category !== 'all' && !product.categories.includes(filters.category)) return false;
+    if (!matchesCategory(product.categories, filters.category)) return false;
     if (!query) return true;
     const searchable = [
       product.brand_key,

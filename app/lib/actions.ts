@@ -26,6 +26,11 @@ export function hasNotificationPermission(permissions: Notifications.Notificatio
   return permissions.status === 'granted';
 }
 
+/** iOS selection feedback for segmented controls, filters, and sort pickers. */
+export function selectionTick() {
+  void Haptics.selectionAsync().catch(() => undefined);
+}
+
 export async function softImpact() {
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

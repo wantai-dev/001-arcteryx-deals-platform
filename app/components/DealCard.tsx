@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { TopoPlaceholder } from "./TopoPlaceholder";
 import { usePreferences } from "../contexts/PreferencesContext";
@@ -15,7 +21,8 @@ import {
   regionFlag,
   staleDays,
 } from "../lib/catalog";
-import { radii, typography, type ThemeColors } from "../lib/theme";
+import { radii, text, typography, type ThemeColors } from "../lib/theme";
+import { scaleLength, TYPE_CAP } from "../lib/typeScale";
 import type { DealSignal, Product } from "../lib/types";
 
 type Props = {
@@ -37,6 +44,7 @@ export function DealCard({
 }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
   const { categoryLabel, displayedCurrency, formatMoney, language, t } =
     usePreferences();
   const name = productName(product);
@@ -99,11 +107,21 @@ export function DealCard({
         {allTimeLow ? (
           <View style={styles.lowRibbon}>
             <Ionicons name="star" size={9} color="#FFFFFF" />
-            <Text style={styles.lowRibbonText}>{t("signal.all_time_low")}</Text>
+            <Text
+              style={styles.lowRibbonText}
+              maxFontSizeMultiplier={TYPE_CAP.badge}
+            >
+              {t("signal.all_time_low")}
+            </Text>
           </View>
         ) : (
           <View style={styles.imageBadge}>
-            <Text style={styles.imageBadgeText}>-{product.discount_pct}%</Text>
+            <Text
+            style={styles.imageBadgeText}
+            maxFontSizeMultiplier={TYPE_CAP.badge}
+          >
+            -{product.discount_pct}%
+          </Text>
           </View>
         )}
         <View style={styles.regionBadge}>
@@ -116,7 +134,13 @@ export function DealCard({
             accessibilityRole="button"
             accessibilityLabel={saved ? t("watch.remove") : t("watch.save")}
             accessibilityState={{ selected: saved }}
-            style={styles.saveButton}
+            style={[
+              styles.saveButton,
+              {
+                width: scaleLength(44, fontScale, { max: 1.3 }),
+                height: scaleLength(44, fontScale, { max: 1.3 }),
+              },
+            ]}
             onPress={(event) => {
               event.stopPropagation();
               onToggleSave();
@@ -131,7 +155,11 @@ export function DealCard({
         ) : null}
       </View>
       <View style={styles.body}>
-        <Text style={styles.category} numberOfLines={1}>
+        <Text
+          style={styles.category}
+          numberOfLines={1}
+          maxFontSizeMultiplier={TYPE_CAP.compact}
+        >
           {categoryWithBrand}
         </Text>
         <Text style={[styles.name, hero && styles.heroName]} numberOfLines={2}>
@@ -159,7 +187,11 @@ export function DealCard({
             </Text>
           ) : null}
         </View>
-        <Text style={[styles.signal, signalStyle]} numberOfLines={1}>
+        <Text
+          style={[styles.signal, signalStyle]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={TYPE_CAP.compact}
+        >
           {signalLabel}
         </Text>
       </View>
@@ -212,10 +244,9 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 2,
     },
     imageBadgeText: {
+      ...text.caption2Emphasized,
       ...numeric,
       color: colors.onPhotoDisc,
-      fontSize: 10,
-      fontWeight: "900",
     },
     lowRibbon: {
       position: "absolute",
@@ -230,9 +261,8 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 3,
     },
     lowRibbonText: {
+      ...text.caption2Emphasized,
       color: "#FFFFFF",
-      fontSize: 9.5,
-      fontWeight: "900",
     },
     regionBadge: {
       position: "absolute",
@@ -246,7 +276,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.onPhotoBadge,
     },
     regionBadgeText: {
-      fontSize: 11,
+      ...text.caption2,
       fontFamily: typography.mono,
       fontVariant: typography.tabular,
     },
@@ -254,22 +284,19 @@ const makeStyles = (colors: ThemeColors) =>
       minWidth: 0,
       gap: 4,
     },
-    category: { color: colors.muted, fontSize: 10.5, fontWeight: "700" },
+    category: { ...text.caption1Emphasized, color: colors.muted },
     name: {
+      ...text.subheadEmphasized,
+      lineHeight: 19,
       color: colors.ink,
-      fontSize: 13.5,
-      lineHeight: 17,
-      fontWeight: "800",
     },
     heroName: {
-      fontSize: 14.5,
-      lineHeight: 19,
+      ...text.calloutEmphasized,
     },
     meta: {
+      ...text.caption1,
       color: colors.muted,
       marginTop: 1,
-      fontSize: 11.5,
-      fontWeight: "600",
     },
     saveButton: {
       position: "absolute",
@@ -283,26 +310,23 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.onPhotoBadge,
     },
     currencyCode: {
+      ...text.caption2Emphasized,
       color: colors.muted,
       fontFamily: typography.mono,
-      fontSize: 9,
-      fontWeight: "800",
     },
     signal: {
-      fontSize: 11.5,
-      lineHeight: 15,
-      fontWeight: "700",
+      ...text.caption1Emphasized,
     },
     signalGood: {
       color: colors.buy,
     },
     signalFlat: {
       color: colors.muted,
-      fontWeight: "600",
+      fontWeight: "400",
     },
     signalStale: {
       color: colors.faint,
-      fontWeight: "600",
+      fontWeight: "400",
     },
     priceRow: {
       flexDirection: "row",
@@ -311,20 +335,20 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 7,
     },
     sale: {
+      ...text.calloutEmphasized,
       ...numeric,
       color: colors.disc,
-      fontSize: 14.5,
-      fontWeight: "900",
+      fontWeight: "700",
       letterSpacing: 0,
     },
     heroSale: {
       fontSize: 17,
+      lineHeight: 22,
     },
     original: {
+      ...text.caption1,
       ...numeric,
       color: colors.faint,
-      fontSize: 11.5,
       textDecorationLine: "line-through",
-      fontWeight: "700",
     },
   });

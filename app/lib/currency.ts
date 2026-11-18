@@ -53,6 +53,37 @@ export function formatCurrencyValue(value: number, currency: string, locale: str
   }
 }
 
+/** Dollar currencies that all render as "$" with a narrow symbol. */
+export const EXPLICIT_DOLLAR_SYMBOLS: Readonly<Record<string, string>> = { USD: 'US$', CAD: 'CA$', AUD: 'A$' };
+
+/**
+ * Like formatCurrencyValue, but names which dollar a price is in (US$, CA$,
+ * A$) where several markets sit side by side. Number format and symbol
+ * position still follow the locale; other currencies are unchanged.
+ */
+export function formatCurrencyValueExplicit(value: number, currency: string, locale: string, fallbackSymbol = '') {
+  const explicit = EXPLICIT_DOLLAR_SYMBOLS[currency];
+  if (!explicit) return formatCurrencyValue(value, currency, locale, fallbackSymbol);
+  try {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+    if (typeof formatter.formatToParts === 'function') {
+      return formatter
+        .formatToParts(value)
+        .map((part) => (part.type === 'currency' ? explicit : part.value))
+        .join('');
+    }
+    return formatter.format(value).replace('$', explicit);
+  } catch {
+    return `${explicit}${Math.round(value).toLocaleString(locale)}`;
+  }
+}
+
 export async function fetchRateSnapshot(fetcher: typeof fetch = fetch) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);

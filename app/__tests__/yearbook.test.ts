@@ -7,18 +7,20 @@ import {
   filterYearbookArchive,
   filterYearbookProducts,
   formatCatalogPrice,
+  formatOfficialPrice,
   groupYearbookArchive,
   indexRegionalPrices,
   indexYearbookDeals,
   normalizeCatalogProduct,
   normalizeRegionalPrice,
+  offerImageUris,
   officialPriceFor,
-  formatOfficialPrice,
   otherOfficialPriceLabels,
   otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
   yearbookFreshnessLabel,
+  yearbookRegionOptions,
   yearbookYear,
   yearbookYears,
 } from '../lib/yearbook';
@@ -474,4 +476,54 @@ test('accepts Australia only from the arcteryx.com.au store in AUD', () => {
   const product = normalizeCatalogProduct(arcRow())!;
   const index = indexRegionalPrices([au!, normalizeRegionalPrice(regionalRow('us', 'USD', 180))!]);
   assert.equal(officialPriceFor(product, index, 'au').list_price, 280);
+});
+
+test('collects merchant photos for a style and drops duplicate or non-HTTPS URLs', () => {
+  const uris = offerImageUris([
+    deal({ sku_id: 'a', image_url: 'https://cdn.example/a.jpg', images: ['https://cdn.example/a-alt.jpg'] }),
+    deal({ sku_id: 'b', image_url: 'https://cdn.example/a.jpg', images: [] }),
+    deal({ sku_id: 'c', image_url: 'http://cdn.example/insecure.jpg', images: ['   '] }),
+    deal({ sku_id: 'd', image_url: null, images: ['https://cdn.example/d.jpg'] }),
+  ]);
+  assert.deepEqual(uris, [
+    'https://cdn.example/a.jpg',
+    'https://cdn.example/a-alt.jpg',
+    'https://cdn.example/d.jpg',
+  ]);
+});
+
+test('returns no photo candidates when every linked listing lacks artwork', () => {
+  assert.deepEqual(offerImageUris([deal({ image_url: null, images: [] })]), []);
+  assert.deepEqual(offerImageUris([]), []);
+});
+
+test('a category filter accepts the slug aliases that share one label', () => {
+  const rows = [
+    normalizeCatalogProduct(arcRow({ categories: ['base-layer'] }))!,
+    normalizeCatalogProduct(arcRow({
+      catalog_product_id: 'arcteryx:x000009716',
+      official_product_id: 'X000009716',
+      name: "Rho Crew Neck LS Women's",
+      categories: ['baselayers'],
+    }))!,
+    normalizeCatalogProduct(arcRow({
+      catalog_product_id: 'arcteryx:x000009717',
+      official_product_id: 'X000009717',
+      name: "Beta Jacket Men's",
+      categories: ['shell-jackets'],
+    }))!,
+  ];
+  assert.equal(filterYearbookProducts(rows, { category: 'base-layer' }).length, 1);
+  assert.equal(filterYearbookProducts(rows, { category: ['base-layer', 'baselayers'] }).length, 2);
+  assert.equal(filterYearbookProducts(rows, { category: 'all' }).length, 3);
+});
+
+test('Yearbook market options keep priced countries without a running sale', () => {
+  const au = normalizeRegionalPrice(regionalRow('au', 'AUD', 660, { source_url: 'https://arcteryx.com.au/products/cerium-hoody-mens-x00001052110' }))!;
+  const gb = normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))!;
+  const index = indexRegionalPrices([au, gb]);
+  // No AU deals: Australia still appears, in the usual market order.
+  assert.deepEqual(yearbookRegionOptions(['all', 'us', 'gb', 'de'], index), ['all', 'us', 'gb', 'au', 'de']);
+  // Nothing priced: deal regions pass through unchanged.
+  assert.deepEqual(yearbookRegionOptions(['all', 'us', 'se'], indexRegionalPrices([])), ['all', 'us', 'se']);
 });

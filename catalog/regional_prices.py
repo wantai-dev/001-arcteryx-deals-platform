@@ -25,7 +25,7 @@ import re
 import urllib.parse
 from typing import Any, Iterable, Mapping, Sequence
 
-from tools.shopify_ucp import UcpCatalogClient, UcpError, money
+from tools.shopify_ucp import UcpCatalogClient, UcpError, money, variant_available
 
 from catalog.official_catalog import (
     ARCTERYX_GENDERS,
@@ -77,6 +77,9 @@ AU_SALE_COLLECTION_HANDLES = frozenset({"sale", "outlet", "mens-outlet", "womens
 # AU variant SKUs are the style ID plus a two-digit colour code.
 AU_STYLE_SKU_RE = re.compile(r"^(X[0-9]{9})[0-9]{2}$")
 AU_HANDLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# Most AU colour pages end in their SKU; a few keep legacy handles such as
+# "cerium-hoody-mens-copy-2" (still real, published colour pages).
+AU_SKU_HANDLE_RE = re.compile(r"-x[0-9]{11}$")
 # Countries whose failure is reported but does not fail the whole readback:
 # UCP is rate limited, while the official feed countries are not.
 OPTIONAL_REGIONAL_COUNTRIES = frozenset({AU_COUNTRY})
@@ -231,6 +234,24 @@ def _au_list_price(product: Mapping[str, Any], variant: Mapping[str, Any]) -> fl
     return price
 
 
+def _au_source_handle(pages: Mapping[str, Mapping[str, Any]]) -> str:
+    """Pick the colour page the Yearbook links to for one AU style.
+
+    Each AU colour is its own product page. Prefer one with stock, then a
+    handle that carries its SKU, then the lowest colour code, so the link is
+    stable and does not land on a sold-out colour.
+    """
+    return min(
+        pages,
+        key=lambda handle: (
+            not pages[handle]["available"],
+            not AU_SKU_HANDLE_RE.search(handle),
+            pages[handle]["colour"],
+            handle,
+        ),
+    )
+
+
 def collect_au_prices(
     known_catalog_ids: Iterable[str],
     *,
@@ -268,9 +289,13 @@ def collect_au_prices(
                 if listed is None:
                     unproven.add(catalog_id)
                     continue
-                style = styles.setdefault(catalog_id, {"prices": set(), "handles": set()})
+                style = styles.setdefault(catalog_id, {"prices": set(), "pages": {}})
                 style["prices"].add(listed)
-                style["handles"].add(handle)
+                page = style["pages"].setdefault(
+                    handle, {"available": False, "colour": match.group(0)[-2:]}
+                )
+                page["available"] = page["available"] or variant_available(variant)
+                page["colour"] = min(page["colour"], match.group(0)[-2:])
         # A style with any unprovable variant is left out rather than priced
         # from a partial (possibly discounted) set of colours.
         for catalog_id in unproven:
@@ -293,7 +318,7 @@ def collect_au_prices(
             "list_price": min(style["prices"]),
             "list_price_max": max(style["prices"]),
             "source_name": AU_SOURCE_NAME,
-            "source_url": f"{AU_STOREFRONT}/products/{min(style['handles'])}",
+            "source_url": f"{AU_STOREFRONT}/products/{_au_source_handle(style['pages'])}",
         }
         row["source_hash"] = _price_hash(row)
         rows.append(row)

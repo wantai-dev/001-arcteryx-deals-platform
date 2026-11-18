@@ -121,7 +121,7 @@ const expo = appConfig.expo;
 
 assert.equal(expo.name, 'GearDrop');
 assert.equal(expo.slug, 'geardrop');
-assert.equal(expo.version, '1.2.2');
+assert.equal(expo.version, '1.2.3');
 assert.equal(expo.scheme, 'geardrop');
 assert.equal(expo.userInterfaceStyle, 'automatic');
 assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleDisplayName, '值de');
@@ -129,7 +129,7 @@ assert.equal(expo.locales?.['zh-Hans']?.ios?.CFBundleName, '值de');
 assert.equal(expo.locales?.['zh-Hans']?.android?.app_name, '值de');
 assert.equal(expo.ios?.bundleIdentifier, 'dev.100app.geardrop');
 assert.equal(expo.ios?.supportsTablet, false, 'release candidate must remain iPhone-only until iPad UI and screenshots are verified');
-assert.equal(expo.ios?.buildNumber, '17');
+assert.equal(expo.ios?.buildNumber, '18');
 assert.equal(expo.extra?.appFilingNumber, '沪ICP备2026041676号-2A');
 assert.equal(expo.ios?.config?.usesNonExemptEncryption, false);
 assertNoTrademark(expo.name, 'expo.name');
@@ -183,7 +183,7 @@ assert.equal(
 );
 
 assert.equal(packageJson.main, 'expo-router/entry');
-assert.equal(packageJson.version, '1.2.2');
+assert.equal(packageJson.version, '1.2.3');
 assert.ok(packageJson.scripts.typecheck, 'missing typecheck script');
 assert.ok(packageJson.scripts.doctor, 'missing doctor script');
 assert.ok(packageJson.scripts.test, 'missing test script');
@@ -360,6 +360,6 @@ assert.ok(liveDataVerifierSource.includes('YEARBOOK_BRAND_MIN_ROWS'), 'live data
 assert.ok(!liveDataVerifierSource.includes('products.length >= 5000'), 'live data verification must not use a volatile aggregate catalog floor');
 
 console.log(
-  'config_ok name=GearDrop version=1.2.2 bundle=dev.100app.geardrop buildNumber=' + expo.ios?.buildNumber + ' usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
+  'config_ok name=GearDrop version=1.2.3 bundle=dev.100app.geardrop buildNumber=' + expo.ios?.buildNumber + ' usesNonExemptEncryption=false privacyUrl=https://geardrop.100app.dev/privacy.html plugins=' +
     [...pluginNames].join(','),
 );

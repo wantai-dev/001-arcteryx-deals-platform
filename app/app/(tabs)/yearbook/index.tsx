@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -153,6 +153,9 @@ export default function YearbookScreen() {
   );
   const [detailOpen, setDetailOpen] = useState(false);
   const [alertProduct, setAlertProduct] = useState<CatalogProduct | null>(null);
+  // iOS cannot present the alert modal while the detail sheet's modal is still
+  // dismissing, so the alert opens only after the sheet reports it closed.
+  const pendingAlert = useRef<CatalogProduct | null>(null);
 
   async function toggleModelWithFeedback(
     product: CatalogProduct,
@@ -648,9 +651,14 @@ export default function YearbookScreen() {
             dealIndex.byCatalogId[selectedProduct.catalog_product_id] || []
           }
           onClose={() => setDetailOpen(false)}
-          onClosed={() => setSelectedProduct(null)}
+          onClosed={() => {
+            setSelectedProduct(null);
+            const next = pendingAlert.current;
+            pendingAlert.current = null;
+            if (next) setTimeout(() => setAlertProduct(next), 0);
+          }}
           onAlert={() => {
-            setAlertProduct(selectedProduct);
+            pendingAlert.current = selectedProduct;
             setDetailOpen(false);
           }}
           onToggleSave={() =>

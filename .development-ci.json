@@ -124,8 +124,53 @@
         "verify:store-metadata"
       ],
       "cwd": "app"
+    },
+    {
+      "id": "ci-engine-tests",
+      "paths": [
+        "tools/development_ci.py",
+        "tools/ci/**",
+        ".development-ci.json"
+      ],
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/ci/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "."
     }
   ],
+  "classify": {
+    "l2_paths": {
+      "schema-migration": [
+        "supabase/**",
+        "supabase_schema.sql",
+        "dealers/supabase_migration*.sql"
+      ],
+      "build-ci-config": [
+        "ops/**",
+        "vercel.json",
+        "server_run_*.sh",
+        "app/app.json",
+        "app/eas.json",
+        "app/tsconfig.json"
+      ],
+      "auth-payment-privacy": [
+        "app/app/privacy.tsx",
+        "privacy.html",
+        "unsubscribe.html"
+      ],
+      "shared-module": [
+        "app/lib/**",
+        "supabase_sync.py"
+      ]
+    }
+  },
   "notes": [
     "Node.js22与Python3.13；根Python tests为原refresh-outlet生命周期验证所用unittest discover，JS测试显式列出当前全部tests/test_*.js。app使用现有npm scripts。",
     "app verify:local含live汇率、线上数据探针、Expo doctor下载与iOS导出清理，因此没有直接作为完整回归命令；只选它已有的隔离unit/typecheck/config/assets/store-metadata步骤。full不包括App Store、iOS构建/提交、截图视觉验收或真实汇率与生产数据新鲜度。",

@@ -20,6 +20,7 @@ import {
   yearbookBrands,
   yearbookCategories,
   yearbookFreshnessLabel,
+  yearbookRegionOptions,
   yearbookYear,
   yearbookYears,
 } from '../lib/yearbook';
@@ -515,4 +516,14 @@ test('a category filter accepts the slug aliases that share one label', () => {
   assert.equal(filterYearbookProducts(rows, { category: 'base-layer' }).length, 1);
   assert.equal(filterYearbookProducts(rows, { category: ['base-layer', 'baselayers'] }).length, 2);
   assert.equal(filterYearbookProducts(rows, { category: 'all' }).length, 3);
+});
+
+test('Yearbook market options keep priced countries without a running sale', () => {
+  const au = normalizeRegionalPrice(regionalRow('au', 'AUD', 660, { source_url: 'https://arcteryx.com.au/products/cerium-hoody-mens-x00001052110' }))!;
+  const gb = normalizeRegionalPrice(regionalRow('gb', 'GBP', 150))!;
+  const index = indexRegionalPrices([au, gb]);
+  // No AU deals: Australia still appears, in the usual market order.
+  assert.deepEqual(yearbookRegionOptions(['all', 'us', 'gb', 'de'], index), ['all', 'us', 'gb', 'au', 'de']);
+  // Nothing priced: deal regions pass through unchanged.
+  assert.deepEqual(yearbookRegionOptions(['all', 'us', 'se'], indexRegionalPrices([])), ['all', 'us', 'se']);
 });

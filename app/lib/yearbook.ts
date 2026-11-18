@@ -7,7 +7,7 @@ import type {
   CatalogRegionalPriceRow,
   Product,
 } from './types';
-import { productCategory, productName } from './catalog';
+import { productCategory, productName, REGION_OPTIONS } from './catalog';
 import { convertAmount, type CurrencyPreference, type RateSnapshot } from './currency';
 import { normalizeSearchText } from './search';
 
@@ -313,6 +313,23 @@ export function normalizeRegionalPrice(row: CatalogRegionalPriceRow): CatalogReg
     list_price_max: listPriceMax,
     source_url: url.toString(),
   };
+}
+
+/**
+ * Market options for the Yearbook: regions with live deals plus every country
+ * that publishes an official regional price. A market with no sale running
+ * (Australia on 2026-11-18) would otherwise vanish from the picker even though
+ * its official prices are available.
+ */
+export function yearbookRegionOptions(dealRegions: readonly string[], index: RegionalPriceIndex): string[] {
+  const present = new Set(dealRegions.filter((region) => region !== 'all'));
+  for (const byCountry of index.values()) {
+    for (const country of byCountry.keys()) present.add(country);
+  }
+  const preferred = REGION_OPTIONS.filter((region) => region !== 'all' && present.has(region));
+  const fromDeals = dealRegions.filter((region) => region !== 'all' && !preferred.includes(region));
+  const rest = [...present].filter((region) => !preferred.includes(region) && !fromDeals.includes(region)).sort();
+  return ['all', ...preferred, ...fromDeals, ...rest];
 }
 
 export function indexRegionalPrices(prices: CatalogRegionalPrice[]): RegionalPriceIndex {

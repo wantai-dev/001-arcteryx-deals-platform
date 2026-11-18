@@ -36,6 +36,7 @@ import { browseText } from "../../../lib/browseI18n";
 import { BRAND, PLATFORM, productCategory } from "../../../lib/catalog";
 import {
   convertAmount,
+  formatCurrencyValueExplicit,
   type CurrencyPreference,
   type RateSnapshot,
 } from "../../../lib/currency";
@@ -74,6 +75,7 @@ import {
   otherOfficialPrices,
   yearbookBrands,
   yearbookCategories,
+  yearbookRegionOptions,
   yearbookYear,
   yearbookYears,
   type ComparedOfficialPrice,
@@ -322,7 +324,10 @@ export default function YearbookScreen() {
           archive.some((item) => item.brand_key === brand),
         );
   const years = yearbookYears(catalog);
-  const regionOptions = availableDealRegions(allDeals);
+  const regionOptions = useMemo(
+    () => yearbookRegionOptions(availableDealRegions(allDeals), regionalPrices),
+    [allDeals, regionalPrices],
+  );
   const activeCount =
     Number(filters.brand !== "all") +
     Number(filters.gender !== "all") +
@@ -933,7 +938,7 @@ function CatalogDetailSheet({
               {visibleOthers.map((row, position) => {
                 const labels = otherOfficialPriceLabels(
                   row,
-                  prefs.formatOriginalMoney,
+                  explicitMoney(prefs).original,
                 );
                 return (
                   <View key={row.price.country} style={styles.regionalRow}>
@@ -1045,7 +1050,7 @@ function offerPriceLabel(
       prefs.rateSnapshot,
     ).offer;
     return selected
-      ? prefs.formatMoney(
+      ? explicitMoney(prefs).display(
           selected.sale_price,
           selected.currency,
           selected.symbol,
@@ -1186,7 +1191,27 @@ function formatRange(
   product: Pick<CatalogRegionalPrice, "list_price" | "list_price_max" | "currency">,
   prefs: ReturnType<typeof usePreferences>,
 ) {
-  return formatOfficialPrice(product, prefs.formatMoney);
+  return formatOfficialPrice(product, explicitMoney(prefs).display);
+}
+/**
+ * The Yearbook shows several markets side by side, so its prices name which
+ * dollar they are in (US$, CA$, A$); otherwise identical to prefs.formatMoney
+ * and prefs.formatOriginalMoney.
+ */
+function explicitMoney(prefs: ReturnType<typeof usePreferences>) {
+  return {
+    original: (value: number, currency: string, symbol = "") =>
+      formatCurrencyValueExplicit(value, currency, prefs.locale, symbol),
+    display: (value: number, currency: string, symbol = "") => {
+      const converted = convertAmount(value, currency, prefs.currency, prefs.rateSnapshot);
+      return formatCurrencyValueExplicit(
+        converted.value,
+        converted.currency,
+        prefs.locale,
+        converted.converted ? "" : symbol,
+      );
+    },
+  };
 }
 function sortablePrice(
   value: number,

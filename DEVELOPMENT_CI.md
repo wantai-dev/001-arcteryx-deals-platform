@@ -40,3 +40,15 @@ python3 tools/development_ci.py full --install
 - 当前清单仅在无生产凭证的隔离checkout执行；完整测试的网络mock/本地HTTP夹具不证明真实源站和生产可用性。
 
 现存业务监控、数据采集与生产发布遵守原有授权及专项验收；不把业务 schedule 充作夜间产品回归。远端 required checks 或规则集需要与新手动 CI 的检查名核对后迁移。
+
+## 改动分级（classify）
+
+```sh
+python3 tools/development_ci.py classify --base origin/dev               # 人读
+python3 tools/development_ci.py classify --base origin/dev --format json # JSON
+```
+
+按全局规则（2026-11-18）判 L0/L1/L2，只报告级别、命中条件和建议命令，不执行任何检查；拿不准一律向上取级。
+L0：只改文档、`classify.l0_paths`（文案/测试数据），或单文件 ≤20 行且只改注释/空行 → 只跑 `git diff --check` 与被改文件语法检查。
+L2：依赖清单/lockfile、workflow、CI 引擎与清单，内置与 `.development-ci.json` 的 `classify.l2_paths` 高风险路径，非文档 diff >300 行，或跨 ≥3 个模块 → `changed --keep-going`，推 `dev` 前本机 `full`，集成批次手动触发远端 CI。其余 L1 → `changed`。
+`changed` 默认首错即停，`--keep-going` 跑完全部选中检查；`full` 默认跑完并输出 `check_summary`。引擎测试由 `ci-engine-tests` 检查运行。

@@ -184,8 +184,10 @@ class RegionalPriceTests(unittest.TestCase):
             sync_regional_prices(FakeSupabase([]), {"complete_countries": [], "rows": rows}, observed_at="t")
 
 
-def au_variant(sku, cents, *, compare_at=None):
+def au_variant(sku, cents, *, compare_at=None, available=None):
     variant = {"sku": sku, "price": {"amount": cents, "currency": "AUD"}}
+    if available is not None:
+        variant["availability"] = {"available": available}
     if compare_at is not None:
         variant["compare_at_price"] = {"amount": compare_at, "currency": "AUD"}
     return variant
@@ -247,6 +249,25 @@ class AustraliaPriceTests(unittest.TestCase):
         self.assertEqual([(row["catalog_product_id"], row["list_price"]) for row in rows],
                          [("arcteryx:x000009239", 600.0)])
         self.assertEqual(report["unproven_styles"], 1)
+
+    def test_links_an_in_stock_colour_page_preferring_sku_handles(self):
+        def url_for(*products):
+            rows, complete, _ = collect_au_prices(self.known, client=FakeUcp(list(products) + [
+                au_product("filler-x00000923901", au_variant("X00000923901", 1000)),
+            ]))
+            self.assertTrue(complete)
+            return {row["catalog_product_id"]: row["source_url"].rsplit("/", 1)[1] for row in rows}["arcteryx:x000010521"]
+
+        legacy = au_product("cerium-hoody-mens-copy-2", au_variant("X00001052102", 66000, available=True))
+        sku_10 = au_product("cerium-hoody-mens-x00001052110", au_variant("X00001052110", 66000, available=True))
+        sku_12 = au_product("cerium-hoody-mens-x00001052112", au_variant("X00001052112", 66000, available=True))
+        sold_out = au_product("cerium-hoody-mens-x00001052101", au_variant("X00001052101", 66000, available=False))
+        # A SKU-named page wins over a legacy handle, lowest colour first.
+        self.assertEqual(url_for(legacy, sku_12, sku_10), "cerium-hoody-mens-x00001052110")
+        # Stock matters more than the handle shape.
+        self.assertEqual(url_for(legacy, sold_out), "cerium-hoody-mens-copy-2")
+        # A legacy handle is kept when it is the only page.
+        self.assertEqual(url_for(legacy), "cerium-hoody-mens-copy-2")
 
     def test_failed_short_or_thin_walk_is_an_optional_incomplete_country(self):
         cases = {

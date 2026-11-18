@@ -59,6 +59,11 @@ const REGIONS = new Set([
   "ch",
 ]);
 
+/** Whether a stored market is one the app supports (independent of live deals). */
+export function isSupportedRegion(region: string): boolean {
+  return REGIONS.has(String(region).toLowerCase());
+}
+
 export const RATE_MAX_AGE_MS = 86400000;
 
 export function rateSnapshotNeedsRefresh(

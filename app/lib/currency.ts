@@ -54,6 +54,8 @@ export function formatCurrencyValue(value: number, currency: string, locale: str
 }
 
 /** Dollar currencies that all render as "$" with a narrow symbol. */
+const DOLLAR_SYMBOL_RE = /[A-Z]{0,3}\$/u;
+
 export const EXPLICIT_DOLLAR_SYMBOLS: Readonly<Record<string, string>> = { USD: 'US$', CAD: 'CA$', AUD: 'A$' };
 
 /**
@@ -72,13 +74,16 @@ export function formatCurrencyValueExplicit(value: number, currency: string, loc
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     });
+    // Engines differ: Node/web render "$", while Hermes (no narrowSymbol)
+    // already renders "US$" / "CA$" / "AU$". Replace whatever dollar symbol
+    // the engine produced so the prefix never doubles (e.g. "USUS$").
     if (typeof formatter.formatToParts === 'function') {
       return formatter
         .formatToParts(value)
         .map((part) => (part.type === 'currency' ? explicit : part.value))
         .join('');
     }
-    return formatter.format(value).replace('$', explicit);
+    return formatter.format(value).replace(DOLLAR_SYMBOL_RE, explicit);
   } catch {
     return `${explicit}${Math.round(value).toLocaleString(locale)}`;
   }

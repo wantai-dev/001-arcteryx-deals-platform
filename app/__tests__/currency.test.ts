@@ -17,3 +17,26 @@ test('explicit formatting leaves non-dollar currencies unchanged', () => {
     assert.equal(formatCurrencyValueExplicit(value, currency, locale), formatCurrencyValue(value, currency, locale));
   }
 });
+
+test('explicit formatting never doubles a prefix the engine already added', () => {
+  // Hermes has no formatToParts here and renders "US$" / "CA$" / "AU$" itself.
+  const Real = Intl.NumberFormat;
+  const symbols: Record<string, string> = { USD: 'US$', CAD: 'CA$', AUD: 'AU$' };
+  class HermesLike {
+    private readonly currency: string;
+    constructor(_locale: string, options: Intl.NumberFormatOptions) {
+      this.currency = String(options.currency);
+    }
+    format(value: number) {
+      return `${symbols[this.currency]}${value}`;
+    }
+  }
+  (Intl as { NumberFormat: unknown }).NumberFormat = HermesLike;
+  try {
+    assert.equal(formatCurrencyValueExplicit(60, 'USD', 'zh-Hans'), 'US$60');
+    assert.equal(formatCurrencyValueExplicit(130, 'CAD', 'zh-Hans'), 'CA$130');
+    assert.equal(formatCurrencyValueExplicit(660, 'AUD', 'zh-Hans'), 'A$660');
+  } finally {
+    (Intl as { NumberFormat: unknown }).NumberFormat = Real;
+  }
+});

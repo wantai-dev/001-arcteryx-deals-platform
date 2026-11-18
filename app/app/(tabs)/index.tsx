@@ -38,6 +38,7 @@ import {
   marketCurrencyOptions,
   marketRegionOptions,
 } from "../../lib/marketOptions";
+import { isSupportedRegion } from "../../lib/preferences";
 import { text, type ThemeColors } from "../../lib/theme";
 import { gridColumns } from "../../lib/typeScale";
 import type { Product } from "../../lib/types";
@@ -119,15 +120,14 @@ export default function DealsScreen() {
     [currency, filters, prefs.rateSnapshot, products, query, region, signals],
   );
 
+  // A supported market with no sale running (e.g. Australia) stays selected:
+  // the Yearbook still has its official prices. Only unknown values reset.
   useEffect(() => {
-    if (
-      !loading &&
-      products.length &&
-      region !== "all" &&
-      !regionOptions.includes(region)
-    )
+    if (!loading && products.length && region !== "all" && !isSupportedRegion(region))
       void setMarket({ region: "all", currency });
-  }, [currency, loading, products.length, region, regionOptions, setMarket]);
+  }, [currency, loading, products.length, region, setMarket]);
+  const marketHasNoDeals =
+    !loading && products.length > 0 && region !== "all" && regionProducts.length === 0;
 
   useEffect(() => {
     if (!filters.lowOnly || coverageComplete || scanPending || scanAttempted)
@@ -250,34 +250,36 @@ export default function DealsScreen() {
                 setFilters((current) => ({ ...current, ...next }));
               }}
             />
-            <Text style={styles.summary}>
-              {b("summary", {
-                market: prefs.regionLabel(region),
-                count: prefs.formatNumber(filtered.length),
-                when: yearbookFreshnessLabel(latest, prefs.language),
-              })}
-              {"  "}
-              <Text style={styles.signalStrong}>
-                {b("summarySignals", {
-                  lows: prefs.formatNumber(signalSummary.lows),
-                  drops: prefs.formatNumber(signalSummary.drops),
+            {marketHasNoDeals ? null : (
+              <Text style={styles.summary}>
+                {b("summary", {
+                  market: prefs.regionLabel(region),
+                  count: prefs.formatNumber(filtered.length),
+                  when: yearbookFreshnessLabel(latest, prefs.language),
                 })}
-              </Text>
-              {"  "}
-              <Text style={styles.coverage}>
-                {coverageComplete
-                  ? b("signalCoverage", {
-                      checked: checkedCount,
-                      total: candidates.length,
-                    })
-                  : scanAttempted && !scanPending
-                    ? b("signalUnavailable")
-                    : b("signalCoverage", {
+                {"  "}
+                <Text style={styles.signalStrong}>
+                  {b("summarySignals", {
+                    lows: prefs.formatNumber(signalSummary.lows),
+                    drops: prefs.formatNumber(signalSummary.drops),
+                  })}
+                </Text>
+                {"  "}
+                <Text style={styles.coverage}>
+                  {coverageComplete
+                    ? b("signalCoverage", {
                         checked: checkedCount,
                         total: candidates.length,
-                      })}
+                      })
+                    : scanAttempted && !scanPending
+                      ? b("signalUnavailable")
+                      : b("signalCoverage", {
+                          checked: checkedCount,
+                          total: candidates.length,
+                        })}
+                </Text>
               </Text>
-            </Text>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -297,17 +299,28 @@ export default function DealsScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <ScreenState
-            title={prefs.t("deals.noMatches")}
-            body={
-              filters.lowOnly && !coverageComplete
-                ? b("loadingLows")
-                : prefs.t("deals.noMatchesBody", {
-                    region: prefs.regionLabel(region),
-                  })
-            }
-            loading={scanPending}
-          />
+          marketHasNoDeals ? (
+            <ScreenState
+              title={prefs.t("deals.noMarketDeals", {
+                region: prefs.regionLabel(region),
+              })}
+              body={prefs.t("deals.noMarketDealsBody")}
+              actionLabel={prefs.t("deals.showAllRegions")}
+              onAction={() => void setMarket({ region: "all", currency })}
+            />
+          ) : (
+            <ScreenState
+              title={prefs.t("deals.noMatches")}
+              body={
+                filters.lowOnly && !coverageComplete
+                  ? b("loadingLows")
+                  : prefs.t("deals.noMatchesBody", {
+                      region: prefs.regionLabel(region),
+                    })
+              }
+              loading={scanPending}
+            />
+          )
         }
         onEndReachedThreshold={0.4}
         onEndReached={() =>

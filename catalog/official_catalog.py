@@ -1368,16 +1368,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             complete_brands=complete_brands,
         )
         if "arcteryx" in complete_brands and not args.skip_regional_prices:
-            from catalog.regional_prices import collect_regional_prices
-
-            regional_rows, complete_countries, regional_report = collect_regional_prices(
-                client,
-                (
-                    product["catalog_product_id"]
-                    for product in products
-                    if product["brand_key"] == "arcteryx"
-                ),
+            from catalog.regional_prices import (
+                AU_COUNTRY,
+                collect_au_prices,
+                collect_regional_prices,
             )
+
+            arcteryx_ids = [
+                product["catalog_product_id"]
+                for product in products
+                if product["brand_key"] == "arcteryx"
+            ]
+            regional_rows, complete_countries, regional_report = collect_regional_prices(
+                client, arcteryx_ids
+            )
+            au_rows, au_complete, regional_report[AU_COUNTRY] = collect_au_prices(arcteryx_ids)
+            if au_complete:
+                regional_rows.extend(au_rows)
+                complete_countries.add(AU_COUNTRY)
             state["regional_prices"] = {
                 "observed_at": observed_at,
                 "complete_countries": sorted(complete_countries),

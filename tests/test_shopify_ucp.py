@@ -1,3 +1,4 @@
+import http.client
 import json
 import unittest
 import urllib.error
@@ -148,6 +149,21 @@ class ShopifyUcpTests(unittest.TestCase):
 
     def test_non_success_ucp_status_raises(self):
         client, _, _ = self.client([rpc_response({"ucp": {"status": "error"}, "products": []})])
+        with self.assertRaises(UcpError):
+            client.call("search_catalog", {"query": ""})
+
+    def test_truncated_body_and_reset_connection_are_retried(self):
+        client, opener, sleep = self.client([
+            http.client.IncompleteRead(b"partial"),
+            ConnectionResetError("reset by peer"),
+            rpc_response({"products": [], "pagination": {"has_next_page": False}}),
+        ])
+        self.assertEqual(client.call("search_catalog", {"query": ""}), {"products": [], "pagination": {"has_next_page": False}})
+        self.assertEqual(opener.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_repeated_truncated_body_raises_ucp_error(self):
+        client, _, _ = self.client([http.client.IncompleteRead(b"x")] * 2, attempts=2)
         with self.assertRaises(UcpError):
             client.call("search_catalog", {"query": ""})
 

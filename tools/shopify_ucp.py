@@ -10,6 +10,7 @@ Only read-only catalog tools are used (``search_catalog`` and
 """
 from __future__ import annotations
 
+import http.client
 import json
 import time
 import urllib.error
@@ -173,7 +174,15 @@ class UcpCatalogClient:
                 # hints and otherwise back off 30s, 60s, 60s, ...
                 backoff = min(60.0, self.base_retry_delay * attempt)
                 delay = hinted if 0 < hinted <= backoff else backoff
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                ConnectionError,
+                http.client.HTTPException,
+                json.JSONDecodeError,
+            ) as exc:
+                # IncompleteRead/RemoteDisconnected (HTTPException) and resets
+                # are transient transport failures, same as a URLError.
                 if attempt == self.attempts:
                     raise UcpError(f"UCP {tool} failed: {exc}") from exc
                 delay = min(60.0, self.base_retry_delay * attempt)

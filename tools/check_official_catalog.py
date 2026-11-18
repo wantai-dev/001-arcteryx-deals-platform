@@ -18,6 +18,12 @@ BRAND_KEYS = ("arcteryx", "burton", "patagonia")
 DEFAULT_MINIMUMS = {"arcteryx": 200, "burton": 350, "patagonia": 350}
 # Each Outlet country priced ~420 Arc'teryx styles on 2026-11-17.
 MIN_REGIONAL_PRICES_PER_COUNTRY = 200
+# Australia only shares ~175 style IDs with the US catalog (2026-11-18); keep
+# in step with catalog.regional_prices.AU_MIN_PRICED_STYLES.
+REGIONAL_MINIMUM_OVERRIDES = {"au": 120}
+# Rate-limited UCP countries: an incomplete run keeps their previous rows and
+# is reported, but does not fail the readback (catalog.regional_prices).
+OPTIONAL_REGIONAL_COUNTRIES = frozenset({"au"})
 
 
 class CatalogReadbackError(RuntimeError):
@@ -140,14 +146,19 @@ def verify_regional_rows(
     if not regional:
         return None
     report = regional.get("report") or {}
-    incomplete = sorted(country for country, entry in report.items() if not entry.get("complete"))
-    if incomplete:
-        raise CatalogReadbackError(f"regional prices incomplete for: {','.join(incomplete)}")
+    incomplete = {country for country, entry in report.items() if not entry.get("complete")}
+    required = sorted(incomplete - OPTIONAL_REGIONAL_COUNTRIES)
+    if required:
+        raise CatalogReadbackError(f"regional prices incomplete for: {','.join(required)}")
+    # Rows of a skipped optional country were not refreshed by this run.
+    skipped = incomplete & OPTIONAL_REGIONAL_COUNTRIES
     expected: dict[str, set[str]] = {}
     for row in regional.get("rows") or ():
         expected.setdefault(str(row.get("country")), set()).add(str(row.get("catalog_product_id")))
     actual: dict[str, set[str]] = {}
     for row in rows:
+        if str(row.get("country")) in skipped:
+            continue
         if row.get("status") != "active":
             raise CatalogReadbackError(f"public regional prices contain a non-active row: {row}")
         key = (str(row.get("catalog_product_id")), str(row.get("country")))
@@ -166,9 +177,10 @@ def verify_regional_rows(
                 f"public {country} prices differ from completed run: missing={missing} unexpected={unexpected}"
             )
         counts[country] = len(actual[country])
-        if counts[country] < minimum:
+        floor = REGIONAL_MINIMUM_OVERRIDES.get(country, minimum)
+        if counts[country] < floor:
             raise CatalogReadbackError(
-                f"public {country} regional prices {counts[country]} below minimum {minimum}"
+                f"public {country} regional prices {counts[country]} below minimum {floor}"
             )
     extra = sorted(set(actual) - set(counts))
     if extra:
@@ -213,6 +225,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"[catalog-readback] OK rows={result['rows']} by_brand={result['by_brand']}")
     if regional is not None:
         print(f"[catalog-readback] OK regional_prices={sum(regional.values())} by_country={regional}")
+        report = expected["regional_prices"].get("report") or {}
+        for country in sorted(OPTIONAL_REGIONAL_COUNTRIES & set(report)):
+            if not report[country].get("complete"):
+                print(
+                    f"[catalog-readback] WARN regional {country} not refreshed this run: "
+                    f"{report[country].get('error', 'incomplete')}"
+                )
     return 0
 
 

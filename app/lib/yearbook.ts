@@ -262,7 +262,15 @@ export function formatCatalogPrice(product: CatalogProduct, locale = product.cou
 export const REGIONAL_PRICE_CURRENCIES: Record<string, string> = {
   us: 'USD', ca: 'CAD', gb: 'GBP', de: 'EUR', fr: 'EUR', nl: 'EUR', fi: 'EUR', ie: 'EUR',
   se: 'SEK', at: 'EUR', ch: 'CHF', it: 'EUR', es: 'EUR', dk: 'DKK', be: 'EUR',
+  au: 'AUD',
 };
+
+/** Australia's official store is arcteryx.com.au (Shopify), not an arcteryx.com country path. */
+function isOfficialRegionalUrl(url: URL, country: string): boolean {
+  if (url.protocol !== 'https:') return false;
+  if (country === 'au') return url.hostname === 'arcteryx.com.au' && url.pathname.startsWith('/products/');
+  return url.hostname === 'arcteryx.com' && url.pathname.startsWith(`/${country}/`);
+}
 
 export type RegionalPriceIndex = Map<string, Map<string, CatalogRegionalPrice>>;
 
@@ -285,7 +293,7 @@ export function normalizeRegionalPrice(row: CatalogRegionalPriceRow): CatalogReg
   } catch {
     return null;
   }
-  if (url.protocol !== 'https:' || url.hostname !== 'arcteryx.com' || !url.pathname.startsWith(`/${country}/`)) return null;
+  if (!isOfficialRegionalUrl(url, country)) return null;
   return {
     catalog_product_id: catalogId,
     country,

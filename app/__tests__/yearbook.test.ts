@@ -459,3 +459,19 @@ test('other-region rows keep the local price and show conversion only as a hint'
     'EUR 100–EUR 140',
   );
 });
+
+test('accepts Australia only from the arcteryx.com.au store in AUD', () => {
+  const auUrl = 'https://arcteryx.com.au/products/vertex-speed-low-shoe-mens-x00000971501';
+  const au = normalizeRegionalPrice(regionalRow('au', 'AUD', 280, { source_url: auUrl }));
+  assert.equal(au?.currency, 'AUD');
+  assert.equal(au?.source_url, auUrl);
+  assert.equal(normalizeRegionalPrice(regionalRow('au', 'USD', 280, { source_url: auUrl })), null);
+  // The arcteryx.com country-path shape is not Australia's store.
+  assert.equal(normalizeRegionalPrice(regionalRow('au', 'AUD', 280)), null);
+  assert.equal(normalizeRegionalPrice(regionalRow('au', 'AUD', 280, { source_url: 'https://evil.example/products/x' })), null);
+  // And the AU store URL does not stand in for another country.
+  assert.equal(normalizeRegionalPrice(regionalRow('gb', 'GBP', 150, { source_url: auUrl })), null);
+  const product = normalizeCatalogProduct(arcRow())!;
+  const index = indexRegionalPrices([au!, normalizeRegionalPrice(regionalRow('us', 'USD', 180))!]);
+  assert.equal(officialPriceFor(product, index, 'au').list_price, 280);
+});
